@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "741991548014",
+    "firebase_url": "https://edutrack-eb824-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "edutrack-eb824",
+    "storage_bucket": "edutrack-eb824.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:741991548014:android:9c2465b08899a4f869127f",
+        "android_client_info": {
+          "package_name": "com.example.edu_track"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClBr3XmwpgEouQxoVqD4DU2z1t_aDlU6E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
