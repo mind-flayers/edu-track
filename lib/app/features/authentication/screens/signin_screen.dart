@@ -228,12 +228,12 @@ class _SignInScreenState extends State<SignInScreen> {
                           print("Forgot Password Pressed"); // Placeholder
                           Get.to(() => const ResetPasswordScreen()); // Navigate to Reset Password
                         },
-                        child: Text('Forgot password?', style: kLinkTextStyle),
                         style: TextButton.styleFrom(
                           minimumSize: Size.zero,
                           padding: EdgeInsets.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
+                        child: Text('Forgot password?', style: kLinkTextStyle),
                       ),
                     ],
                   ),
