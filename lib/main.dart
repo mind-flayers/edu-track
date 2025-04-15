@@ -6,8 +6,6 @@ import 'package:edu_track/app/features/authentication/controllers/auth_controlle
 import 'package:edu_track/app/features/authentication/screens/launching_screen.dart'; // Import Launching Screen
 // Import firebase_options.dart (Generated via FlutterFire CLI)
 import 'firebase_options.dart';
-// Import the Firestore setup script
-import 'package:edu_track/app/utils/firestore_setup.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized
@@ -20,13 +18,6 @@ void main() async {
 
   // Initialize AuthController
   Get.put(AuthController());
-
-  // --- TEMPORARY: Run Firestore Setup ---
-  // Make sure you are logged in with the correct admin user in the app
-  // OR ensure Firestore rules allow writes from unauthenticated users temporarily.
-  // Comment out or remove this line after the database is set up once.
-  await setupFirestoreDatabase();
-  // --- END TEMPORARY ---
 
   // Run the app
   runApp(const MyApp());

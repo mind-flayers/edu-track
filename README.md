@@ -1,129 +1,45 @@
+# edu_track
 
-# Edu-Track 📚📱
+A new Flutter project.
 
-Edu-Track is a clean and modern **admin-only mobile application** built with **Flutter**, **Firebase**, and **Cloudinary**. It is designed to manage student and teacher data for small academies or institutions. The app includes powerful features like:
+## Getting Started
 
-- QR code-based student attendance and payments
-- Firebase Authentication and Firestore Database
-- Cloudinary for photo uploads and QR image storage
-- SMS notifications to parents
-- Export data to Excel or PDF
-- Role-specific profile management
+This project is a starting point for a Flutter application.
 
----
+A few resources to get you started if this is your first Flutter project:
 
-## 🚀 Features
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-- 🔐 **Admin Login**
-- 🧑‍🎓 **Student Management**
-  - Add, edit, and view student details
-  - View attendance and payment history
-  - Generate and download student QR codes
-- 🧑‍🏫 **Teacher Management**
-  - Add, edit, and view teacher details
-- 📅 **Attendance Tracking**
-  - QR code scanning or manual attendance
-  - Auto-send SMS alerts to parents
-- 💸 **Payments Tracking**
-  - Record and verify payments via QR
-  - Export monthly/yearly reports
-- 🧪 **Exam Result Management**
-  - Add exam results with graphs
-- 📤 **Media Storage**
-  - Cloudinary used to upload and manage profile pictures and QR codes
-- 🛠️ **Settings**
-  - Manage admin profile and SMS gateway token
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
 
----
+Generate the Flutter/Dart code for the `DashboardScreen` widget within a mobile admin application for a Student & Teacher Management System built using Flutter, Dart, and Firebase. This app is for admin use only. Assume the following screens are already created: `LaunchingScreen`, `SignInScreen`, `ResetPasswordScreen`. The `DashboardScreen` should be clean, modern, and use dummy data for now. Implement the UI precisely based on the following structure and functionality:
 
-## 🧰 Tech Stack
+1.  **`Scaffold` Structure:**
+    *   **`AppBar` (Top Bar):**
+        *   `leading`: An `IconButton` with a QR code icon (`Icons.qr_code_scanner` or similar) that navigates to `QRCodeScannerScreen` when tapped.
+        *   `title`: A `Text` widget displaying a placeholder name like "My Academy".
+        *   `actions`: A `CircleAvatar` or `IconButton` representing a profile picture that navigates to `ProfileSettingsScreen` when tapped.
+    *   **`body` (Content Section):**
+        *   Apply appropriate `Padding`.
+        *   **Summary Widgets:** Arrange four distinct widgets (e.g., using `Card` or styled `Container` within a `Row` or `GridView`) displaying:
+            *   "Total Students": Show a dummy count (e.g., 50). Make this widget tappable (`InkWell`/`GestureDetector`) to navigate to `StudentListScreen`.
+            *   "Total Teachers": Show a dummy count (e.g., 10). Make this widget tappable to navigate to `TeacherListScreen`.
+            *   "Today's Attendance": Show a dummy value (e.g., "85%"). Make this widget tappable to navigate to `AttendanceSummaryScreen`.
+            *   "Pending Fees": Show a dummy value (e.g., "$500"). This widget should *not* be tappable.
+        *   **Action Buttons:** Below the summary widgets, include three distinct `ElevatedButton` widgets, likely arranged in a `Column` with spacing:
+            *   "Add Student": Navigates to `AddStudentScreen` on tap.
+            *   "Add Teacher": Navigates to `AddTeacherScreen` on tap.
+            *   "Scan QR Code": Navigates to `QRCodeScannerScreen` on tap.
+    *   **`BottomNavigationBar` (Bottom Bar):**
+        *   Implement a `BottomNavigationBar` with the following items:
+            *   **Dashboard:** Icon (`Icons.dashboard`), Label "Dashboard". Navigates to `DashboardScreen` (this should be the active/selected item).
+            *   **Students:** Icon (`Icons.people`), Label "Students". Navigates to `StudentListScreen`.
+            *   **Teachers:** Icon (`Icons.person_pin`), Label "Teachers". Navigates to `TeacherListScreen`.
+            *   **Attendance:** Icon (`Icons.event_available`), Label "Attendance". Navigates to `AttendanceSummaryScreen`.
+            *   **Logout:** Icon (`Icons.logout`), Label "Logout". Implement basic tap functionality (e.g., print a message "Logout Tapped" or navigate back to `SignInScreen`).
+        *   Ensure the correct item (`Dashboard`) is highlighted as active.
 
-- **Flutter** (UI & Logic)
-- **Firebase**
-  - Firebase Auth
-  - Firestore (Database)
-  - Firebase Cloud Functions (optional for SMS trigger)
-- **Cloudinary** (Images & QR code storage)
-- **Traccer SMS Gateway** (SMS notifications)
-- **Excel Export Libraries**
-
----
-
-## 📁 Project Structure (Simplified)
-
-```
-lib/
-├── main.dart
-├── firebase_options.dart
-└── app/
-    ├── features/
-    │   ├── attendance/
-    │   ├── authentication/
-    │   ├── dashboard/
-    │   ├── profile/
-    │   ├── qr_scanner/
-    │   ├── students/
-    │   └── teachers/
-    └── utils/
-        ├── constants.dart
-        └── firestore_setup.dart
-```
-
----
-
-## 🔐 Firebase Setup
-
-- Enable **Firebase Authentication**
-- Create Firestore collections:
-  - `students`, `teachers`, `attendance`, `payments`, `results`
-- Set up Firebase Storage (if used in addition to Cloudinary)
-
----
-
-## ☁️ Cloudinary Setup
-
-- Create a [Cloudinary account](https://cloudinary.com/)
-- Get your **Cloud Name**, **API Key**, and **API Secret**
-- Create separate folders for:
-  - `profile_pictures/`
-  - `student_qrcodes/`
-- Use signed upload for user image uploads
-
----
-
-## 📦 Installation
-
-```bash
-git clone https://github.com/your-username/edu-track.git
-cd edu-track
-flutter pub get
-flutter run
-```
-
----
-
-## 🧪 Coming Soon (Planned)
-
-- Multi-academy support
-- Web admin panel (Flutter Web)
-- Local notifications for reminders
-- Advanced filtering and analytics
-- App for student or parents
-
----
-
-## 🙌 Contributing
-
-This project is private and currently under development by a single developer. Future contributions will be open upon initial release.
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
----
-
-## 📬 Contact
-
-For queries or collaboration, email: **mishaf1106@gmail.com**
+Use standard Flutter Material widgets. Implement navigation using placeholder functions like `Navigator.pushNamed(context, '/screenName')` or `Navigator.push(context, MaterialPageRoute(builder: (_) => ScreenName()))` for the specified target screens (`QRCodeScannerScreen`, `ProfileSettingsScreen`, `StudentListScreen`, `TeacherListScreen`, `AttendanceSummaryScreen`, `AddStudentScreen`, `AddTeacherScreen`, `SignInScreen`). Define placeholder widgets/classes for these target screens if needed for navigation to compile. Focus on creating the described UI layout exactly as in the picture I provided and static functionality with dummy data.
