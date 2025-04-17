@@ -190,26 +190,26 @@ class _StudentListScreenState extends State<StudentListScreen> {
             padding: const EdgeInsets.all(kDefaultPadding),
             child: Column(
               children: [
-                // Search Bar
+                // Search Bar - Adjusted Styling
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search student name',
-                    prefixIcon: Icon(Icons.search, color: kLightTextColor.withOpacity(0.7)),
+                    prefixIcon: Icon(Icons.search, color: kPrimaryColor.withOpacity(0.8)),
                     filled: true,
-                    fillColor: kSecondaryColor.withOpacity(0.8), // Light background
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(kDefaultRadius),
-                      borderSide: BorderSide.none, // No border
+                    fillColor: kSecondaryColor, // White background like image
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: kDefaultPadding), // Adjusted padding
+                    border: OutlineInputBorder( // Consistent border
+                      borderRadius: BorderRadius.circular(kDefaultRadius * 1.5), // More rounded corners
+                      borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.4), width: 1.5),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(kDefaultRadius),
-                      borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.3)), // Subtle border when enabled
+                      borderRadius: BorderRadius.circular(kDefaultRadius * 1.5),
+                      borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.4), width: 1.5), // Match border
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(kDefaultRadius),
-                      borderSide: BorderSide(color: kPrimaryColor, width: 1.5), // Highlight border when focused
+                      borderRadius: BorderRadius.circular(kDefaultRadius * 1.5),
+                      borderSide: BorderSide(color: kPrimaryColor, width: 2.0), // Slightly thicker focus border
                     ),
                   ),
                   style: textTheme.bodyMedium?.copyWith(color: kTextColor),
@@ -218,52 +218,55 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 // Action Row: Add Button and Filter Dropdown
                 Row(
                   children: [
-                    // Add Student Button
-                    Container(
-                      decoration: BoxDecoration(
-                        color: kPrimaryColor,
-                        borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: kPrimaryColor.withOpacity(0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 3),
-                          )
-                        ],
+                    // Add Student Button - Adjusted Shape and Size
+                    ElevatedButton(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddStudentScreen())),
+                      style: ElevatedButton.styleFrom(
+                        // Match dropdown radius
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(kDefaultRadius * 1.5), // Same radius as dropdown container
+                        ),
+                        // Set minimum size to match dropdown height visually & adjust padding
+                        minimumSize: const Size(56, 56), // Set width/height (adjust height based on visual testing if needed)
+                        padding: EdgeInsets.zero, // Remove default padding, size is controlled by minimumSize
+                        backgroundColor: kPrimaryColor,
+                        foregroundColor: Colors.white,
+                        elevation: 3,
                       ),
-                      child: IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white, size: 28),
-                        tooltip: 'Add New Student',
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddStudentScreen())),
-                      ),
+                      child: const Icon(Icons.add, size: 28),
                     ).animate().fadeIn(delay: 100.ms).scale(begin: const Offset(0.8, 0.8)),
                     const SizedBox(width: kDefaultPadding),
-                    // Class Filter Dropdown
+                    // Class Filter Dropdown - Adjusted Styling
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding * 0.75, vertical: 0),
+                        padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: 4), // Adjusted padding
                         decoration: BoxDecoration(
-                          color: kSecondaryColor.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(kDefaultRadius),
-                          border: Border.all(color: kPrimaryColor.withOpacity(0.3)),
+                          color: kSecondaryColor, // White background
+                          borderRadius: BorderRadius.circular(kDefaultRadius * 1.5), // Match search bar rounding
+                          border: Border.all(color: kPrimaryColor.withOpacity(0.4), width: 1.5), // Match search bar border
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _selectedClass ?? _availableClasses.firstOrNull, // Default to first item or null
+                            value: _selectedClass ?? (_availableClasses.contains('All Classes') ? 'All Classes' : _availableClasses.firstOrNull), // Ensure 'All Classes' is default if available
                             isExpanded: true,
-                            icon: Icon(Icons.arrow_drop_down_rounded, color: kPrimaryColor),
-                            dropdownColor: kSecondaryColor, // Match background
+                            icon: Icon(Icons.keyboard_arrow_down_rounded, color: kPrimaryColor.withOpacity(0.8)), // Changed icon
+                            dropdownColor: kSecondaryColor,
                             style: textTheme.bodyMedium?.copyWith(color: kTextColor),
-                            hint: Text('Select Class', style: textTheme.bodyMedium?.copyWith(color: kLightTextColor)),
+                            hint: Text( // Use hint only if nothing is selected (shouldn't happen with default)
+                              'Select Class',
+                              style: textTheme.bodyMedium?.copyWith(color: kLightTextColor.withOpacity(0.8)),
+                            ),
                             items: _availableClasses.map((String className) {
                               return DropdownMenuItem<String>(
                                 value: className,
-                                child: Text(className),
+                                child: Text(
+                                  className,
+                                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500), // Slightly bolder text
+                                ),
                               );
                             }).toList(),
                             onChanged: (String? newValue) {
                               setState(() {
-                                // Handle 'All Classes' selection
                                 _selectedClass = (newValue == 'All Classes') ? null : newValue;
                               });
                             },
@@ -314,11 +317,8 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.only(
-                    left: kDefaultPadding,
-                    right: kDefaultPadding,
-                    bottom: kDefaultPadding, // Add padding at the bottom
-                  ),
+                  // Adjusted padding for the list to match image spacing
+                  padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding * 0.75, vertical: kDefaultPadding / 2),
                   itemCount: filteredStudents.length,
                   itemBuilder: (context, index) {
                     final studentDoc = filteredStudents[index];
@@ -363,14 +363,17 @@ class _StudentListScreenState extends State<StudentListScreen> {
   Widget _buildStudentCard(BuildContext context, String studentId, Map<String, dynamic> data) {
     final textTheme = Theme.of(context).textTheme;
     final name = data['name'] as String? ?? 'N/A';
-    final studentClass = data['class'] as String? ?? 'N/A';
+    final studentClass = data['class'] as String? ?? 'N/A'; // e.g., "Grade 10"
+    final indexNumber = data['indexNumber'] as String? ?? 'N/A'; // Fetch index number
     final photoUrl = data['photoUrl'] as String?;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
-      color: kSecondaryColor, // Use secondary color for card background
+      // Card Styling Adjustments
+      margin: const EdgeInsets.only(bottom: kDefaultPadding), // Increased bottom margin
+      elevation: 1.5, // Slightly reduced elevation
+      shadowColor: Colors.grey.withOpacity(0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius * 1.2)), // Slightly more rounded
+      color: kSecondaryColor,
       child: InkWell(
         borderRadius: BorderRadius.circular(kDefaultRadius),
         onTap: () {
@@ -383,24 +386,32 @@ class _StudentListScreenState extends State<StudentListScreen> {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.all(kDefaultPadding * 0.75),
+          // Adjusted padding within the card
+          padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding * 0.8),
           child: Row(
             children: [
               // Student Info (Name, Class)
               Expanded(
+                // Student Info - Added Index Number and adjusted styles
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center, // Center vertically
                   children: [
                     Text(
                       name,
-                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: kTextColor),
+                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: kTextColor, fontSize: 15), // Adjusted size/weight
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5), // Adjusted spacing
                     Text(
-                      studentClass, // Displaying class as 'Grade X'
-                      style: textTheme.bodySmall?.copyWith(color: kLightTextColor),
+                      'Index No: $indexNumber', // Display Index Number
+                      style: textTheme.bodySmall?.copyWith(color: kLightTextColor, fontSize: 11.5), // Adjusted size
+                    ),
+                     const SizedBox(height: 3), // Adjusted spacing
+                    Text(
+                      studentClass, // e.g., "Grade 10"
+                      style: textTheme.bodySmall?.copyWith(color: kLightTextColor, fontSize: 11.5), // Adjusted size
                     ),
                   ],
                 ),
@@ -408,18 +419,21 @@ class _StudentListScreenState extends State<StudentListScreen> {
               const SizedBox(width: kDefaultPadding),
               // Student Image
               ClipRRect(
-                borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+                // Image Styling Adjustments
+                borderRadius: BorderRadius.circular(kDefaultRadius), // Match card rounding more
                 child: (photoUrl != null && photoUrl.isNotEmpty)
                     ? Image.network(
                         photoUrl,
-                        width: 60,
-                        height: 60,
+                        // Adjusted image size
+                        width: 55,
+                        height: 55,
                         fit: BoxFit.cover,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
                           return Container(
-                            width: 60,
-                            height: 60,
+                            // Adjusted placeholder size
+                            width: 55,
+                            height: 55,
                             color: kLightTextColor.withOpacity(0.1),
                             child: Center(
                               child: CircularProgressIndicator(
@@ -433,19 +447,21 @@ class _StudentListScreenState extends State<StudentListScreen> {
                         },
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
-                            width: 60,
-                            height: 60,
+                            // Adjusted error placeholder size
+                            width: 55,
+                            height: 55,
                             color: kLightTextColor.withOpacity(0.1),
                             child: Icon(Icons.person_outline_rounded, color: kLightTextColor.withOpacity(0.5), size: 30),
                           );
                         },
                       )
                     : Container( // Placeholder if no photoUrl
-                        width: 60,
-                        height: 60,
+                        // Adjusted placeholder size and rounding
+                        width: 55,
+                        height: 55,
                         decoration: BoxDecoration(
                           color: kLightTextColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+                          borderRadius: BorderRadius.circular(kDefaultRadius), // Match image rounding
                         ),
                         child: Icon(Icons.person_outline_rounded, color: kLightTextColor.withOpacity(0.5), size: 30),
                       ),

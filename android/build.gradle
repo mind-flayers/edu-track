@@ -1,3 +1,18 @@
+buildscript {
+    ext.kotlin_version = '1.9.22' // Updated Kotlin version
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.2.1' // Match AGP version from settings.gradle
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        // START: FlutterFire Configuration (Ensure this version is compatible)
+        classpath 'com.google.gms:google-services:4.3.15'
+        // END: FlutterFire Configuration
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -5,12 +20,36 @@ allprojects {
     }
 }
 
-rootProject.buildDir = "../build"
+rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
 subprojects {
-    project.evaluationDependsOn(":app")
+    project.evaluationDependsOn(':app')
+
+    // Set JVM target compatibility for all Kotlin projects, including plugins
+    project.plugins.withId('org.jetbrains.kotlin.android') {
+        project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                jvmTarget = '1.8'
+            }
+        }
+    }
+
+    // Apply specific configurations to particular plugins
+    if (project.name == 'image_gallery_saver') {
+        project.plugins.withId('com.android.library') {
+            android {
+                namespace 'com.example.imagegallerysaver' // Set namespace for image_gallery_saver
+                
+                // Ensure consistent Java compatibility
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_1_8
+                    targetCompatibility JavaVersion.VERSION_1_8
+                }
+            }
+        }
+    }
 }
 
 tasks.register("clean", Delete) {

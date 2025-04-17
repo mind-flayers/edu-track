@@ -1,3 +1,4 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // For kDebugMode
 
@@ -6,6 +7,29 @@ import 'package:flutter/foundation.dart'; // For kDebugMode
 // Call it from a temporary button or from main() during development.
 // REMOVE the call after the database is set up.
 // --- IMPORTANT ---
+
+/// Generates a student index number based on the pattern:
+/// MEC/Last_two_digits_of_the_year/Class+Section/Row_number
+/// 
+/// Example: MEC/25/10A/01
+String generateIndexNumber({
+  required int year,
+  required String className,
+  required String section,
+  required int rowNumber,
+}) {
+  // Extract last two digits of the year
+  final yearSuffix = (year % 100).toString().padLeft(2, '0');
+  
+  // Remove "Grade " prefix if present and combine class with section
+  final classCode = className.replaceAll('Grade ', '') + section;
+  
+  // Format row number with leading zeros
+  final formattedRowNumber = rowNumber.toString().padLeft(2, '0');
+  
+  // Combine all parts to form the index number
+  return 'MEC/$yearSuffix/$classCode/$formattedRowNumber';
+}
 
 Future<void> setupFirestoreDatabase() async {
   if (!kDebugMode) {
@@ -16,6 +40,7 @@ Future<void> setupFirestoreDatabase() async {
   final firestore = FirebaseFirestore.instance;
   final adminUid = 'AzzSlxVmw8UkwfJUjemxqcqQaJX2'; // Your Admin UID
   final now = Timestamp.now();
+  final currentYear = DateTime.now().year;
 
   // Use batch writes for efficiency
   final batch = firestore.batch();
@@ -24,8 +49,9 @@ Future<void> setupFirestoreDatabase() async {
   final adminRef = firestore.collection('admins').doc(adminUid);
   batch.set(adminRef, {
     'name': 'Admin User',
-    'email': 'admin@example.com', // Replace with your actual admin email if needed
-    'profilePhotoUrl': 'https://via.placeholder.com/150',
+    'academyName' : 'My Academy',
+    'email': 'mishaf1106@gmail.com', // Replace with your actual admin email if needed
+    'profilePhotoUrl': 'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864635/profiles/students/vm6bgpeg4ccvy58nig6r.jpg',
     'smsGatewayToken': 'YOUR_INITIAL_SMS_TOKEN', // Replace with actual token later
     'createdAt': now,
     'updatedAt': now,
@@ -88,14 +114,22 @@ Future<void> setupFirestoreDatabase() async {
   // Student 1
   final student1Id = 'STUDENT_${DateTime.now().millisecondsSinceEpoch}_1';
   final student1Ref = firestore.collection('students').doc(student1Id);
+  final student1Class = 'Grade 10';
+  final student1Section = 'A';
   batch.set(student1Ref, {
     'name': 'Mishaf Hasan',
     'email': 'mishaf@example.com',
-    'class': 'Grade 10',
-    'section': 'A',
-    'rollNumber': '10A01',
+    'class': student1Class,
+    'section': student1Section,
+    'indexNumber': generateIndexNumber(
+      year: 2025,
+      className: student1Class,
+      section: student1Section,
+      rowNumber: 1,
+    ),
     'parentName': 'Mr. Hasan',
     'parentPhone': '1112223330',
+    'whatsappNumber': '1112223330',
     'address': '123 Main St, City',
     'photoUrl': 'https://via.placeholder.com/150/1',
     'qrCodeData': student1Id, // Use doc ID as unique QR data
@@ -137,7 +171,7 @@ Future<void> setupFirestoreDatabase() async {
     'resultDate': now,
     'updatedBy': adminUid,
   });
-   batch.set(student1Ref.collection('examResults').doc(), {
+  batch.set(student1Ref.collection('examResults').doc(), {
     'term': term1Ref.id, // Link to Term 1
     'subject': 'Science',
     'marks': 92,
@@ -146,25 +180,32 @@ Future<void> setupFirestoreDatabase() async {
     'updatedBy': adminUid,
   });
 
-
   // Student 2
   final student2Id = 'STUDENT_${DateTime.now().millisecondsSinceEpoch}_2';
   final student2Ref = firestore.collection('students').doc(student2Id);
+  final student2Class = 'Grade 9';
+  final student2Section = 'A';
   batch.set(student2Ref, {
     'name': 'Emily Smith',
     'email': 'emily@example.com',
-    'class': 'Grade 9',
-    'section': 'B',
-    'rollNumber': '09B05',
+    'class': student2Class,
+    'section': student2Section,
+    'indexNumber': generateIndexNumber(
+      year: 2025,
+      className: student2Class,
+      section: student2Section,
+      rowNumber: 5,
+    ),
     'parentName': 'Mrs. Smith',
     'parentPhone': '1112223331',
+    'whatsappNumber': '1112223330',
     'address': '456 Oak Ave, Town',
     'photoUrl': 'https://via.placeholder.com/150/2',
     'qrCodeData': student2Id,
     'joinedAt': now,
     'isActive': true,
   });
-   // Student 2 - Attendance
+  // Student 2 - Attendance
   batch.set(student2Ref.collection('attendance').doc(), {
     'date': '2025-04-13',
     'status': 'absent',
@@ -181,7 +222,7 @@ Future<void> setupFirestoreDatabase() async {
     'paymentMethod': 'Online',
     'markedBy': adminUid,
   });
-   batch.set(student2Ref.collection('fees').doc(), {
+  batch.set(student2Ref.collection('fees').doc(), {
     'year': 2025,
     'month': 4, // April
     'amount': 450,
@@ -190,7 +231,7 @@ Future<void> setupFirestoreDatabase() async {
     'paymentMethod': null,
     'markedBy': null,
   });
-   // Student 2 - Exam Results (Default 0)
+  // Student 2 - Exam Results (Default 0)
   batch.set(student2Ref.collection('examResults').doc(), {
     'term': term1Ref.id, // Link to Term 1
     'subject': 'Mathematics',
@@ -206,17 +247,16 @@ Future<void> setupFirestoreDatabase() async {
   final summaryDate = '2025-04-13'; // Match attendance date above
   final summaryRef = firestore.collection('attendanceSummary').doc(summaryDate);
   batch.set(summaryRef, {
-      'class': 'Overall', // Or specific class if needed
-      'present': 1,
-      'absent': 1,
-      'total': 2,
-      'studentsPresent': [student1Id],
-      'studentsAbsent': [student2Id],
-      'markedBy': adminUid,
-      'markedAt': now,
+    'class': 'Overall', // Or specific class if needed
+    'present': 1,
+    'absent': 1,
+    'total': 2,
+    'studentsPresent': [student1Id],
+    'studentsAbsent': [student2Id],
+    'markedBy': adminUid,
+    'markedAt': now,
   });
-   print("Attendance Summary document prepared.");
-
+  print("Attendance Summary document prepared.");
 
   // --- Commit Batch ---
   try {

@@ -8,6 +8,8 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Removed Kotlin JVM Toolchain configuration
+
 android {
     namespace = "com.example.edu_track"
     compileSdk = flutter.compileSdkVersion
@@ -19,8 +21,10 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = "1.8" // Explicitly set JVM target for Kotlin
     }
+
+    // Removed Java Toolchain configuration
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
