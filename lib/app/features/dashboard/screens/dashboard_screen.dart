@@ -50,7 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
-        Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor);
+        Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Profile Icon
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
           if (data != null && data.containsKey('photoURL')) { photoUrl = data['photoURL'] as String?; }

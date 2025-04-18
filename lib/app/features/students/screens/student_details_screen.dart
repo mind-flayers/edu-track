@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// Removed Riverpod import
+import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart'; // Added
+import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // Added
+import 'package:edu_track/app/utils/constants.dart'; // Added
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:saver_gallery/saver_gallery.dart'; // Changed from image_gallery_saver
+import 'package:saver_gallery/saver_gallery.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:excel/excel.dart' hide TextSpan; // Hide TextSpan from excel package
+import 'package:excel/excel.dart' hide TextSpan;
 import 'dart:io';
-import 'package:http/http.dart' as http; // Added http import
+import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:share_plus/share_plus.dart'; // Added share_plus
 
-// TODO: Import necessary controllers/providers and utility functions
+// TODO: Import necessary controllers/providers
 // import 'package:edu_track/app/features/students/controllers/student_details_controller.dart';
-// import 'package:edu_track/app/utils/constants.dart'; // For colors, styles etc.
-// import 'package:edu_track/app/widgets/custom_app_bar.dart'; // Assuming a custom app bar exists
+// import 'package:edu_track/app/widgets/custom_app_bar.dart';
 
 // Placeholder for Student data model (adapt based on actual implementation)
 class Student {
@@ -36,6 +41,8 @@ class Student {
   final String qrCodeData;
   final Timestamp joinedAt;
   final bool isActive;
+  final String? sex; // Added sex
+  final Timestamp? dob; // Added Date of Birth (as Timestamp)
 
   Student({
     required this.id,
@@ -52,6 +59,8 @@ class Student {
     required this.qrCodeData,
     required this.joinedAt,
     required this.isActive,
+    this.sex, // Added
+    this.dob, // Added
   });
 
   factory Student.fromFirestore(DocumentSnapshot doc) {
@@ -71,6 +80,8 @@ class Student {
       qrCodeData: data['qrCodeData'] ?? doc.id, // Fallback to doc ID
       joinedAt: data['joinedAt'] ?? Timestamp.now(),
       isActive: data['isActive'] ?? true,
+      sex: data['sex'], // Added
+      dob: data['dob'], // Added
     );
   }
 
@@ -179,6 +190,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   String? _selectedExamYear;
   String? _selectedExamTermId;
   String? _selectedFeeYear;
+  bool _isCapturingQr = false; // State variable for QR capture visibility
 
   // TODO: Replace with Riverpod providers for data fetching and state management
   late Future<Student> _studentFuture;
@@ -274,155 +286,252 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
 
   // --- UI Builders ---
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) { // Changed return type to PreferredSizeWidget
-    // TODO: Replace with CustomAppBar if available or style similarly to StudentListScreen
-    return AppBar(
-      title: const Text('Student Details'),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () => Navigator.of(context).pop(),
-      ),
-      actions: [
-        // TODO: Add profile icon button if needed
-        Padding(
-          padding: const EdgeInsets.only(right: 16.0),
-          child: CircleAvatar(
-            // Placeholder - replace with actual user profile logic
-            backgroundColor: Colors.grey.shade300,
-            child: const Icon(Icons.person, color: Colors.white),
+  // Copied from StudentListScreen and adapted for constants
+  Widget _buildProfileAvatar() {
+    final String? userId = AuthController.instance.user?.uid;
+    if (userId == null) {
+      return IconButton(
+        icon: Icon(Icons.account_circle_rounded, size: 30, color: kSecondaryColor), // Use constant
+        tooltip: 'Profile Settings',
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+      );
+    }
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+      builder: (context, snapshot) {
+        String? photoUrl;
+        Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kSecondaryColor); // Use constant
+
+        if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
+          var data = snapshot.data!.data() as Map<String, dynamic>?;
+          if (data != null && data.containsKey('photoURL')) {
+            photoUrl = data['photoURL'] as String?;
+          }
+        } else if (snapshot.hasError) {
+          print("Error fetching admin profile: ${snapshot.error}");
+        }
+
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          profileWidget = CircleAvatar(
+            radius: 18,
+            backgroundColor: kSecondaryColor.withOpacity(0.5), // Use constant
+            backgroundImage: NetworkImage(photoUrl),
+            onBackgroundImageError: (exception, stackTrace) {
+              print("Error loading profile image: $exception");
+            },
+          );
+        }
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(kDefaultRadius * 2),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
+              child: profileWidget,
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+
+
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    // Replicate AppBar from StudentListScreen using constants
+    return AppBar(
+      backgroundColor: kPrimaryColor, // Use theme color
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: kSecondaryColor), // Use constant
+        tooltip: 'Back',
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Text('Student Details', style: textTheme.titleLarge?.copyWith(color: kSecondaryColor)), // Use constant
+      centerTitle: true,
+      actions: [
+        _buildProfileAvatar(), // Use the copied method
       ],
     );
   }
 
   // Updated to accept exam results for calculations and match layout
   Widget _buildStudentInfoSection(Student student, List<ExamResult> currentResults) {
-    // Calculate average score and subject count
+    final textTheme = Theme.of(context).textTheme;
+    // Calculate subject count (using currentResults as per original logic)
     int subjectCount = currentResults.length;
-    double totalMarks = currentResults.fold(0.0, (sum, item) => sum + item.marks);
-    double maxTotalMarks = currentResults.fold(0.0, (sum, item) => sum + item.maxMarks);
-    String averageScore = "N/A";
-    if (subjectCount > 0 && maxTotalMarks > 0) {
-      averageScore = "${((totalMarks / maxTotalMarks) * 100).toStringAsFixed(1)}%";
-    } else if (subjectCount > 0) {
-      // Handle case where maxMarks might be 0 or missing, calculate based on count?
-      // Or assume max marks is 100 per subject if not provided?
-      // For now, showing average raw score if max marks is problematic
-      averageScore = (totalMarks / subjectCount).toStringAsFixed(1);
-    }
 
-    // Define image size
-    const double imageSize = 100.0;
+    // Define image size - adjust as needed based on visual preference
+    const double imageSize = 130.0; // Slightly larger?
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left Column: Text Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(student.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    _buildDetailRow("Index No:", student.indexNumber),
-                    _buildDetailRow("Grade:", "${student.className} ${student.section}"),
-                    _buildDetailRow("Average Score:", averageScore), // Calculated
-                    _buildDetailRow("Subjects:", subjectCount.toString()), // Calculated
-                    _buildDetailRow("Sex:", "N/A"), // Placeholder - Data not available in model
-                    _buildDetailRow("DOB:", "N/A"), // Placeholder - Data not available in model
-                    _buildDetailRow("Parent:", student.parentName),
-                    _buildDetailRow("Contact:", student.parentPhone),
-                    if (student.whatsappNumber != null)
-                      _buildDetailRow("WhatsApp:", student.whatsappNumber!),
-                     if (student.address != null)
-                      _buildDetailRow("Address:", student.address!),
-                     const SizedBox(height: 16), // Space before QR button
-                     // QR Code Section (Moved under text details)
-                     Row( // Use Row to center the button if needed, or just the button
-                       mainAxisAlignment: MainAxisAlignment.start, // Align button to left
-                       children: [
-                         ElevatedButton.icon(
-                           icon: const Icon(Icons.qr_code_scanner),
-                           label: const Text("Download QR Code"),
-                           onPressed: () => _downloadQrCode(student.name),
-                           style: ElevatedButton.styleFrom(
-                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                           ),
-                         ),
-                       ],
-                     ),
-                     // Hidden RepaintBoundary for QR capture
-                      Offstage(
-                        offstage: true,
-                        child: RepaintBoundary(
-                          key: _qrCodeKey,
-                          child: Container(
-                            color: Colors.white,
-                            padding: const EdgeInsets.all(8.0),
-                            child: QrImageView(
-                              data: student.qrCodeData,
-                              version: QrVersions.auto,
-                              size: 120.0,
-                            ),
+    // Use CardTheme from constants.dart by default, but override margin
+    return Card(
+      margin: const EdgeInsets.all(kDefaultPadding), // Use constant
+      // elevation, shape, color will be taken from CardTheme in constants.dart
+      child: Padding(
+        padding: const EdgeInsets.all(kDefaultPadding), // Use constant
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- Left Column: Text Details ---
+                Expanded(
+                  flex: 3, // Make left column narrower
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        student.name,
+                        // Use textTheme from constants
+                        style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: kTextColor),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDetailRow("Index No:", student.indexNumber),
+                      _buildDetailRow("Grade:", student.grade),
+                      _buildDetailRow("Subjects:", subjectCount.toString()),
+                      _buildDetailRow("Sex:", student.sex ?? "N/A"),
+                      _buildDetailRow("DOB:", student.dob != null ? DateFormat('yyyy/MM/dd').format(student.dob!.toDate()) : "N/A"),
+                      _buildDetailRow("Parent:", student.parentName),
+                      _buildDetailRow("Contact:", student.parentPhone),
+                      if (student.whatsappNumber != null && student.whatsappNumber!.isNotEmpty)
+                        _buildDetailRow("WhatsApp:", student.whatsappNumber!),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: kDefaultPadding), // Use constant
+                // --- Right Column: Image and Buttons ---
+                Expanded(
+                  flex: 3, // Make right column wider
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: imageSize,
+                        height: imageSize,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(kDefaultRadius), // Use constant
+                          child: CachedNetworkImage(
+                            imageUrl: student.photoUrl ?? 'https://via.placeholder.com/150',
+                            placeholder: (context, url) => Container(color: kDisabledColor.withOpacity(0.3), child: const Center(child: CircularProgressIndicator(strokeWidth: 2.0, color: kPrimaryColor))),
+                            errorWidget: (context, url, error) => Container(color: kDisabledColor.withOpacity(0.3), child: Icon(Icons.person, size: 50, color: kLightTextColor)),
+                            fit: BoxFit.cover,
                           ),
                         ),
                       ),
-                  ],
+                      const SizedBox(height: 12),
+                      // --- Download Photo Button with Gradient ---
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [kPrimaryColor, kPrimaryColor.withOpacity(0.8)], // Adjust gradient colors as needed
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+                          boxShadow: [ // Optional: Add subtle shadow
+                             BoxShadow(
+                               color: kPrimaryColor.withOpacity(0.3),
+                               blurRadius: 4,
+                               offset: const Offset(0, 2),
+                             ),
+                          ],
+                        ),
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.download_rounded, size: 18, color: kSecondaryColor), // Ensure icon color is white
+                          label: Text("Download Photo", style: textTheme.labelLarge?.copyWith(fontSize: 13, color: kSecondaryColor)), // Ensure text color is white
+                          onPressed: () => _downloadStudentPhoto(student.photoUrl, student.name),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent, // Make button transparent
+                            shadowColor: Colors.transparent, // Remove button's own shadow
+                            elevation: 0, // Remove button's own elevation
+                            padding: const EdgeInsets.symmetric(vertical: 12), // Adjust padding if needed
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius * 0.8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // --- Download QR Code Button with Gradient ---
+                      Container(
+                        width: double.infinity,
+                         decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [kPrimaryColor, kPrimaryColor.withOpacity(0.8)], // Adjust gradient colors as needed
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+                           boxShadow: [ // Optional: Add subtle shadow
+                             BoxShadow(
+                               color: kPrimaryColor.withOpacity(0.3),
+                               blurRadius: 4,
+                               offset: const Offset(0, 2),
+                             ),
+                          ],
+                        ),
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.qr_code_rounded, size: 18, color: kSecondaryColor), // Ensure icon color is white
+                          label: Text("Download QR Code", style: textTheme.labelLarge?.copyWith(fontSize: 13, color: kSecondaryColor)), // Ensure text color is white
+                          onPressed: _isCapturingQr ? null : () => _downloadQrCode(student.name), // Disable while capturing
+                          style: ElevatedButton.styleFrom(
+                             backgroundColor: Colors.transparent, // Make button transparent
+                             shadowColor: Colors.transparent, // Remove button's own shadow
+                             elevation: 0, // Remove button's own elevation
+                             padding: const EdgeInsets.symmetric(vertical: 12), // Adjust padding if needed
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius * 0.8)),
+                             // Handle disabled state appearance if needed
+                             disabledBackgroundColor: Colors.transparent,
+                             disabledForegroundColor: kSecondaryColor.withOpacity(0.7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // Use Visibility instead of Offstage for QR capture
+            Visibility(
+              visible: _isCapturingQr,
+              maintainState: true, // Keep state even when hidden
+              child: RepaintBoundary(
+                key: _qrCodeKey,
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10), // Add margin if needed when visible
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(8.0),
+                  child: QrImageView(
+                    data: student.qrCodeData,
+                    version: QrVersions.auto,
+                    size: 200.0,
+                    gapless: false,
+                    // Use theme colors for QR code?
+                    // eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: kTextColor),
+                    // dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: kTextColor),
+                  ),
                 ),
               ),
-              const SizedBox(width: 16),
-              // Right Column: Image and Download Button
-              Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: imageSize,
-                    height: imageSize,
-                    child: ClipRRect( // Make image square
-                      borderRadius: BorderRadius.circular(8.0), // Optional: add slight rounding
-                      child: CachedNetworkImage(
-                        imageUrl: student.photoUrl ?? 'https://via.placeholder.com/150', // Placeholder URL
-                        placeholder: (context, url) => Container(color: Colors.grey[300], child: const Center(child: CircularProgressIndicator())),
-                        errorWidget: (context, url, error) => Container(color: Colors.grey[300], child: const Icon(Icons.person, size: 50, color: Colors.white)),
-                        fit: BoxFit.cover, // Cover the square area
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.download, size: 18),
-                    label: const Text("Download Photo"),
-                    onPressed: () => _downloadStudentPhoto(student.photoUrl, student.name),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      textStyle: const TextStyle(fontSize: 12), // Smaller text
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          // QR Code related widgets are now moved under the text details column
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildDetailRow(String label, String value) {
+    final textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      padding: const EdgeInsets.symmetric(vertical: 3.0), // Slightly more vertical padding
       child: RichText(
-        text: TextSpan( // Use const constructor
-          style: DefaultTextStyle.of(context).style,
+        text: TextSpan(
+          // Use theme's bodyMedium style as base
+          style: textTheme.bodyMedium?.copyWith(color: kTextColor),
           children: <TextSpan>[
-            TextSpan(text: '$label ', style: const TextStyle(fontWeight: FontWeight.bold)), // Removed const from TextSpan due to interpolation
-            TextSpan(text: value),
+            TextSpan(text: '$label ', style: const TextStyle(fontWeight: FontWeight.bold)),
+            TextSpan(text: value, style: const TextStyle(color: kLightTextColor)), // Lighter color for value
           ],
         ),
       ),
@@ -689,8 +798,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
-                icon: const Icon(Icons.download),
-                label: const Text("Export to Excel"),
+                icon: const Icon(Icons.share),
+                label: const Text(""),
                 onPressed: _selectedFeeYear == null ? null : () => _exportFeesToExcel(feesForSelectedYear, _selectedFeeYear!),
               ),
             ],
@@ -746,29 +855,86 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
 
   // --- Action Handlers ---
 
+  // Updated QR Code download using Visibility strategy
   Future<void> _downloadQrCode(String studentName) async {
+    setState(() { _isCapturingQr = true; }); // Show the QR code
+
+    // Wait for the next frame to ensure the QR code is rendered
+    await WidgetsBinding.instance.endOfFrame;
+    // Add a minimal delay just in case
+    await Future.delayed(const Duration(milliseconds: 100));
+
+
     try {
-      RenderRepaintBoundary boundary = _qrCodeKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0); // Adjust pixelRatio for quality
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      Uint8List pngBytes = byteData!.buffer.asUint8List();
-
-      // Use SaverGallery with correct parameters
-      final result = await SaverGallery.saveImage(
-          pngBytes, // Pass image data as positional argument
-          fileName: "qrcode_${studentName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}", // Use fileName
-          androidRelativePath: "Pictures/EduTrack/QRCodes", // Example path
-          skipIfExists: false // Use skipIfExists
-      );
-
-      if (result.isSuccess) { // Check success status from SaverGalleryResult
-         _showToast("QR Code downloaded successfully!");
-      } else {
-         _showToast("Failed to download QR Code: ${result.errorMessage}", error: true);
+      // Check context validity again after delay
+      if (!_qrCodeKey.currentContext!.mounted) {
+         _showToast("Error: QR Code widget became unavailable.", error: true);
+         return;
       }
+
+      RenderRepaintBoundary boundary = _qrCodeKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      // No need to check debugNeedsPaint here as Visibility should handle rendering
+
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (byteData == null) {
+        _showToast("Error: Could not convert QR code to image data.", error: true);
+        return;
+      }
+      Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      // --- Permission Check for SaverGallery ---
+      // SaverGallery might handle permissions internally, but explicit check is safer
+      var status = await Permission.storage.status;
+       // On Android 13+, storage permission might not be needed if saver_gallery uses MediaStore correctly.
+       // However, let's request photos permission as a fallback or if targeting older SDKs.
+       if (Platform.isAndroid) {
+          // Check for Android 13 (API 33) or higher
+          final androidInfo = await DeviceInfoPlugin().androidInfo; // Need device_info_plus package
+          if (androidInfo.version.sdkInt >= 33) {
+             status = await Permission.photos.status; // Use photos permission
+             if (!status.isGranted) {
+                status = await Permission.photos.request();
+             }
+          } else {
+             // For older versions, check storage permission
+             if (!status.isGranted) {
+                status = await Permission.storage.request();
+             }
+          }
+       } else { // For iOS or other platforms if needed
+          if (!status.isGranted) {
+             status = await Permission.storage.request(); // Or photos for iOS
+          }
+       }
+
+
+      if (status.isGranted) {
+        final result = await SaverGallery.saveImage(
+          pngBytes,
+          fileName: "qrcode_${studentName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}",
+          androidRelativePath: "Pictures/EduTrack/QRCodes",
+          skipIfExists: false,
+        );
+
+        if (result.isSuccess) {
+          _showToast("QR Code downloaded successfully!");
+        } else {
+          _showToast("Failed to save QR Code: ${result.errorMessage}", error: true);
+        }
+      } else {
+         _showToast("Storage permission denied. Cannot save QR Code.", error: true);
+      }
+
     } catch (e) {
       print("Error downloading QR Code: $e");
-       _showToast("Error downloading QR Code: $e", error: true);
+      _showToast("Error capturing QR Code: $e", error: true);
+    } finally {
+      // Hide the QR code again regardless of success/failure
+      if (mounted) { // Check if widget is still mounted before calling setState
+         setState(() { _isCapturingQr = false; });
+      }
     }
   }
 
@@ -806,63 +972,83 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   }
 
   Future<void> _exportFeesToExcel(List<FeeRecord> fees, String year) async {
-     if (fees.isEmpty) {
-       _showToast("No fee data for $year to export.", error: true);
-       return;
-     }
+    if (fees.isEmpty) {
+      _showToast("No fee data for $year to export.", error: true);
+      return;
+    }
 
-     try {
-       var excel = Excel.createExcel(); // Create an Excel workbook
-       Sheet sheetObject = excel['${widget.studentId}_Fees_$year']; // Create a sheet
+    // --- No direct permission check needed here, share_plus handles it ---
 
-       // Add Header Row
-       sheetObject.appendRow([
-         TextCellValue('Month'), // Removed const
-         TextCellValue('Status'), // Removed const
-         TextCellValue('Amount'), // Removed const
-         TextCellValue('Paid Date'), // Removed const
-       ]);
+    try {
+      var excel = Excel.createExcel();
+      // Use a simpler sheet name to avoid length/character issues
+      Sheet sheetObject = excel['Fees_$year'];
 
-       // Add Data Rows
-       final allMonths = List.generate(12, (index) => index + 1);
-       final feeMap = { for (var fee in fees) fee.month : fee };
+      // Add Header Row
+      sheetObject.appendRow([
+        TextCellValue('Month'), // Removed const
+        TextCellValue('Status'), // Removed const
+        TextCellValue('Amount'), // Removed const
+        TextCellValue('Paid Date'), // Removed const
+      ]);
 
-       for (var month in allMonths) {
-          final fee = feeMap[month];
-          final monthName = DateFormat('MMMM').format(DateTime(int.parse(year), month));
-          final status = fee?.paid ?? false ? 'Paid' : 'Unpaid';
-          final amount = fee?.amount ?? 0.0;
-          final paidDate = fee?.paidAt != null ? DateFormat('yyyy-MM-dd').format(fee!.paidAt!.toDate()) : '-';
+      // Add Data Rows
+      final allMonths = List.generate(12, (index) => index + 1);
+      final feeMap = { for (var fee in fees) fee.month : fee };
 
-          sheetObject.appendRow([
-            TextCellValue(monthName),
-            TextCellValue(status),
-            DoubleCellValue(amount), // Use DoubleCellValue for numbers
-            TextCellValue(paidDate),
-          ]);
-       }
+      for (var month in allMonths) {
+        final fee = feeMap[month];
+        final monthName = DateFormat('MMMM').format(DateTime(int.parse(year), month));
+        final status = fee?.paid ?? false ? 'Paid' : 'Unpaid';
+        final amount = fee?.amount ?? 0.0;
+        final paidDate = fee?.paidAt != null ? DateFormat('yyyy-MM-dd').format(fee!.paidAt!.toDate()) : '-';
 
-       // Get directory to save the file
-       final directory = await getApplicationDocumentsDirectory(); // Or getExternalStorageDirectory()
-       final path = directory.path;
-       final fileName = '$path/student_${widget.studentId}_fees_$year.xlsx';
+        sheetObject.appendRow([
+          TextCellValue(monthName),
+          TextCellValue(status),
+          DoubleCellValue(amount),
+          TextCellValue(paidDate),
+        ]);
+      }
 
-       // Save the file
-       final fileBytes = excel.save();
-       if (fileBytes != null) {
-         File(fileName)
-           ..createSync(recursive: true)
-           ..writeAsBytesSync(fileBytes);
-         _showToast("Fees exported successfully to $fileName");
-         print("Excel file saved to: $fileName"); // Log path for debugging
-       } else {
-          _showToast("Failed to generate Excel file.", error: true);
-       }
+      // Get the temporary directory
+      final Directory tempDir = await getTemporaryDirectory();
+      final path = tempDir.path;
+      final sanitizedStudentIdFile = widget.studentId.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_');
+      final fileName = 'student_${sanitizedStudentIdFile}_fees_$year.xlsx';
+      final filePath = '$path/$fileName';
+      print("Saving temporary Excel file to: $filePath");
 
-     } catch (e) {
-       print("Error exporting fees to Excel: $e");
-       _showToast("Error exporting fees: $e", error: true);
-     }
+      // Save the file to the temporary directory
+      final fileBytes = excel.save();
+      if (fileBytes != null) {
+        final file = File(filePath);
+        await file.writeAsBytes(fileBytes, flush: true); // Ensure bytes are written
+
+        // Use share_plus to share the file
+        final xFile = XFile(filePath, name: fileName, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        final result = await Share.shareXFiles([xFile], text: 'Student Fees Export $year');
+
+        // Check share result status (optional)
+        if (result.status == ShareResultStatus.success) {
+           _showToast("Excel file ready to be saved/shared.");
+        } else if (result.status == ShareResultStatus.dismissed) {
+           _showToast("Share cancelled.", error: true);
+        } else {
+           _showToast("Sharing failed: ${result.status}", error: true);
+        }
+
+        // Optionally delete the temp file after sharing attempt
+        // await file.delete();
+
+      } else {
+        _showToast("Failed to generate Excel file.", error: true);
+      }
+
+    } catch (e) {
+      print("Error exporting/sharing fees to Excel: $e");
+      _showToast("Error exporting fees: $e", error: true);
+    }
   }
 
   void _showEditExamResultsDialog(List<ExamResult> currentResults, ExamTerm term) {

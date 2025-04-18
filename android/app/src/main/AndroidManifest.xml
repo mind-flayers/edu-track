@@ -53,5 +53,10 @@
            <action android:name="android.intent.action.SENDTO"/>
            <data android:scheme="mailto"/>
        </intent>
+       <!-- Add this intent for share_plus (ACTION_SEND) -->
+       <intent>
+           <action android:name="android.intent.action.SEND" />
+           <data android:mimeType="*/*" />
+       </intent>
    </queries>
 </manifest>

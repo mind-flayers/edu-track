@@ -48,7 +48,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   String? _statusMessage; // For success/error messages
   bool _isSuccess = false;
   String? _downloadStatusMessage;
-  bool _isDownloadSuccess = false;
+  final bool _isDownloadSuccess = false;
   final GlobalKey _qrKey = GlobalKey(); // Key to capture QR code widget
 
   List<String> _availableClasses = [];
@@ -141,7 +141,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
       // Check for success based on secure_url presence for v0.23.1
       // Note: Error details are limited in this version, rely on catch block.
-      if (response.secureUrl != null && response.secureUrl!.isNotEmpty) {
+      if (response.secureUrl.isNotEmpty) {
         print('Cloudinary Upload Success: ${response.secureUrl}');
         return response.secureUrl;
       } else {

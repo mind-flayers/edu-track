@@ -1,5 +1,6 @@
 {
     "java.compile.nullAnalysis.mode": "automatic",
     "java.configuration.updateBuildConfiguration": "interactive",
-    "codium.codeCompletion.enable": false
+    "codium.codeCompletion.enable": false,
+    "cmake.sourceDirectory": "C:/Users/User/Desktop/FlutterProjects/edu_track/linux"
 }

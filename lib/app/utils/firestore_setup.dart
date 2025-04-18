@@ -90,10 +90,10 @@ Future<void> setupFirestoreDatabase() async {
   batch.set(teacher1Ref, {
     'name': 'Dr. Smith',
     'email': 'dr.smith@example.com',
-    'phone': '9876543210',
+    'phoneNumber': '9876543210',
+    'whatsappNumber': '9876543210',
     'subject': 'Mathematics',
     'classAssigned': ['Grade 10', 'Grade 11'],
-    'photoUrl': 'https://via.placeholder.com/100',
     'joinedAt': now,
     'isActive': true,
   });
@@ -102,9 +102,9 @@ Future<void> setupFirestoreDatabase() async {
     'name': 'Ms. Johnson',
     'email': 'ms.johnson@example.com',
     'phone': '9876543211',
+    'whatsappNumber': '9876543210',
     'subject': 'Science',
     'classAssigned': ['Grade 9', 'Grade 10'],
-    'photoUrl': 'https://via.placeholder.com/100',
     'joinedAt': now,
     'isActive': true,
   });
