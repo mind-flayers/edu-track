@@ -74,14 +74,21 @@ Future<void> setupFirestoreDatabase() async {
     'name': 'Term 1 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 1, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 4, 15)),
-    'subjects': ['Mathematics', 'Science', 'English', 'History'],
+    'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
   });
   final term2Ref = firestore.collection('examTerms').doc();
   batch.set(term2Ref, {
     'name': 'Term 2 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 5, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 8, 15)),
-    'subjects': ['Mathematics', 'Science', 'Geography', 'Art'],
+    'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
+  });
+  final term3Ref = firestore.collection('examTerms').doc();
+  batch.set(term3Ref, {
+    'name': 'Term 3 - 2025',
+    'startDate': Timestamp.fromDate(DateTime(2025, 9, 15)),
+    'endDate': Timestamp.fromDate(DateTime(2025, 12, 15)),
+    'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
   });
   print("Exam Terms documents prepared.");
 
@@ -118,8 +125,8 @@ Future<void> setupFirestoreDatabase() async {
   final student1Section = 'A';
   batch.set(student1Ref, {
     'name': 'Mishaf Hasan',
-    'email': 'mishaf@example.com',
     'class': student1Class,
+    'Subjects': ['Mathematics', 'Science'],
     'section': student1Section,
     'indexNumber': generateIndexNumber(
       year: 2025,
@@ -131,10 +138,11 @@ Future<void> setupFirestoreDatabase() async {
     'parentPhone': '1112223330',
     'whatsappNumber': '1112223330',
     'address': '123 Main St, City',
-    'photoUrl': 'https://via.placeholder.com/150/1',
+    'photoUrl': 'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864148/profiles/students/hwwlnj3kup73zfx7unzu.jpg',
     'qrCodeData': student1Id, // Use doc ID as unique QR data
     'joinedAt': now,
     'isActive': true,
+
   });
   // Student 1 - Attendance
   batch.set(student1Ref.collection('attendance').doc(), {
@@ -157,10 +165,10 @@ Future<void> setupFirestoreDatabase() async {
     'year': 2025,
     'month': 4, // April
     'amount': 500,
-    'paid': false,
-    'paidAt': null,
-    'paymentMethod': null,
-    'markedBy': null,
+    'paid': true,
+    'paidAt': Timestamp.fromDate(DateTime(2025, 3, 10)),
+    'paymentMethod': 'Cash',
+    'markedBy': adminUid,
   });
   // Student 1 - Exam Results
   batch.set(student1Ref.collection('examResults').doc(), {
@@ -189,6 +197,7 @@ Future<void> setupFirestoreDatabase() async {
     'name': 'Emily Smith',
     'email': 'emily@example.com',
     'class': student2Class,
+    'Subjects': ['Mathematics', 'Science', 'English'],
     'section': student2Section,
     'indexNumber': generateIndexNumber(
       year: 2025,
@@ -200,7 +209,7 @@ Future<void> setupFirestoreDatabase() async {
     'parentPhone': '1112223331',
     'whatsappNumber': '1112223330',
     'address': '456 Oak Ave, Town',
-    'photoUrl': 'https://via.placeholder.com/150/2',
+    'photoUrl': 'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864148/profiles/students/hwwlnj3kup73zfx7unzu.jpg',
     'qrCodeData': student2Id,
     'joinedAt': now,
     'isActive': true,
@@ -208,7 +217,7 @@ Future<void> setupFirestoreDatabase() async {
   // Student 2 - Attendance
   batch.set(student2Ref.collection('attendance').doc(), {
     'date': '2025-04-13',
-    'status': 'absent',
+    'status': 'present',
     'markedBy': adminUid,
     'markedAt': now,
   });
@@ -227,9 +236,9 @@ Future<void> setupFirestoreDatabase() async {
     'month': 4, // April
     'amount': 450,
     'paid': false,
-    'paidAt': null,
-    'paymentMethod': null,
-    'markedBy': null,
+    'paidAt': Timestamp.fromDate(DateTime(2025, 3, 10)),
+    'paymentMethod': 'Cash',
+    'markedBy': adminUid,
   });
   // Student 2 - Exam Results (Default 0)
   batch.set(student2Ref.collection('examResults').doc(), {
@@ -249,10 +258,7 @@ Future<void> setupFirestoreDatabase() async {
   batch.set(summaryRef, {
     'class': 'Overall', // Or specific class if needed
     'present': 1,
-    'absent': 1,
-    'total': 2,
     'studentsPresent': [student1Id],
-    'studentsAbsent': [student2Id],
     'markedBy': adminUid,
     'markedAt': now,
   });

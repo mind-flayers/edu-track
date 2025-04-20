@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart'; // Added
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // Added
 import 'package:edu_track/app/utils/constants.dart'; // Added
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -825,8 +824,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                    final paidDate = fee?.paidAt != null ? DateFormat('yyyy-MM-dd').format(fee!.paidAt!.toDate()) : '-';
 
                    return DataRow(
-                     color: MaterialStateProperty.resolveWith<Color?>(
-                       (Set<MaterialState> states) {
+                     color: WidgetStateProperty.resolveWith<Color?>(
+                       (Set<WidgetState> states) {
                          // Optional: Alternate row colors
                          // return allMonths.indexOf(month).isEven ? Colors.grey.shade100 : null;
                          return null;
