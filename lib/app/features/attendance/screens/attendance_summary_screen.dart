@@ -709,9 +709,9 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                child: record.isEditing
                  ? _buildAttendanceDropdown(rowIndex, record.status)
                  : Text(
-                     record.status == 'present' ? 'Present' : '-',
+                     record.status == 'present' ? 'Present' : 'Absent', // Show 'Present' or 'Absent'
                      style: textTheme.bodyMedium?.copyWith(
-                       color: record.status == 'present' ? Colors.green.shade700 : kLightTextColor,
+                       color: record.status == 'present' ? Colors.green.shade700 : Colors.red.shade700, // Color change for Absent
                        fontWeight: record.status == 'present' ? FontWeight.w600 : FontWeight.normal,
                      ),
                    ),
@@ -752,12 +752,11 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
   Widget _buildAttendanceDropdown(int index, String currentStatus) {
      return DropdownButton<String>(
-       value: currentStatus,
+       value: currentStatus == 'present' || currentStatus == 'absent' ? currentStatus : null,
+       hint: Text('Select', style: TextStyle(color: Colors.grey.shade600)),
        items: [
-         DropdownMenuItem(value: 'present', child: Text('Present', style: TextStyle(color: Colors.green.shade700))), // Removed const
-         DropdownMenuItem(value: 'absent', child: Text('Absent', style: TextStyle(color: Colors.red.shade700))), // Removed const
-         if (_originalStatusMap[_attendanceList[index].studentId] == '-')
-            const DropdownMenuItem(value: '-', child: Text('-', style: TextStyle(color: kLightTextColor))), // Keep const here
+         DropdownMenuItem(value: 'present', child: Text('Present', style: TextStyle(color: Colors.green.shade700))),
+         DropdownMenuItem(value: 'absent', child: Text('Absent', style: TextStyle(color: Colors.red.shade700))),
        ],
        onChanged: (String? newValue) {
          if (newValue != null) {

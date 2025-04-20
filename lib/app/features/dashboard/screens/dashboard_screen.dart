@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
-import 'package:edu_track/app/features/dashboard/screens/add_exam_results_screen.dart';
+import 'package:edu_track/app/features/exam/exam_results_screen.dart';
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/features/qr_scanner/screens/qr_code_scanner_screen.dart';
 import 'package:edu_track/app/features/students/screens/add_student_screen.dart';
@@ -151,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ActionButtonCard( icon: Icons.school, label: "Add Student", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddStudentScreen())) ),
                   ActionButtonCard( icon: Icons.co_present, label: "Add Teacher", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTeacherScreen())) ),
                   ActionButtonCard( icon: Icons.qr_code_2, label: "Scan QR Code", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QRCodeScannerScreen())) ),
-                  ActionButtonCard( icon: Icons.add_box_outlined, label: "Add Exam Results", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddExamResultsScreen())) ),
+                  ActionButtonCard( icon: Icons.add_box_outlined, label: "Exam Results", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamResultsScreen())) ),
                 ],
               ).animate().fadeIn(delay: 200.ms, duration: 500.ms).slideY(begin: 0.3, duration: 400.ms, curve: Curves.easeOut),
             ],
