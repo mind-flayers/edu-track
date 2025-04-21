@@ -7,8 +7,10 @@ import 'package:edu_track/app/features/attendance/screens/attendance_summary_scr
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:get/get.dart'; // Import GetX
 
 class TeacherListScreen extends StatefulWidget {
   const TeacherListScreen({super.key});
@@ -65,18 +67,24 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
       return IconButton(
         icon: Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor),
         tooltip: 'Profile Settings',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+        onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
       );
     }
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+      // Fetch the specific profile document within the adminProfile subcollection
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile') // Document ID is 'profile'
+          .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
         Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Default icon
 
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
-          // Adjusted key based on firestore_setup.dart for admin
+          // Use the correct field name from firestore_setup.js
           if (data != null && data.containsKey('profilePhotoUrl')) {
             photoUrl = data['profilePhotoUrl'] as String?;
           }
@@ -105,7 +113,7 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+            onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
               child: profileWidget,
@@ -212,59 +220,77 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
           ),
           // Teacher List
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              // Query the 'teachers' collection, order by name
-              stream: FirebaseFirestore.instance.collection('teachers').orderBy('name').snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No teachers found.',
-                       style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
-                    )
-                  );
-                }
-
-                // Filter data based on search query
-                final allTeachers = snapshot.data!.docs;
-                final filteredTeachers = allTeachers.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final name = (data['name'] as String? ?? '').toLowerCase();
-                  // Add other fields to search if needed later
-                  // final subject = (data['subject'] as String? ?? '').toLowerCase();
-
-                  return _searchQuery.isEmpty || name.contains(_searchQuery.toLowerCase());
-                }).toList();
-
-                if (filteredTeachers.isEmpty) {
-                   return Center(
-                     child: Text(
-                       'No teachers match your search.',
-                       style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
-                     ),
-                   );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
-                  itemCount: filteredTeachers.length,
-                  itemBuilder: (context, index) {
-                    final teacherDoc = filteredTeachers[index];
-                    final teacherData = teacherDoc.data() as Map<String, dynamic>;
-                    // Pass document ID if needed for details screen later
-                    return _buildTeacherCard(context, teacherDoc.id, teacherData)
-                           .animate().fadeIn(delay: (index * 50).ms).slideY(begin: 0.2, duration: 300.ms);
-                  },
+            child: () { // Use a function to conditionally return the widget
+              final String? adminUid = AuthController.instance.user?.uid;
+              if (adminUid == null) {
+                print("Error: Admin UID is null. Cannot display teachers.");
+                return Center(
+                  child: Text(
+                    'Please log in to view teachers.',
+                    style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
+                  ),
                 );
-              },
-            ),
-          ),
+              }
+              // If adminUid is available, return the StreamBuilder
+              return StreamBuilder<QuerySnapshot>(
+                // Query the nested 'teachers' collection under the admin
+                stream: FirebaseFirestore.instance
+                    .collection('admins')
+                    .doc(adminUid)
+                    .collection('teachers')
+                    .orderBy('name')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error fetching teachers: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No teachers found.',
+                         style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
+                      )
+                    );
+                  }
+
+                  // Filter data based on search query
+                  final allTeachers = snapshot.data!.docs;
+                  final filteredTeachers = allTeachers.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final name = (data['name'] as String? ?? '').toLowerCase();
+                    // Add other fields to search if needed later
+                    // final subject = (data['subject'] as String? ?? '').toLowerCase();
+
+                    return _searchQuery.isEmpty || name.contains(_searchQuery.toLowerCase());
+                  }).toList();
+
+                  if (filteredTeachers.isEmpty) {
+                     return Center(
+                       child: Text(
+                         'No teachers match your search.',
+                         style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
+                       ),
+                     );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
+                    itemCount: filteredTeachers.length,
+                    itemBuilder: (context, index) {
+                      final teacherDoc = filteredTeachers[index];
+                      final teacherData = teacherDoc.data() as Map<String, dynamic>;
+                      // Pass document ID if needed for details screen later
+                      return _buildTeacherCard(context, teacherDoc.id, teacherData)
+                             .animate().fadeIn(delay: (index * 50).ms).slideY(begin: 0.2, duration: 300.ms);
+                    },
+                  );
+                },
+              );
+            }(), // Immediately invoke the function
+          ), // End of Expanded widget
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

@@ -3,13 +3,15 @@ import 'package:edu_track/app/features/authentication/controllers/auth_controlle
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/features/students/screens/add_student_screen.dart';
 import 'package:edu_track/app/features/students/screens/student_details_screen.dart'; // Assuming this screen exists
-import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
+import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart' hide BottomNavigationBar;
 import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:get/get.dart'; // Import GetX
 
 class StudentListScreen extends StatefulWidget {
   const StudentListScreen({super.key});
@@ -43,8 +45,23 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
 
   Future<void> _fetchAvailableClasses() async {
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      print("Error: Admin UID is null. Cannot fetch classes.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Could not verify admin.')),
+        );
+      }
+      return;
+    }
+
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('students').get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .get();
       // Corrected type handling:
       final classes = snapshot.docs
           .map((doc) => doc.data()['class'] as String?) // Map to nullable String
@@ -100,20 +117,27 @@ class _StudentListScreenState extends State<StudentListScreen> {
       return IconButton(
         icon: Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor),
         tooltip: 'Profile Settings',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+        onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed (Already correct here, but ensuring consistency)
       );
     }
     // Reuse the StreamBuilder logic from DashboardScreen
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+      // Fetch the specific profile document within the adminProfile subcollection
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile') // Document ID is 'profile'
+          .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
         Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Default icon
 
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
-          if (data != null && data.containsKey('photoURL')) {
-            photoUrl = data['photoURL'] as String?;
+          // Use the correct field name from firestore_setup.js
+          if (data != null && data.containsKey('profilePhotoUrl')) {
+            photoUrl = data['profilePhotoUrl'] as String?;
           }
         } else if (snapshot.hasError) {
           print("Error fetching admin profile: ${snapshot.error}");
@@ -138,7 +162,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+            onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed (Already correct here, but ensuring consistency)
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
               child: profileWidget,
@@ -281,55 +305,75 @@ class _StudentListScreenState extends State<StudentListScreen> {
           ),
           // Student List
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('students').orderBy('name').snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('No students found.'));
-                }
-
-                // Filter data based on search query and selected class
-                final allStudents = snapshot.data!.docs;
-                final filteredStudents = allStudents.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final name = (data['name'] as String? ?? '').toLowerCase();
-                  final studentClass = data['class'] as String?;
-
-                  final nameMatches = _searchQuery.isEmpty || name.contains(_searchQuery.toLowerCase());
-                  final classMatches = _selectedClass == null || studentClass == _selectedClass;
-
-                  return nameMatches && classMatches;
-                }).toList();
-
-                if (filteredStudents.isEmpty) {
-                   return Center(
-                     child: Text(
-                       'No students match your criteria.',
-                       style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
-                     ),
-                   );
-                }
-
-                return ListView.builder(
-                  // Adjusted padding for the list to match image spacing
-                  padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding * 0.75, vertical: kDefaultPadding / 2),
-                  itemCount: filteredStudents.length,
-                  itemBuilder: (context, index) {
-                    final studentDoc = filteredStudents[index];
-                    final studentData = studentDoc.data() as Map<String, dynamic>;
-                    return _buildStudentCard(context, studentDoc.id, studentData)
-                           .animate().fadeIn(delay: (index * 50).ms).slideY(begin: 0.2, duration: 300.ms);
-                  },
+            child: () { // Use a function to conditionally return the widget
+              final String? adminUid = AuthController.instance.user?.uid;
+              if (adminUid == null) {
+                print("Error: Admin UID is null. Cannot display students.");
+                // Return a widget indicating the user needs to be logged in
+                return Center(
+                  child: Text(
+                    'Please log in to view students.',
+                    style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
+                  ),
                 );
-              },
-            ),
-          ),
+              }
+              // If adminUid is available, return the StreamBuilder
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('admins')
+                    .doc(adminUid)
+                    .collection('students')
+                    .orderBy('name')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  // Remove the redundant error check for "Admin not logged in"
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) { // General error handling
+                    return Center(child: Text('Error fetching students: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('No students found.'));
+                  }
+
+                  // Filter data based on search query and selected class
+                  final allStudents = snapshot.data!.docs;
+                  final filteredStudents = allStudents.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final name = (data['name'] as String? ?? '').toLowerCase();
+                    final studentClass = data['class'] as String?;
+
+                    final nameMatches = _searchQuery.isEmpty || name.contains(_searchQuery.toLowerCase());
+                    final classMatches = _selectedClass == null || studentClass == _selectedClass;
+
+                    return nameMatches && classMatches;
+                  }).toList();
+
+                  if (filteredStudents.isEmpty) {
+                     return Center(
+                       child: Text(
+                         'No students match your criteria.',
+                         style: textTheme.bodyMedium?.copyWith(color: kLightTextColor),
+                       ),
+                     );
+                  }
+
+                  return ListView.builder(
+                    // Adjusted padding for the list to match image spacing
+                    padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding * 0.75, vertical: kDefaultPadding / 2),
+                    itemCount: filteredStudents.length,
+                    itemBuilder: (context, index) {
+                      final studentDoc = filteredStudents[index];
+                      final studentData = studentDoc.data() as Map<String, dynamic>;
+                      return _buildStudentCard(context, studentDoc.id, studentData)
+                             .animate().fadeIn(delay: (index * 50).ms).slideY(begin: 0.2, duration: 300.ms);
+                    },
+                  );
+                },
+              );
+            }(), // Immediately invoke the function to return the correct widget
+          ), // End of Expanded widget
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

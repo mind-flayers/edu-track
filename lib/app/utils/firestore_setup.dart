@@ -68,32 +68,34 @@ Future<void> setupFirestoreDatabase() async {
   });
   print("Settings document prepared.");
 
-  // --- 3. Exam Terms ---
-  final term1Ref = firestore.collection('examTerms').doc();
+  // --- 3. Exam Terms (Nested under Admin) ---
+  final examTermsCollection = adminRef.collection('examTerms');
+  final term1Ref = examTermsCollection.doc(); // Use nested collection
   batch.set(term1Ref, {
     'name': 'Term 1 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 1, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 4, 15)),
     'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
   });
-  final term2Ref = firestore.collection('examTerms').doc();
+  final term2Ref = examTermsCollection.doc(); // Use nested collection
   batch.set(term2Ref, {
     'name': 'Term 2 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 5, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 8, 15)),
     'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
   });
-  final term3Ref = firestore.collection('examTerms').doc();
+  final term3Ref = examTermsCollection.doc(); // Use nested collection
   batch.set(term3Ref, {
     'name': 'Term 3 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 9, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 12, 15)),
     'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
   });
-  print("Exam Terms documents prepared.");
-
-  // --- 4. Teachers ---
-  final teacher1Ref = firestore.collection('teachers').doc();
+  print("Exam Terms documents prepared (under admin).");
+ 
+  // --- 4. Teachers (Nested under Admin) ---
+  final teachersCollection = adminRef.collection('teachers');
+  final teacher1Ref = teachersCollection.doc(); // Use nested collection
   batch.set(teacher1Ref, {
     'name': 'Dr. Smith',
     'email': 'dr.smith@example.com',
@@ -104,7 +106,7 @@ Future<void> setupFirestoreDatabase() async {
     'joinedAt': now,
     'isActive': true,
   });
-  final teacher2Ref = firestore.collection('teachers').doc();
+  final teacher2Ref = teachersCollection.doc(); // Use nested collection
   batch.set(teacher2Ref, {
     'name': 'Ms. Johnson',
     'email': 'ms.johnson@example.com',
@@ -115,12 +117,13 @@ Future<void> setupFirestoreDatabase() async {
     'joinedAt': now,
     'isActive': true,
   });
-  print("Teachers documents prepared.");
-
-  // --- 5. Students (with subcollections) ---
+  print("Teachers documents prepared (under admin).");
+ 
+  // --- 5. Students (with subcollections, Nested under Admin) ---
+  final studentsCollection = adminRef.collection('students');
   // Student 1
   final student1Id = 'STUDENT_${DateTime.now().millisecondsSinceEpoch}_1';
-  final student1Ref = firestore.collection('students').doc(student1Id);
+  final student1Ref = studentsCollection.doc(student1Id); // Use nested collection
   final student1Class = 'Grade 10';
   final student1Section = 'A';
   batch.set(student1Ref, {
@@ -190,7 +193,7 @@ Future<void> setupFirestoreDatabase() async {
 
   // Student 2
   final student2Id = 'STUDENT_${DateTime.now().millisecondsSinceEpoch}_2';
-  final student2Ref = firestore.collection('students').doc(student2Id);
+  final student2Ref = studentsCollection.doc(student2Id); // Use nested collection
   final student2Class = 'Grade 9';
   final student2Section = 'A';
   batch.set(student2Ref, {
@@ -249,12 +252,13 @@ Future<void> setupFirestoreDatabase() async {
     'resultDate': now,
     'updatedBy': adminUid,
   });
-
-  print("Students documents and subcollections prepared.");
-
-  // --- 6. Attendance Summary (Example for one day) ---
+ 
+  print("Students documents and subcollections prepared (under admin).");
+ 
+  // --- 6. Attendance Summary (Example for one day, Nested under Admin) ---
+  final attendanceSummaryCollection = adminRef.collection('attendanceSummary');
   final summaryDate = '2025-04-13'; // Match attendance date above
-  final summaryRef = firestore.collection('attendanceSummary').doc(summaryDate);
+  final summaryRef = attendanceSummaryCollection.doc(summaryDate); // Use nested collection
   batch.set(summaryRef, {
     'class': 'Overall', // Or specific class if needed
     'present': 1,
@@ -262,8 +266,8 @@ Future<void> setupFirestoreDatabase() async {
     'markedBy': adminUid,
     'markedAt': now,
   });
-  print("Attendance Summary document prepared.");
-
+  print("Attendance Summary document prepared (under admin).");
+ 
   // --- Commit Batch ---
   try {
     await batch.commit();

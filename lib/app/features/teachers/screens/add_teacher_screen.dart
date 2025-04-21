@@ -7,8 +7,10 @@ import 'package:edu_track/app/features/attendance/screens/attendance_summary_scr
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/main.dart'; // Import main to access AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:get/get.dart'; // Import GetX
 
 class AddTeacherScreen extends StatefulWidget {
   const AddTeacherScreen({super.key});
@@ -55,17 +57,24 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       return IconButton(
         icon: Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor),
         tooltip: 'Profile Settings',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+        onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
       );
     }
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+      // Fetch the specific profile document within the adminProfile subcollection
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile') // Document ID is 'profile'
+          .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
         Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Default icon
 
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
+          // Use the correct field name from firestore_setup.js
           if (data != null && data.containsKey('profilePhotoUrl')) {
             photoUrl = data['profilePhotoUrl'] as String?;
           }
@@ -93,7 +102,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+            onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
               child: profileWidget,
@@ -139,7 +148,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
            _isError = true;
          });
          // Clear message after a delay
-         Future.delayed(3.seconds, () {
+         Future.delayed(const Duration(seconds: 3), () { // Use Duration constructor
            if (mounted) setState(() => _statusMessage = null);
          });
          return; // Stop submission
@@ -152,6 +161,11 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       });
 
       try {
+        final String? adminUid = AuthController.instance.user?.uid; // Get Admin UID
+        if (adminUid == null) {
+          throw Exception("Admin user not found. Cannot add teacher.");
+        }
+
         final teacherData = {
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
@@ -163,7 +177,12 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           'isActive': true,
         };
 
-        await FirebaseFirestore.instance.collection('teachers').add(teacherData);
+        // Add teacher under the specific admin's collection
+        await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(adminUid)
+            .collection('teachers')
+            .add(teacherData);
 
         setState(() {
           _statusMessage = 'Teacher Added Successfully!';
@@ -179,7 +198,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         });
 
         // Optional: Navigate back or show message longer
-        Future.delayed(2.seconds, () {
+        Future.delayed(const Duration(seconds: 2), () { // Use Duration constructor
           if (mounted) {
              setState(() => _statusMessage = null);
              // Optionally navigate back
@@ -194,7 +213,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           _isError = true;
         });
          // Clear message after a delay
-         Future.delayed(3.seconds, () {
+         Future.delayed(const Duration(seconds: 3), () { // Use Duration constructor
            if (mounted) setState(() => _statusMessage = null);
          });
       } finally {
@@ -210,7 +229,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
          _isError = true;
        });
        // Clear message after a delay
-       Future.delayed(3.seconds, () {
+       Future.delayed(const Duration(seconds: 3), () { // Use Duration constructor
          if (mounted) setState(() => _statusMessage = null);
        });
     }

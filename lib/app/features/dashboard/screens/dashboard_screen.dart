@@ -1,8 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
-import 'package:edu_track/app/features/exam/exam_results_screen.dart';
+import 'package:edu_track/app/features/exam/screens/exam_results_screen.dart';
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/features/qr_scanner/screens/qr_code_scanner_screen.dart';
 import 'package:edu_track/app/features/students/screens/add_student_screen.dart';
@@ -47,13 +48,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor);
     }
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+      // Fetch the specific profile document within the adminProfile subcollection
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile') // Document ID is 'profile'
+          .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
-        Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Profile Icon
+        Widget profileWidget = const Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Profile Icon
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
-          if (data != null && data.containsKey('photoURL')) { photoUrl = data['photoURL'] as String?; }
+          // Use the correct field name from firestore_setup.js
+          if (data != null && data.containsKey('profilePhotoUrl')) { photoUrl = data['profilePhotoUrl'] as String?; }
         } else if (snapshot.hasError) { print("Error fetching admin profile: ${snapshot.error}"); }
         if (photoUrl != null && photoUrl.isNotEmpty) {
           profileWidget = CircleAvatar( radius: 18, backgroundColor: kLightTextColor.withOpacity(0.5), backgroundImage: NetworkImage(photoUrl), onBackgroundImageError: (exception, stackTrace) { print("Error loading profile image: $exception"); }, );
@@ -90,17 +98,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Text("Overview", style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: kDefaultPadding / 2),
-              GridView.count( crossAxisCount: 1, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: kDefaultPadding * 0.75, childAspectRatio: 5.5,
-                children: [
-                   // --- Total Students Card ---
-                   StreamBuilder<QuerySnapshot>( stream: firestore.collection('students').snapshots(), builder: (context, snapshot) { String count = '...'; if (snapshot.hasError) { count = 'Error'; print("Error fetching students: ${snapshot.error}"); } else if (snapshot.hasData) { count = snapshot.data!.docs.length.toString(); } return _buildSummaryCard( icon: Icons.school_outlined, title: "Total Students", value: count, color1: kPrimaryColor, color2: Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentListScreen())) ); }, ),
-                   // --- Total Teachers Card ---
-                   StreamBuilder<QuerySnapshot>( stream: firestore.collection('teachers').snapshots(), builder: (context, snapshot) { String count = '...'; if (snapshot.hasError) { count = 'Error'; print("Error fetching teachers: ${snapshot.error}"); } else if (snapshot.hasData) { count = snapshot.data!.docs.length.toString(); } return _buildSummaryCard( icon: Icons.co_present_outlined, title: "Total Teachers", value: count, color1: kPrimaryColor, color2: Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherListScreen())) ); }, ),
-                   // --- Today Attendance Card ---
-                   StreamBuilder<DocumentSnapshot>(
-                     stream: firestore.collection('attendanceSummary').doc(todayDateString).snapshots(),
-                     builder: (context, snapshot) {
-                       Widget attendanceChild;
+              // Use a StreamBuilder to get the auth state first
+              StreamBuilder<User?>(
+                stream: FirebaseAuth.instance.authStateChanges(), // Use the direct auth stream
+                builder: (context, userSnapshot) {
+                  if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    // Show loading indicators for all cards while checking auth state
+                    return GridView.count(
+                      crossAxisCount: 1, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: kDefaultPadding * 0.75, childAspectRatio: 5.5,
+                      children: [
+                        _buildSummaryCard( icon: Icons.school_outlined, title: "Total Students", value: '...', color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                        _buildSummaryCard( icon: Icons.co_present_outlined, title: "Total Teachers", value: '...', color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                        _buildSummaryCard( icon: Icons.assignment_turned_in_outlined, title: "Today Attendance", customChild: Text('...', style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)), color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                        _buildSummaryCard( icon: Icons.request_quote_outlined, title: "Pending Payments", value: '...', color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                      ],
+                    );
+                  }
+
+                  final String? adminUid = userSnapshot.data?.uid;
+
+                  if (adminUid == null) {
+                    // Show N/A or error state if admin is not logged in
+                     return GridView.count(
+                      crossAxisCount: 1, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: kDefaultPadding * 0.75, childAspectRatio: 5.5,
+                      children: [
+                        _buildSummaryCard( icon: Icons.school_outlined, title: "Total Students", value: 'N/A', color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                        _buildSummaryCard( icon: Icons.co_present_outlined, title: "Total Teachers", value: 'N/A', color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                        _buildSummaryCard( icon: Icons.assignment_turned_in_outlined, title: "Today Attendance", customChild: Text('N/A', style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)), color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                        _buildSummaryCard( icon: Icons.request_quote_outlined, title: "Pending Payments", value: 'N/A', color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null ),
+                      ],
+                    );
+                  }
+
+                  // If adminUid is available, build the GridView with data-fetching StreamBuilders
+                  // Apply animation here
+                  return GridView.count(
+                    crossAxisCount: 1, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: kDefaultPadding * 0.75, childAspectRatio: 5.5,
+                    children: [
+                      // --- Total Students Card ---
+                      StreamBuilder<QuerySnapshot>(
+                        stream: firestore.collection('admins').doc(adminUid).collection('students').snapshots(),
+                        builder: (context, snapshot) {
+                          String count = '...';
+                          if (snapshot.hasError) { count = 'Error'; print("Error fetching students: ${snapshot.error}"); }
+                          else if (snapshot.hasData) { count = snapshot.data!.docs.length.toString(); }
+                          return _buildSummaryCard( icon: Icons.school_outlined, title: "Total Students", value: count, color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentListScreen())) );
+                        },
+                      ),
+                      // --- Total Teachers Card ---
+                      StreamBuilder<QuerySnapshot>(
+                        stream: firestore.collection('admins').doc(adminUid).collection('teachers').snapshots(),
+                        builder: (context, snapshot) {
+                          String count = '...';
+                          if (snapshot.hasError) { count = 'Error'; print("Error fetching teachers: ${snapshot.error}"); }
+                          else if (snapshot.hasData) { count = snapshot.data!.docs.length.toString(); }
+                          return _buildSummaryCard( icon: Icons.co_present_outlined, title: "Total Teachers", value: count, color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherListScreen())) );
+                        },
+                      ),
+                      // --- Today Attendance Card ---
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: firestore.collection('admins').doc(adminUid).collection('attendanceSummary').doc(todayDateString).snapshots(),
+                        builder: (context, snapshot) {
+                          Widget attendanceChild;
                        if (snapshot.connectionState == ConnectionState.waiting) {
                           attendanceChild = Text('...', style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)); // Loading state
                        } else if (snapshot.hasError) {
@@ -120,6 +179,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                      },
                    ),
                    // --- Pending Payments Card (Count for Current Month) ---
+                   // IMPORTANT: This collectionGroup query relies on Firestore Security Rules
+                   // to ensure ONLY the current admin's student fees are queried and counted.
+                   // Without proper rules, this will query fees across ALL admins.
+                   // Ensure your Firestore rules for the 'fees' collection include a check like:
+                   // allow read: if request.auth.uid == get(/databases/$(database)/documents/admins/$(request.auth.uid)).id;
+                   // (Adjust the rule based on your exact path structure if needed).
                    StreamBuilder<QuerySnapshot>(
                      stream: firestore.collectionGroup('fees')
                                   .where('paid', isEqualTo: false)
@@ -140,7 +205,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                      },
                    ),
                 ],
-              ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.2, duration: 400.ms, curve: Curves.easeOut),
+              ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.2, duration: 400.ms, curve: Curves.easeOut); // End of GridView for Overview Cards
+            }, // Close builder function
+          ), // Close StreamBuilder<User?>,
 
               const SizedBox(height: kDefaultPadding * 1.5),
 

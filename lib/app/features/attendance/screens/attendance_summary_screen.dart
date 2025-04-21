@@ -75,11 +75,27 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       _isLoadingClasses = true;
       _errorMessage = null;
     });
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      print("Error: Admin UID is null. Cannot fetch classes.");
+      setState(() {
+        _errorMessage = "Error: Could not verify admin.";
+        _isLoadingClasses = false;
+        _availableClasses = [];
+      });
+      return;
+    }
+
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('students').get();
+      // Fetch classes from the nested collection under the current admin
+      final snapshot = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .get();
       final classes = snapshot.docs
           .map((doc) => doc.data()['class'] as String?)
-          .where((className) => className != null)
+          .where((className) => className != null && className.isNotEmpty) // Added isNotEmpty check
           .cast<String>()
           .toSet()
           .toList();
@@ -114,8 +130,22 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     final targetDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
     print("Fetching attendance for Class: $_selectedClass, Date: $targetDate");
 
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      print("Error: Admin UID is null. Cannot fetch attendance data.");
+      setState(() {
+        _errorMessage = "Error: Could not verify admin.";
+        _isLoadingData = false;
+        _attendanceList = [];
+      });
+      return;
+    }
+
     try {
+      // Fetch students from the nested collection
       final studentSnapshot = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(adminUid)
           .collection('students')
           .where('class', isEqualTo: _selectedClass)
           .orderBy('name')
@@ -140,7 +170,13 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
         final studentName = studentData['name'] as String? ?? 'Unknown Name';
         final photoUrl = studentData['photoUrl'] as String?;
 
-        final attendanceSnapshot = await studentDoc.reference
+        // Fetch attendance from the nested subcollection
+        // No need to use studentDoc.reference as we already have the path
+        final attendanceSnapshot = await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(adminUid)
+            .collection('students')
+            .doc(studentId)
             .collection('attendance')
             .where('date', isEqualTo: targetDate)
             .limit(1)
@@ -220,10 +256,32 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
      setState(() => _isLoadingData = true);
 
-     final studentRef = FirebaseFirestore.instance.collection('students').doc(record.studentId);
-     final attendanceCollection = studentRef.collection('attendance');
+     final String? adminUid = AuthController.instance.user?.uid;
+     if (adminUid == null) {
+       print("Error: Admin UID is null. Cannot save attendance.");
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar( // Removed const
+          content: const Text('Error: Could not verify admin to save attendance.'), // Keep const for Text
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(kDefaultPadding), // Keep const here
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+        ),
+      );
+       setState(() => _isLoadingData = false);
+       return;
+     }
+
+     // Reference the nested attendance collection correctly
+     final attendanceCollection = FirebaseFirestore.instance
+         .collection('admins')
+         .doc(adminUid)
+         .collection('students')
+         .doc(record.studentId)
+         .collection('attendance');
+
      final targetDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
-     final adminUid = AuthController.instance.user?.uid ?? 'unknown_admin';
+     // final adminUid = AuthController.instance.user?.uid ?? 'unknown_admin'; // Already fetched
 
      try {
         final dataToSave = {
@@ -302,13 +360,20 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       );
     }
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+      // Fetch the specific profile document within the adminProfile subcollection
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile') // Document ID is 'profile'
+          .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
         Widget profileWidget = const Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor);
 
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
+          // Use the correct field name from firestore_setup.js
           if (data != null && data.containsKey('profilePhotoUrl')) {
             photoUrl = data['profilePhotoUrl'] as String?;
           }

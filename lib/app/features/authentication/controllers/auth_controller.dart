@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart'; // Reverted: No longer needed here
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 // Import Dashboard Screen
@@ -11,6 +12,7 @@ class AuthController extends GetxController {
 
   // Firebase Auth instance
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance; // Reverted: No longer needed here
 
   // Observables for reactive state management
   final Rx<User?> _firebaseUser = Rx<User?>(null);
@@ -67,6 +69,7 @@ class AuthController extends GetxController {
   }
 
   // Send Password Reset Email
+  // Reverted: signUpWithEmailAndPassword method removed as it's not used in the developer-led workflow.
   Future<bool> sendPasswordResetEmail(String email) async {
     isLoading.value = true; // Start loading
     try {
@@ -118,6 +121,7 @@ class AuthController extends GetxController {
   }
 
   // Helper to show error snackbar
+  // Reverted: _setupNewAdminFirestoreData method removed as it's not used in the developer-led workflow.
   void _showAuthErrorSnackbar(String title, String message) {
     Get.snackbar(
       title,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart'; // Added
-import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // Added
-import 'package:edu_track/app/utils/constants.dart'; // Added
+import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
+import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
+import 'package:get/get.dart'; // Import GetX
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -204,22 +206,46 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   }
 
   void _loadInitialData() {
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      print("Error: Admin UID is null. Cannot load student details.");
+      // Set futures to completed with an error or empty data to prevent hangs
+      setState(() {
+        _studentFuture = Future.error("Admin not logged in");
+        _examTermsFuture = Future.value([]);
+        _examResultsFuture = Future.value([]);
+        _feesFuture = Future.value([]);
+      });
+      // Optionally show a snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Could not verify admin.')),
+        );
+      }
+      return;
+    }
+
     // TODO: Replace with Riverpod logic
     final firestore = FirebaseFirestore.instance;
-    _studentFuture = firestore
+    final adminRef = firestore.collection('admins').doc(adminUid);
+
+    _studentFuture = adminRef
         .collection('students')
         .doc(widget.studentId)
         .get()
-        .then((doc) => Student.fromFirestore(doc));
+        .then((doc) {
+          if (!doc.exists) throw Exception("Student not found"); // Handle non-existent student
+          return Student.fromFirestore(doc);
+        });
 
-    _examTermsFuture = firestore
+    _examTermsFuture = adminRef // Fetch terms nested under admin
         .collection('examTerms')
         .get()
         .then((snapshot) => snapshot.docs.map((doc) => ExamTerm.fromFirestore(doc)).toList());
 
-    // Initial load for results and fees (maybe load based on default term/year later)
-    _examResultsFuture = _fetchExamResults(null); // Load all initially or based on default term
-    _feesFuture = _fetchFees(null); // Load all initially or based on default year
+    // Initial load for results and fees
+    _examResultsFuture = _fetchExamResults(null); // Pass adminUid implicitly via _fetchExamResults
+    _feesFuture = _fetchFees(null); // Pass adminUid implicitly via _fetchFees
 
      // Set default filter values after terms/fees are loaded
     _examTermsFuture.then((terms) {
@@ -252,7 +278,15 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
 
   // --- Data Fetching --- (To be replaced by Riverpod/Controller)
   Future<List<ExamResult>> _fetchExamResults(String? termId) async {
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      print("Error: Admin UID is null. Cannot fetch exam results.");
+      return []; // Return empty list if admin is not logged in
+    }
+
     Query query = FirebaseFirestore.instance
+        .collection('admins')
+        .doc(adminUid)
         .collection('students')
         .doc(widget.studentId)
         .collection('examResults');
@@ -266,13 +300,27 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   }
 
    Future<List<FeeRecord>> _fetchFees(String? year) async {
+    final String? adminUid = AuthController.instance.user?.uid;
+     if (adminUid == null) {
+       print("Error: Admin UID is null. Cannot fetch fees.");
+       return []; // Return empty list if admin is not logged in
+     }
+
     Query query = FirebaseFirestore.instance
+        .collection('admins')
+        .doc(adminUid)
         .collection('students')
         .doc(widget.studentId)
         .collection('fees');
 
     if (year != null) {
-      query = query.where('year', isEqualTo: int.tryParse(year));
+      final parsedYear = int.tryParse(year);
+      if (parsedYear != null) { // Check if parsing was successful
+         query = query.where('year', isEqualTo: parsedYear);
+      } else {
+         print("Warning: Invalid year format '$year' provided for fee filter.");
+         // Decide how to handle invalid year - fetch all or none? Fetching all for now.
+      }
     } else {
        // If no year selected, maybe fetch latest year's data or all?
        // For now, fetching all if year is null. Adjust as needed.
@@ -292,19 +340,26 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
       return IconButton(
         icon: Icon(Icons.account_circle_rounded, size: 30, color: kSecondaryColor), // Use constant
         tooltip: 'Profile Settings',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+        onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
       );
     }
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+       // Fetch the specific profile document within the adminProfile subcollection
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile') // Document ID is 'profile'
+          .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
         Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kSecondaryColor); // Use constant
 
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
-          if (data != null && data.containsKey('photoURL')) {
-            photoUrl = data['photoURL'] as String?;
+           // Use the correct field name from firestore_setup.js
+          if (data != null && data.containsKey('profilePhotoUrl')) {
+            photoUrl = data['profilePhotoUrl'] as String?;
           }
         } else if (snapshot.hasError) {
           print("Error fetching admin profile: ${snapshot.error}");
@@ -325,7 +380,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+            onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed (Already correct here, but ensuring consistency)
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
               child: profileWidget,

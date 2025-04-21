@@ -8,9 +8,11 @@ import 'package:edu_track/app/features/authentication/controllers/auth_controlle
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/app/utils/firestore_setup.dart'; // For generateIndexNumber
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:get/get.dart'; // Import GetX
 import 'package:saver_gallery/saver_gallery.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -77,9 +79,26 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
   // Fetch available classes from Firestore
   Future<void> _fetchAvailableClasses() async {
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      print("Error: Admin UID is null. Cannot fetch classes for dropdown.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Could not verify admin to fetch classes.')),
+        );
+      }
+      // Set default classes if admin check fails? Or leave empty? Leaving empty for now.
+      setState(() => _availableClasses = []);
+      return;
+    }
+
     try {
-      // Consider fetching from a dedicated 'classes' collection for better management
-      final snapshot = await FirebaseFirestore.instance.collection('students').get();
+      // Fetch classes from the nested collection under the current admin
+      final snapshot = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .get();
       final classesFromDb = snapshot.docs
           .map((doc) => doc.data()['class'] as String?)
           .where((className) => className != null && className.isNotEmpty)
@@ -209,12 +228,19 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
       // 2. Generate IDs and Index Number
       final studentId = const Uuid().v4(); // Generate unique ID
+      final String? adminUid = AuthController.instance.user?.uid; // Get Admin UID
+
+      if (adminUid == null) {
+         throw Exception("Admin user not found. Cannot add student.");
+      }
+
       final firestore = FirebaseFirestore.instance;
+      final adminRef = firestore.collection('admins').doc(adminUid); // Reference to admin doc
       final currentYear = DateTime.now().year;
       final studentSection = _sectionController.text.trim().toUpperCase();
 
-      // Find the next row number for index generation
-      final classSectionQuery = await firestore.collection('students')
+      // Find the next row number for index generation within the admin's students
+      final classSectionQuery = await adminRef.collection('students')
           .where('class', isEqualTo: _selectedClass!)
           .where('section', isEqualTo: studentSection)
           .get();
@@ -245,8 +271,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         'isActive': true, // Default to active
       };
 
-      // 4. Save to Firestore
-      await firestore.collection('students').doc(studentId).set(studentData);
+      // 4. Save to Firestore under the specific admin
+      await adminRef.collection('students').doc(studentId).set(studentData);
 
       // 5. Update state for success UI
       if (mounted) {
@@ -372,18 +398,25 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       return IconButton(
         icon: Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor),
         tooltip: 'Profile Settings',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+        onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed (Already correct here, but ensuring consistency)
       );
     }
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('admins').doc(userId).snapshots(),
+      // Fetch the specific profile document within the adminProfile subcollection
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile') // Document ID is 'profile'
+          .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
         Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor);
         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
-          if (data != null && data.containsKey('photoURL')) {
-            photoUrl = data['photoURL'] as String?;
+          // Use the correct field name from firestore_setup.js
+          if (data != null && data.containsKey('profilePhotoUrl')) {
+            photoUrl = data['profilePhotoUrl'] as String?;
           }
         } else if (snapshot.hasError) {
           print("Error fetching admin profile: ${snapshot.error}");
@@ -400,7 +433,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+            onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed (Already correct here, but ensuring consistency)
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
               child: profileWidget,
