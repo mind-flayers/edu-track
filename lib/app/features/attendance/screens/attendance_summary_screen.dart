@@ -6,8 +6,10 @@ import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:get/get.dart'; // Import GetX
 import 'package:intl/intl.dart'; // For date formatting
 import 'package:path_provider/path_provider.dart'; // For excel export
 import 'package:excel/excel.dart' as ex; // For excel export - Added prefix
@@ -283,21 +285,108 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
      final targetDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
      // final adminUid = AuthController.instance.user?.uid ?? 'unknown_admin'; // Already fetched
 
-     try {
-        final dataToSave = {
-          'date': targetDate,
-          'status': record.status,
-          'markedBy': adminUid,
-          'markedAt': Timestamp.now(),
-        };
+     final summaryDocRef = FirebaseFirestore.instance
+         .collection('admins')
+         .doc(adminUid)
+         .collection('attendanceSummary')
+         .doc(targetDate);
 
-       if (record.attendanceDocId != null) {
-         await attendanceCollection.doc(record.attendanceDocId).update(dataToSave);
-         print("Updated attendance for ${record.studentName} to ${record.status}");
-       } else {
-         await attendanceCollection.add(dataToSave);
-          print("Created attendance record for ${record.studentName} with status ${record.status}");
-       }
+     final newStatus = record.status;
+     // final originalStatus = _originalStatusMap[record.studentId] ?? '-'; // Already defined above
+
+     bool potentiallyCreatedNewDoc = (originalStatus == '-' && newStatus != '-');
+
+     try {
+       // Use a transaction to update both student attendance and summary atomically
+       await FirebaseFirestore.instance.runTransaction((transaction) async {
+         // 1. Get the current summary document
+         final summarySnapshot = await transaction.get(summaryDocRef);
+         int presentCount = 0;
+         int absentCount = 0;
+         List<dynamic> studentsPresent = [];
+         List<dynamic> studentsAbsent = [];
+
+         if (summarySnapshot.exists) {
+           final data = summarySnapshot.data() as Map<String, dynamic>;
+           presentCount = data['present'] ?? 0;
+           absentCount = data['absent'] ?? 0;
+           studentsPresent = List.from(data['studentsPresent'] ?? []);
+           studentsAbsent = List.from(data['studentsAbsent'] ?? []);
+         }
+
+         // 2. Adjust counts and lists based on the change
+         // Remove student from previous state lists first
+         if (originalStatus == 'present') {
+           presentCount = (presentCount > 0) ? presentCount - 1 : 0; // Decrement safely
+           studentsPresent.remove(record.studentId);
+         } else if (originalStatus == 'absent') {
+           absentCount = (absentCount > 0) ? absentCount - 1 : 0; // Decrement safely
+           studentsAbsent.remove(record.studentId);
+         }
+
+         // Add student to new state lists
+         if (newStatus == 'present') {
+           presentCount++;
+           if (!studentsPresent.contains(record.studentId)) {
+             studentsPresent.add(record.studentId);
+           }
+         } else if (newStatus == 'absent') {
+           absentCount++;
+            if (!studentsAbsent.contains(record.studentId)) {
+             studentsAbsent.add(record.studentId);
+           }
+         }
+         // If newStatus is '-', the student is simply removed from previous lists.
+
+         // 3. Prepare summary update data
+         final summaryUpdateData = {
+           'present': presentCount,
+           'absent': absentCount,
+           'studentsPresent': studentsPresent,
+           'studentsAbsent': studentsAbsent,
+           'markedBy': adminUid, // Track who last updated summary
+           'markedAt': Timestamp.now(),
+         };
+
+         // 4. Update or set the student's individual attendance record
+         final studentAttendanceData = {
+           'date': targetDate,
+           'status': newStatus,
+           'markedBy': adminUid,
+           'markedAt': Timestamp.now(),
+         };
+         DocumentReference studentDocRefToUpdate;
+         bool isCreatingNewStudentDoc = false;
+         if (record.attendanceDocId != null) {
+           // Use existing doc ref
+           studentDocRefToUpdate = attendanceCollection.doc(record.attendanceDocId);
+         } else {
+            // Create a new doc ref
+            studentDocRefToUpdate = attendanceCollection.doc(); // Generate new ID
+            isCreatingNewStudentDoc = true;
+            // We will refetch data after transaction if this happens
+         }
+
+         if (isCreatingNewStudentDoc) {
+             transaction.set(studentDocRefToUpdate, studentAttendanceData);
+         } else {
+             transaction.update(studentDocRefToUpdate, studentAttendanceData);
+         }
+
+         // 5. Update or set the summary document
+         if (summarySnapshot.exists) {
+             transaction.update(summaryDocRef, summaryUpdateData);
+         } else {
+             // Ensure initial counts are correct if creating the summary doc
+             summaryUpdateData['present'] = newStatus == 'present' ? 1 : 0;
+             summaryUpdateData['absent'] = newStatus == 'absent' ? 1 : 0;
+             summaryUpdateData['studentsPresent'] = newStatus == 'present' ? [record.studentId] : [];
+             summaryUpdateData['studentsAbsent'] = newStatus == 'absent' ? [record.studentId] : [];
+             transaction.set(summaryDocRef, summaryUpdateData);
+         }
+       }); // End of transaction
+
+       print("Successfully updated attendance and summary for ${record.studentName}");
 
        ScaffoldMessenger.of(context).showSnackBar(
          SnackBar(
@@ -310,8 +399,8 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
        );
 
      } catch (e) {
-        print("Error saving attendance for ${record.studentName}: $e");
-        ScaffoldMessenger.of(context).showSnackBar(
+       print("Error saving attendance transaction for ${record.studentName}: $e");
+       ScaffoldMessenger.of(context).showSnackBar(
          SnackBar(
            content: Text('Error updating attendance for ${record.studentName}.'),
            backgroundColor: Colors.red,
@@ -321,11 +410,20 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
          ),
        );
      } finally {
-        setState(() {
-          record.isEditing = false;
-          _isLoadingData = false;
+       // If a new student attendance doc might have been created, refetch data
+       // to ensure the UI has the correct attendanceDocId for future edits.
+       if (potentiallyCreatedNewDoc) {
+         print("Attendance record might have been created, re-fetching data...");
+         // No need to call setState here as _fetchAttendanceData handles it
+         await _fetchAttendanceData(); // Use await here
+       } else {
+         // Otherwise, just reset the editing state locally
+         setState(() {
+           record.isEditing = false;
+           _isLoadingData = false;
            _originalStatusMap.remove(record.studentId);
-        });
+         });
+       }
      }
   }
 
@@ -356,7 +454,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       return IconButton(
         icon: const Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor),
         tooltip: 'Profile Settings',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+        onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
       );
     }
     return StreamBuilder<DocumentSnapshot>(
@@ -401,7 +499,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+            onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed (Already correct, ensuring consistency)
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
               child: profileWidget,
@@ -460,7 +558,8 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       for (var record in _attendanceList) {
         sheet.appendRow([
           ex.TextCellValue(record.studentName),
-          ex.TextCellValue(record.status == '-' ? 'Absent' : record.status.capitalize()),
+          // Explicitly use the local extension to resolve conflict
+          ex.TextCellValue(record.status == '-' ? 'Absent' : StringExtension(record.status).capitalize()),
           ex.TextCellValue(DateFormat('yyyy-MM-dd').format(_selectedDate)),
           ex.TextCellValue(_selectedClass!),
         ]);

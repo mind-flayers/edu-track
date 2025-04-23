@@ -11,8 +11,10 @@ import 'package:edu_track/app/features/students/screens/student_list_screen.dart
 import 'package:edu_track/app/features/teachers/screens/add_teacher_screen.dart';
 import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:get/get.dart'; // Import GetX
 import 'package:intl/intl.dart'; // Import intl for date formatting
 
 class DashboardScreen extends StatefulWidget {
@@ -66,7 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (photoUrl != null && photoUrl.isNotEmpty) {
           profileWidget = CircleAvatar( radius: 18, backgroundColor: kLightTextColor.withOpacity(0.5), backgroundImage: NetworkImage(photoUrl), onBackgroundImageError: (exception, stackTrace) { print("Error loading profile image: $exception"); }, );
         }
-        return Material( color: Colors.transparent, child: InkWell( borderRadius: BorderRadius.circular(kDefaultRadius * 2), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())), child: Padding( padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2), child: profileWidget, ), ), );
+        return Material( color: Colors.transparent, child: InkWell( borderRadius: BorderRadius.circular(kDefaultRadius * 2), onTap: () => Get.toNamed(AppRoutes.profileSettings), child: Padding( padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2), child: profileWidget, ), ), ); // Use Get.toNamed (Already correct, ensuring consistency)
       },
     );
   }
@@ -155,53 +157,119 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           return _buildSummaryCard( icon: Icons.co_present_outlined, title: "Total Teachers", value: count, color1: kPrimaryColor, color2: const Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherListScreen())) );
                         },
                       ),
-                      // --- Today Attendance Card ---
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: firestore.collection('admins').doc(adminUid).collection('attendanceSummary').doc(todayDateString).snapshots(),
-                        builder: (context, snapshot) {
-                          Widget attendanceChild;
-                       if (snapshot.connectionState == ConnectionState.waiting) {
-                          attendanceChild = Text('...', style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)); // Loading state
-                       } else if (snapshot.hasError) {
-                         attendanceChild = Text('Error', style: textTheme.headlineSmall?.copyWith(color: Colors.red.shade200, fontWeight: FontWeight.bold));
-                         print("Error fetching attendance summary: ${snapshot.error}");
-                       } else if (snapshot.hasData && snapshot.data!.exists) {
-                         final data = snapshot.data!.data() as Map<String, dynamic>?;
-                         final present = data?['present'] ?? 0;
-                         final absent = data?['absent'] ?? 0;
-                         // Display Present / Absent counts
-                         attendanceChild = Row( mainAxisAlignment: MainAxisAlignment.end, children: [ Icon(Icons.check_circle, color: Colors.green.shade200, size: 20), const SizedBox(width: 4), Text(present.toString(), style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)), const SizedBox(width: 12), Icon(Icons.cancel, color: Colors.red.shade200, size: 20), const SizedBox(width: 4), Text(absent.toString(), style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)), ], );
-                       } else {
-                          // Display 0 / 0 if today's summary doc doesn't exist
-                          attendanceChild = Row( mainAxisAlignment: MainAxisAlignment.end, children: [ Icon(Icons.check_circle, color: Colors.grey.shade400, size: 20), const SizedBox(width: 4), Text("0", style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor.withOpacity(0.7), fontWeight: FontWeight.bold)), const SizedBox(width: 12), Icon(Icons.cancel, color: Colors.grey.shade400, size: 20), const SizedBox(width: 4), Text("0", style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor.withOpacity(0.7), fontWeight: FontWeight.bold)), ], );
-                       }
-                       return _buildSummaryCard( icon: Icons.assignment_turned_in_outlined, title: "Today Attendance", customChild: attendanceChild, color1: kPrimaryColor, color2: Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen())) );
-                     },
-                   ),
-                   // --- Pending Payments Card (Count for Current Month) ---
-                   // IMPORTANT: This collectionGroup query relies on Firestore Security Rules
-                   // to ensure ONLY the current admin's student fees are queried and counted.
-                   // Without proper rules, this will query fees across ALL admins.
-                   // Ensure your Firestore rules for the 'fees' collection include a check like:
-                   // allow read: if request.auth.uid == get(/databases/$(database)/documents/admins/$(request.auth.uid)).id;
-                   // (Adjust the rule based on your exact path structure if needed).
+                      // --- Today Attendance Card (Calculates Absent = Total - Present) ---
+                      StreamBuilder<QuerySnapshot>(
+                        // Stream 1: Get total students
+                        stream: firestore.collection('admins').doc(adminUid).collection('students').snapshots(),
+                        builder: (context, totalStudentsSnapshot) {
+                          // Stream 2: Get today's attendance summary
+                          return StreamBuilder<DocumentSnapshot>(
+                            stream: firestore.collection('admins').doc(adminUid).collection('attendanceSummary').doc(todayDateString).snapshots(),
+                            builder: (context, summarySnapshot) {
+                              Widget attendanceChild;
+                              int presentCount = 0;
+                              int absentCount = 0; // Will be calculated
+
+                              if (totalStudentsSnapshot.connectionState == ConnectionState.waiting || summarySnapshot.connectionState == ConnectionState.waiting) {
+                                attendanceChild = Text('...', style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)); // Loading state
+                              } else if (totalStudentsSnapshot.hasError || summarySnapshot.hasError) {
+                                attendanceChild = Text('Error', style: textTheme.headlineSmall?.copyWith(color: Colors.red.shade200, fontWeight: FontWeight.bold));
+                                if (totalStudentsSnapshot.hasError) print("Error fetching total students for attendance calc: ${totalStudentsSnapshot.error}");
+                                if (summarySnapshot.hasError) print("Error fetching attendance summary for calc: ${summarySnapshot.error}");
+                              } else if (totalStudentsSnapshot.hasData) {
+                                final totalStudents = totalStudentsSnapshot.data!.docs.length;
+
+                                // Get present count from summary (if exists)
+                                if (summarySnapshot.hasData && summarySnapshot.data!.exists) {
+                                  final data = summarySnapshot.data!.data() as Map<String, dynamic>?;
+                                  presentCount = data?['present'] ?? 0;
+                                } else {
+                                  presentCount = 0; // No summary doc means 0 present
+                                }
+
+                                // Calculate absent count
+                                absentCount = totalStudents - presentCount;
+                                absentCount = (absentCount >= 0) ? absentCount : 0; // Ensure non-negative
+
+                                // Build the display Row
+                                attendanceChild = Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Icon(Icons.check_circle, color: Colors.green.shade200, size: 20),
+                                    const SizedBox(width: 4),
+                                    Text(presentCount.toString(), style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)),
+                                    const SizedBox(width: 12),
+                                    Icon(Icons.cancel, color: Colors.red.shade200, size: 20),
+                                    const SizedBox(width: 4),
+                                    Text(absentCount.toString(), style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor, fontWeight: FontWeight.bold)),
+                                  ],
+                                );
+                              } else {
+                                // Handle case where total students couldn't be fetched but summary might have
+                                attendanceChild = Text('N/A', style: textTheme.headlineSmall?.copyWith(color: kSecondaryColor.withOpacity(0.7), fontWeight: FontWeight.bold));
+                              }
+
+                              return _buildSummaryCard(
+                                icon: Icons.assignment_turned_in_outlined,
+                                title: "Today Attendance",
+                                customChild: attendanceChild,
+                                color1: kPrimaryColor,
+                                color2: const Color(0xFF9B84FF), // Use const
+                                textColor: kSecondaryColor,
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen())),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                   // --- Pending Payments Card (Total Students - Paid Students for Current Month) ---
+                   // This requires two streams: one for total students and one for paid fees.
                    StreamBuilder<QuerySnapshot>(
-                     stream: firestore.collectionGroup('fees')
-                                  .where('paid', isEqualTo: false)
-                                  .where('year', isEqualTo: currentYear)
-                                  .where('month', isEqualTo: currentMonth)
-                                  .snapshots(),
-                     builder: (context, snapshot) {
-                       String pendingCount = '...'; // Loading state
-                       if (snapshot.hasError) {
-                         pendingCount = 'Error';
-                         print("Error fetching pending payments: ${snapshot.error}");
-                         // ** Reminder: Check Debug Console for index creation link if this shows 'Error' **
-                       } else if (snapshot.hasData) {
-                         pendingCount = snapshot.data!.docs.length.toString(); // Display count
-                       }
-                       // Updated title and icon
-                       return _buildSummaryCard( icon: Icons.request_quote_outlined, title: "Pending Payments", value: pendingCount, color1: kPrimaryColor, color2: Color(0xFF9B84FF), textColor: kSecondaryColor, onTap: null );
+                     // Stream 1: Get total students
+                     stream: firestore.collection('admins').doc(adminUid).collection('students').snapshots(),
+                     builder: (context, totalStudentsSnapshot) {
+                       // Stream 2: Get paid fees for the current month
+                       return StreamBuilder<QuerySnapshot>(
+                         stream: firestore.collectionGroup('fees')
+                                      .where('paid', isEqualTo: true) // Get PAID fees
+                                      .where('year', isEqualTo: currentYear)
+                                      .where('month', isEqualTo: currentMonth)
+                                      // IMPORTANT: Ensure Firestore rules secure this collectionGroup query
+                                      // to only allow access for the logged-in admin. Example rule:
+                                      // match /{path=**}/fees/{feeId} {
+                                      //   allow read: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/admins/$(request.auth.uid)).id;
+                                      // }
+                                      .snapshots(),
+                         builder: (context, paidFeesSnapshot) {
+                           String pendingCount = '...'; // Default loading state
+
+                           if (totalStudentsSnapshot.connectionState == ConnectionState.waiting || paidFeesSnapshot.connectionState == ConnectionState.waiting) {
+                             pendingCount = '...'; // Still loading if either stream is waiting
+                           } else if (totalStudentsSnapshot.hasError || paidFeesSnapshot.hasError) {
+                             pendingCount = 'Error';
+                             if (totalStudentsSnapshot.hasError) print("Error fetching total students for pending calc: ${totalStudentsSnapshot.error}");
+                             if (paidFeesSnapshot.hasError) print("Error fetching paid fees for pending calc: ${paidFeesSnapshot.error}");
+                             // ** Reminder: Check Debug Console for index creation link if paidFeesSnapshot shows 'Error' **
+                           } else if (totalStudentsSnapshot.hasData && paidFeesSnapshot.hasData) {
+                             final totalStudents = totalStudentsSnapshot.data!.docs.length;
+                             final paidCount = paidFeesSnapshot.data!.docs.length;
+                             final pending = totalStudents - paidCount;
+                             pendingCount = (pending >= 0 ? pending : 0).toString(); // Ensure count isn't negative
+                           } else {
+                             pendingCount = 'N/A'; // Handle cases where data might be missing unexpectedly
+                           }
+
+                           return _buildSummaryCard(
+                             icon: Icons.request_quote_outlined,
+                             title: "Pending Payments", // Keep title the same
+                             value: pendingCount,
+                             color1: kPrimaryColor,
+                             color2: const Color(0xFF9B84FF),
+                             textColor: kSecondaryColor,
+                             onTap: null, // Or navigate to a relevant screen if needed
+                           );
+                         },
+                       );
                      },
                    ),
                 ],

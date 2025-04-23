@@ -7,6 +7,7 @@ import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart'; // For nav bar consistency
 import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:flutter_animate/flutter_animate.dart';
