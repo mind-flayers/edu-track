@@ -437,22 +437,36 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
       print("SMS Gateway Token is missing.");
       return false;
     }
-    // Using the official Traccar SMS Gateway URL.
-    final url = Uri.parse('https://sms.traccar.org/send'); // <-- Correct public URL
+    // IMPORTANT: Replace with your actual Traccar SMS Gateway URL and parameters
+    // This is a placeholder structure. Adjust based on your gateway's API.
+    // --- IMPORTANT ---
+    // Using localhost as both apps are on the same device.
+    // Check the port in the Traccar SMS Gateway app settings (default is often 8082).
+    const String gatewayPort = '8082'; // <-- VERIFY/CHANGE THIS PORT IF NEEDED
+    final url = Uri.parse('http://127.0.0.1:$gatewayPort/');
+    // --- IMPORTANT ---
+
     final headers = {
-      'Content-Type': 'application/json', // Or 'application/x-www-form-urlencoded'
-      // Add any other required headers like Authorization if needed
-      // 'Authorization': 'Bearer $_smsGatewayToken', // Example if token is a Bearer token
+      // Traccar SMS Gateway app usually expects form data
+      'Content-Type': 'application/x-www-form-urlencoded',
     };
-    final body = jsonEncode({
-      'to': phoneNumber,
+    // Send data as a Map for form encoding
+    final body = {
+      'phone': phoneNumber, // Parameter name might differ, check app docs/source
       'message': message,
-      'token': _smsGatewayToken, // Example if token is sent in body
-      // Add other parameters required by your gateway
-    });
+      'token': _smsGatewayToken ?? '', // Send token if available
+    };
+
+    // Debug: Print the token being sent
+    print("Attempting to send SMS with token: $_smsGatewayToken");
 
     try {
-      final response = await http.post(url, headers: headers, body: body);
+      // Explicitly encode the body for x-www-form-urlencoded
+      final encodedBody = body.entries
+          .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+          .join('&');
+
+      final response = await http.post(url, headers: headers, body: encodedBody);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         print('SMS sent successfully to $phoneNumber.');

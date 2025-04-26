@@ -33,7 +33,7 @@ class _AttendanceData {
   final String studentName;
   final String? photoUrl;
   String status; // 'present', 'absent', or '-' if no record
-  String? attendanceDocId; // Made non-final: ID of the attendance document if it exists
+  final String? attendanceDocId; // ID of the attendance document if it exists
   bool isEditing;
 
   _AttendanceData({
@@ -61,9 +61,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   List<String> _availableClasses = [];
   bool _isLoadingClasses = true;
   bool _isLoadingData = false;
-  String? _errorMessage; // Keep for general loading errors
-  String? _statusMessage; // For success/error feedback messages
-  bool _isError = false; // To style the status message
+  String? _errorMessage;
 
   List<_AttendanceData> _attendanceList = [];
   Map<String, String> _originalStatusMap = {};
@@ -239,13 +237,10 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     });
   }
 
-  void _updateAttendanceStatus(int index, String uiSelection) {
-     // Map UI selection ('absent') to internal status ('-') for deletion
-     final newInternalStatus = uiSelection == 'absent' ? '-' : uiSelection;
+  void _updateAttendanceStatus(int index, String newStatus) {
      setState(() {
-       _attendanceList[index].status = newInternalStatus;
+       _attendanceList[index].status = newStatus;
      });
-     print("Updated internal status for ${_attendanceList[index].studentName} to: $newInternalStatus (UI selected: $uiSelection)");
   }
 
   Future<void> _saveAttendance(int index) async {
@@ -266,15 +261,16 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
      final String? adminUid = AuthController.instance.user?.uid;
      if (adminUid == null) {
        print("Error: Admin UID is null. Cannot save attendance.");
-       setState(() {
-         _statusMessage = 'Error: Could not verify admin to save attendance.';
-         _isError = true;
-         _isLoadingData = false;
-       });
-       // Clear message after a delay
-       Future.delayed(const Duration(seconds: 3), () {
-         if (mounted) setState(() => _statusMessage = null);
-       });
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar( // Removed const
+          content: const Text('Error: Could not verify admin to save attendance.'), // Keep const for Text
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(kDefaultPadding), // Keep const here
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+        ),
+      );
+       setState(() => _isLoadingData = false);
        return;
      }
 
@@ -306,16 +302,16 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
          // 1. Get the current summary document
          final summarySnapshot = await transaction.get(summaryDocRef);
          int presentCount = 0;
-         // int absentCount = 0; // Removed: Absent count is implicit
+         int absentCount = 0;
          List<dynamic> studentsPresent = [];
-         // List<dynamic> studentsAbsent = []; // Removed: Absent list is implicit
+         List<dynamic> studentsAbsent = [];
 
          if (summarySnapshot.exists) {
            final data = summarySnapshot.data() as Map<String, dynamic>;
            presentCount = data['present'] ?? 0;
-           // absentCount = data['absent'] ?? 0; // Removed
+           absentCount = data['absent'] ?? 0;
            studentsPresent = List.from(data['studentsPresent'] ?? []);
-           // studentsAbsent = List.from(data['studentsAbsent'] ?? []); // Removed
+           studentsAbsent = List.from(data['studentsAbsent'] ?? []);
          }
 
          // 2. Adjust counts and lists based on the change
@@ -323,135 +319,108 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
          if (originalStatus == 'present') {
            presentCount = (presentCount > 0) ? presentCount - 1 : 0; // Decrement safely
            studentsPresent.remove(record.studentId);
+         } else if (originalStatus == 'absent') {
+           absentCount = (absentCount > 0) ? absentCount - 1 : 0; // Decrement safely
+           studentsAbsent.remove(record.studentId);
          }
-         // No need to handle originalStatus == 'absent' or '-' for decrementing counts/lists anymore
 
-         // Add student to new state lists ONLY if present
+         // Add student to new state lists
          if (newStatus == 'present') {
            presentCount++;
            if (!studentsPresent.contains(record.studentId)) {
              studentsPresent.add(record.studentId);
            }
+         } else if (newStatus == 'absent') {
+           absentCount++;
+            if (!studentsAbsent.contains(record.studentId)) {
+             studentsAbsent.add(record.studentId);
+           }
          }
-         // If newStatus is '-', the student is simply removed from the present list (handled above if originalStatus was 'present')
+         // If newStatus is '-', the student is simply removed from previous lists.
 
-         // 3. Prepare summary update data (only present info)
+         // 3. Prepare summary update data
          final summaryUpdateData = {
            'present': presentCount,
-           // 'absent': absentCount, // Removed
+           'absent': absentCount,
            'studentsPresent': studentsPresent,
-           // 'studentsAbsent': studentsAbsent, // Removed
+           'studentsAbsent': studentsAbsent,
            'markedBy': adminUid, // Track who last updated summary
            'markedAt': Timestamp.now(),
          };
 
-         // 4. Update, set, or delete the student's individual attendance record (Logic remains the same here)
-         DocumentReference? studentDocRef; // Nullable
-         bool isCreatingNewStudentDoc = false; // Flag for refetch logic
-         bool wasDeleted = false; // Flag to track deletion
-
+         // 4. Update or set the student's individual attendance record
+         final studentAttendanceData = {
+           'date': targetDate,
+           'status': newStatus,
+           'markedBy': adminUid,
+           'markedAt': Timestamp.now(),
+         };
+         DocumentReference studentDocRefToUpdate;
+         bool isCreatingNewStudentDoc = false;
          if (record.attendanceDocId != null) {
-           studentDocRef = attendanceCollection.doc(record.attendanceDocId);
+           // Use existing doc ref
+           studentDocRefToUpdate = attendanceCollection.doc(record.attendanceDocId);
+         } else {
+            // Create a new doc ref
+            studentDocRefToUpdate = attendanceCollection.doc(); // Generate new ID
+            isCreatingNewStudentDoc = true;
+            // We will refetch data after transaction if this happens
          }
 
-         // Decide the operation: delete, set, update, or none
-         if (newStatus == '-') {
-             // If changing to '-', delete the record if it exists
-             if (studentDocRef != null) {
-                 print("Deleting attendance record for ${record.studentId} as status is now '-' (Doc ID: ${record.attendanceDocId})");
-                 transaction.delete(studentDocRef);
-                 wasDeleted = true; // Mark for local state update after transaction
-             } else {
-                  print("Status is '-' and no existing record for ${record.studentId}, doing nothing for student record.");
-             }
-         } else { // newStatus is 'present' or 'absent'
-             final studentAttendanceData = { // Use specific data for update/set
-                 'date': targetDate,
-                 'status': newStatus,
-                 'markedBy': adminUid,
-                 'markedAt': Timestamp.now(),
-             };
-             if (studentDocRef != null) {
-                 // Record exists, update it
-                 print("Updating attendance record for ${record.studentId} to $newStatus (Doc ID: ${record.attendanceDocId})");
-                 transaction.update(studentDocRef, studentAttendanceData);
-             } else {
-                 // Record doesn't exist, create it
-                 print("Creating new attendance record for ${record.studentId} with status $newStatus");
-                 // Generate a new ref *only* when creating
-                 studentDocRef = attendanceCollection.doc(); // Assign the new ref
-                 transaction.set(studentDocRef, studentAttendanceData);
-                 // Mark that a new doc was potentially created for refetch logic
-                 isCreatingNewStudentDoc = true; // Use this flag for refetch logic
-             }
+         if (isCreatingNewStudentDoc) {
+             transaction.set(studentDocRefToUpdate, studentAttendanceData);
+         } else {
+             transaction.update(studentDocRefToUpdate, studentAttendanceData);
          }
-
 
          // 5. Update or set the summary document
-         // Update summary if it exists OR if presentCount > 0 (to create it if needed)
-         // Delete summary if presentCount becomes zero.
-         if (presentCount > 0) {
-            if (summarySnapshot.exists) {
-              transaction.update(summaryDocRef, summaryUpdateData);
-            } else {
-              // If summary doesn't exist but we have present students
-              transaction.set(summaryDocRef, summaryUpdateData);
-            }
-         } else if (summarySnapshot.exists) {
-            // If presentCount is 0 and the summary doc exists, delete it.
-            print("Present count is zero, deleting summary document for $targetDate");
-            transaction.delete(summaryDocRef);
+         if (summarySnapshot.exists) {
+             transaction.update(summaryDocRef, summaryUpdateData);
          } else {
-            // If presentCount is 0 and summary doesn't exist, do nothing.
-            print("Summary document does not exist and present count is zero. No summary update needed.");
+             // Ensure initial counts are correct if creating the summary doc
+             summaryUpdateData['present'] = newStatus == 'present' ? 1 : 0;
+             summaryUpdateData['absent'] = newStatus == 'absent' ? 1 : 0;
+             summaryUpdateData['studentsPresent'] = newStatus == 'present' ? [record.studentId] : [];
+             summaryUpdateData['studentsAbsent'] = newStatus == 'absent' ? [record.studentId] : [];
+             transaction.set(summaryDocRef, summaryUpdateData);
          }
        }); // End of transaction
 
-       print("Successfully processed attendance update for ${record.studentName}");
-       setState(() {
-         _statusMessage = '${record.studentName} attendance updated successfully.';
-         _isError = false;
-       });
-       // Clear message after a delay
-       Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) setState(() => _statusMessage = null);
-       });
- 
-      } catch (e) {
-        print("Error saving attendance transaction for ${record.studentName}: $e");
-        setState(() {
-          _statusMessage = 'Error updating attendance for ${record.studentName}.';
-          _isError = true;
-        });
-        // Clear message after a delay
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) setState(() => _statusMessage = null);
-        });
-      } finally {
-       // Determine state changes after the transaction attempt
-       bool wasDeleted = (newStatus == '-' && originalStatus != '-'); // Record was deleted
-       bool wasCreated = (newStatus != '-' && originalStatus == '-'); // Record was created
+       print("Successfully updated attendance and summary for ${record.studentName}");
 
-       setState(() => _isLoadingData = false); // Stop loading indicator regardless
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(
+           content: Text('${record.studentName} attendance updated successfully.'),
+           backgroundColor: Colors.green,
+           behavior: SnackBarBehavior.floating,
+           margin: const EdgeInsets.all(kDefaultPadding),
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+         ),
+       );
 
-       if (wasDeleted && record.attendanceDocId != null) { // Ensure it *was* actually deleted from DB state
-         print("Attendance record deleted for ${record.studentName}. Updating local state.");
-         setState(() {
-           // record.status is already '-' from _updateAttendanceStatus
-           record.attendanceDocId = null; // Clear the doc ID locally
-           record.isEditing = false;
-           _originalStatusMap.remove(record.studentId);
-         });
-       } else if (wasCreated) {
-         // If a new student attendance doc was created
-         print("Attendance record created for ${record.studentName}, re-fetching data...");
-         // Refetch is needed to get the new attendanceDocId
+     } catch (e) {
+       print("Error saving attendance transaction for ${record.studentName}: $e");
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(
+           content: Text('Error updating attendance for ${record.studentName}.'),
+           backgroundColor: Colors.red,
+           behavior: SnackBarBehavior.floating,
+           margin: const EdgeInsets.all(kDefaultPadding),
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+         ),
+       );
+     } finally {
+       // If a new student attendance doc might have been created, refetch data
+       // to ensure the UI has the correct attendanceDocId for future edits.
+       if (potentiallyCreatedNewDoc) {
+         print("Attendance record might have been created, re-fetching data...");
+         // No need to call setState here as _fetchAttendanceData handles it
          await _fetchAttendanceData(); // Use await here
        } else {
-         // Standard update case (e.g., absent -> present, present -> present, absent -> absent)
-         // Or case where status was '-' and stayed '-' (no DB change)
+         // Otherwise, just reset the editing state locally
          setState(() {
            record.isEditing = false;
+           _isLoadingData = false;
            _originalStatusMap.remove(record.studentId);
          });
        }
@@ -459,7 +428,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   }
 
 
- void _onBottomNavItemTapped(int index) {
+  void _onBottomNavItemTapped(int index) {
     if (_selectedIndex == index) return;
 
     setState(() { _selectedIndex = index; });
@@ -558,13 +527,15 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
   Future<void> _shareAttendance() async {
     if (_selectedClass == null || _attendanceList.isEmpty) {
-      setState(() {
-        _statusMessage = 'Please select a class with data to export.';
-        _isError = true; // Treat as warning/error
-      });
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _statusMessage = null);
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a class with data to export.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(kDefaultPadding),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+        ),
+      );
       return;
     }
 
@@ -607,22 +578,26 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
         if (result.status == ShareResultStatus.success) {
            print('Shared successfully!');
-           setState(() {
-             _statusMessage = 'Attendance exported and shared successfully!';
-             _isError = false;
-           });
-           Future.delayed(const Duration(seconds: 3), () {
-             if (mounted) setState(() => _statusMessage = null);
-           });
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+               content: const Text('Attendance exported and shared successfully!'),
+               backgroundColor: Colors.green,
+               behavior: SnackBarBehavior.floating,
+               margin: const EdgeInsets.all(kDefaultPadding),
+               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+             ),
+           );
         } else {
            print('Sharing failed or dismissed: ${result.status}');
-           setState(() {
-             _statusMessage = 'Sharing failed or was cancelled.';
-             _isError = true; // Treat as warning/error
-           });
-           Future.delayed(const Duration(seconds: 3), () {
-             if (mounted) setState(() => _statusMessage = null);
-           });
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+               content: const Text('Sharing failed or was cancelled.'),
+               backgroundColor: Colors.orange,
+               behavior: SnackBarBehavior.floating,
+               margin: const EdgeInsets.all(kDefaultPadding),
+               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+             ),
+           );
         }
 
       } else {
@@ -631,16 +606,17 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
     } catch (e) {
       print("Error generating or sharing Excel: $e");
-      setState(() {
-        _statusMessage = 'Error exporting attendance: ${e.toString()}';
-        _isError = true;
-      });
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _statusMessage = null);
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error exporting attendance: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(kDefaultPadding),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+        ),
+      );
     } finally {
-      // Ensure loading indicator stops even if message clearing is delayed
-      if (mounted) setState(() => _isLoadingData = false);
+      setState(() => _isLoadingData = false);
     }
   }
 
@@ -784,46 +760,6 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
           // --- Attendance Table / Content Area ---
           Expanded(
             child: _buildContentArea(context),
-          ),
-
-          // --- Status Message (Moved to bottom) ---
-          AnimatedOpacity(
-            opacity: _statusMessage != null ? 1.0 : 0.0,
-            duration: 300.ms,
-            child: Padding( // Add padding around the message
-              padding: const EdgeInsets.fromLTRB(kDefaultPadding, kDefaultPadding / 2, kDefaultPadding, kDefaultPadding), // Padding at bottom
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding * 0.6),
-                  decoration: BoxDecoration(
-                    color: _isError ? kErrorColor.withOpacity(0.1) : kSuccessColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(kDefaultRadius),
-                    border: Border.all(color: _isError ? kErrorColor : kSuccessColor, width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
-                        color: _isError ? kErrorColor : kSuccessColor,
-                        size: 20,
-                      ),
-                      const SizedBox(width: kDefaultPadding / 2),
-                      Flexible( // Allow text to wrap if needed
-                        child: Text(
-                          _statusMessage ?? '',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: _isError ? kErrorColor : kSuccessColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center, // Center align text
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ),
         ], // Closing Column children
       ), // Closing Column
@@ -978,32 +914,16 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
      );
   }
 
-  Widget _buildAttendanceDropdown(int index, String currentInternalStatus) {
-     // Map internal status '-' back to 'absent' for dropdown display value
-     String? dropdownValue;
-     if (currentInternalStatus == 'present') {
-       dropdownValue = 'present';
-     } else if (currentInternalStatus == '-') {
-       // If internal status is '-', show 'Absent' as selected in dropdown
-       dropdownValue = 'absent';
-     }
-     // If internal status is somehow 'absent' (shouldn't happen with new logic, but handle defensively), treat as absent
-     else if (currentInternalStatus == 'absent') {
-        dropdownValue = 'absent';
-     }
-
-
+  Widget _buildAttendanceDropdown(int index, String currentStatus) {
      return DropdownButton<String>(
-       value: dropdownValue, // Use the mapped value
+       value: currentStatus == 'present' || currentStatus == 'absent' ? currentStatus : null,
        hint: Text('Select', style: TextStyle(color: Colors.grey.shade600)),
        items: [
          DropdownMenuItem(value: 'present', child: Text('Present', style: TextStyle(color: Colors.green.shade700))),
-         // UI always shows 'Absent', value is 'absent'
          DropdownMenuItem(value: 'absent', child: Text('Absent', style: TextStyle(color: Colors.red.shade700))),
        ],
        onChanged: (String? newValue) {
          if (newValue != null) {
-           // Pass the UI selection ('present' or 'absent') to the update function
            _updateAttendanceStatus(index, newValue);
          }
        },
