@@ -443,7 +443,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
     // Using localhost as both apps are on the same device.
     // Check the port in the Traccar SMS Gateway app settings (default is often 8082).
     const String gatewayPort = '8082'; // <-- VERIFY/CHANGE THIS PORT IF NEEDED
-    final url = Uri.parse('http://127.0.0.1:$gatewayPort/');
+    final url = Uri.parse('http://192.168.248.116:$gatewayPort/');
     // --- IMPORTANT ---
 
     final headers = {
