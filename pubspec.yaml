@@ -61,6 +61,8 @@ dependencies:
   file_saver: ^0.2.12 # For saving files like Excel
   provider: ^6.1.2 # For state management (added)
   share_plus: ^10.1.4
+  pdf: ^3.11.3
+  printing: ^5.14.2
 
 
 dev_dependencies:

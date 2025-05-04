@@ -1,22 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
-import 'package:edu_track/app/features/students/screens/student_list_screen.dart';
-import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
-import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
-// import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart'; // For nav bar consistency
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
-// import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:excel/excel.dart' as ex;
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
+import 'package:flutter/services.dart' show rootBundle; // Needed for font loading
+import 'package:pdf/widgets.dart' as pw; // PDF generation
+import 'package:pdf/pdf.dart'; // PDF page format
+import 'package:printing/printing.dart'; // PDF sharing/printing
 
 // Data model for holding combined student and exam result info
 class _ExamResultData {
@@ -53,7 +51,7 @@ class ExamResultsScreen extends StatefulWidget {
 }
 
 class _ExamResultsScreenState extends State<ExamResultsScreen> {
-  int _selectedIndex = 3; // Assuming Exam Results uses the 4th nav item (index 3) like Attendance
+  // int _selectedIndex = 3; // Assuming Exam Results uses the 4th nav item (index 3) like Attendance
   String? _selectedClassSection;
   String? _selectedSubject;
   _ExamTerm? _selectedTerm;
@@ -293,6 +291,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           .collection('students')
           .where('class', isEqualTo: className)
           .where('section', isEqualTo: section)
+          // .where('subjectsChoosed', arrayContains: _selectedSubject) // Filter removed, will filter in app
           .orderBy('name')
           .get();
 
@@ -313,8 +312,34 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
       for (var studentDoc in studentSnapshot.docs) {
         final studentData = studentDoc.data();
         final studentId = studentDoc.id;
+
+        // --- In-app filtering ---
+        final List<dynamic> subjectsChoosedList = studentData['subjectsChoosed'] as List<dynamic>? ?? [];
+        // Trim strings during mapping for robust comparison
+        final List<String> subjectsChoosed = subjectsChoosedList.map((s) => s.toString().trim()).toList();
+
+        // Add detailed debug prints
+        print("  Checking student: ${studentData['name']}, Subjects List: $subjectsChoosed, Selected Subject: '$_selectedSubject'");
+
+        // Ensure selected subject is not null and trim it before comparison
+        if (_selectedSubject == null || !subjectsChoosed.contains(_selectedSubject!.trim())) {
+          print("  Student: ${studentData['name']} skipped (doesn't take '$_selectedSubject')");
+          continue; // Skip this student if they don't take the selected subject
+        }
+        // --- End in-app filtering ---
+
         final studentName = studentData['name'] as String? ?? 'Unknown Name';
         final photoUrl = studentData['photoUrl'] as String?;
+
+        // Add logging before the query to see exact values
+        // Trim the selected subject *before* using it in the query for robustness
+        final String? subjectToQuery = _selectedSubject?.trim();
+        if (subjectToQuery == null) {
+           print("  Error: Selected subject is null after trimming. Skipping query for student $studentId.");
+           continue; // Skip if subject is somehow null after trimming
+        }
+
+        print("  Querying examResults for studentId: $studentId, termId: '${_selectedTerm!.id}', subject: '$subjectToQuery'"); // Log the trimmed value
 
         // Fetch exam result from the nested subcollection
         final examResultSnapshot = await FirebaseFirestore.instance
@@ -323,24 +348,41 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
             .collection('students')
             .doc(studentId)
             .collection('examResults')
-            .where('term', isEqualTo: _selectedTerm!.id)
-            .where('subject', isEqualTo: _selectedSubject)
-            .limit(1)
+            .where('term', isEqualTo: _selectedTerm!.id) // Query only by term ID
+            // .where('subject', isEqualTo: subjectToQuery) // Subject check moved after fetch
+            // .limit(1) // REMOVED: Need to check all docs for the term
             .get();
 
         int marks = 0; // Default marks
         String? examResultDocId;
 
-        if (examResultSnapshot.docs.isNotEmpty) {
-          final resultData = examResultSnapshot.docs.first.data();
-          marks = resultData['marks'] as int? ?? 0;
-          examResultDocId = examResultSnapshot.docs.first.id;
-          print("  Student: $studentName, Marks: $marks, DocId: $examResultDocId");
-        } else {
-          print("  Student: $studentName, Marks: No record found for $_selectedSubject in ${_selectedTerm!.name}");
-          // Optionally create a default record here if needed, or handle it during save
+        // Iterate through all documents found for the term to find the matching subject
+        bool subjectFound = false;
+        for (var doc in examResultSnapshot.docs) {
+          final resultData = doc.data();
+          final String? fetchedSubject = resultData['subject'] as String?;
+
+          // --- Verify Subject Match In-App ---
+          if (fetchedSubject?.trim() == subjectToQuery) {
+            // Subject matches, proceed to get marks
+            print("  Student: $studentName, Found record for term and subject matches.");
+            subjectFound = true;
+            // Handle both int and double for marks
+            final num? marksNum = resultData['marks'] as num?;
+            marks = marksNum?.toInt() ?? 0; // Convert num? to int, default to 0 if null
+            examResultDocId = doc.id; // Use the ID of the matching document
+            print("  Student: $studentName, Fetched Marks (as num): $marksNum, Using Marks (as int): $marks, DocId: $examResultDocId");
+            break; // Found the matching subject, no need to check further docs
+          } else {
+             print("  Student: $studentName, Found record for term, but subject mismatch. Expected: '$subjectToQuery', Found: '$fetchedSubject'. Checking next doc...");
+          }
+          // --- End Subject Verification ---
         }
 
+        if (!subjectFound) {
+           print("  Student: $studentName, Marks: No record found for subject '$subjectToQuery' in term ${_selectedTerm!.name} after checking all fetched docs.");
+           // Keep marks = 0 and examResultDocId = null
+        }
         tempData.add(_ExamResultData(
           studentId: studentId,
           studentName: studentName,
@@ -475,7 +517,8 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
     }
   }
 
-  Future<void> _shareExamResults() async {
+  // Renamed from _shareExamResults
+  Future<void> _exportResultsAsExcel() async {
      if (_selectedClassSection == null || _selectedSubject == null || _selectedTerm == null || _examResultsList.isEmpty) {
        _showSnackbar('Please select class, term, subject with data to export.', isError: true, isInfo: true);
        return;
@@ -542,7 +585,116 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
    }
 
 
+  // --- PDF Export ---
+  Future<void> _exportResultsAsPdf() async {
+    if (_selectedClassSection == null || _selectedSubject == null || _selectedTerm == null || _examResultsList.isEmpty) {
+      _showSnackbar('Please select class, term, subject with data to export.', isError: true, isInfo: true);
+      return;
+    }
+
+    setState(() => _isLoadingResults = true);
+
+    final pdf = pw.Document();
+    final String title = 'Exam Results: ${_selectedClassSection!} - ${_selectedSubject!} (${_selectedTerm!.name})';
+
+    // --- Load Font Data ---
+    // Using Roboto font data (assuming google_fonts package provides it)
+    // Adjust path if using a different font added to assets
+    final fontData = await rootBundle.load("google_fonts/Roboto-Regular.ttf");
+    final boldFontData = await rootBundle.load("google_fonts/Roboto-Bold.ttf");
+    final ttf = pw.Font.ttf(fontData);
+    final boldTtf = pw.Font.ttf(boldFontData);
+    // --- End Font Loading ---
+
+
+    // Build PDF content
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf), // Apply theme with loaded fonts
+        build: (pw.Context context) => [
+          pw.Header(level: 0, child: pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18))),
+          pw.SizedBox(height: 20),
+          pw.Table.fromTextArray(
+            headers: ['Student Name', 'Marks'],
+            data: _examResultsList.map((result) => [result.studentName, result.currentMarks.toString()]).toList(),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold), // Will use boldTtf from theme
+            cellAlignment: pw.Alignment.centerLeft,
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
+            cellStyle: const pw.TextStyle(fontSize: 10), // Will use ttf from theme
+            columnWidths: {
+              0: const pw.FlexColumnWidth(3), // Name column wider
+              1: const pw.FlexColumnWidth(1), // Marks column narrower
+            },
+          ),
+        ],
+      ),
+    );
+
+    try {
+      // Use printing package to share
+      await Printing.sharePdf(bytes: await pdf.save(), filename: '${title.replaceAll(' ', '_').replaceAll(':', '')}.pdf');
+      _showSnackbar('PDF shared successfully!', isError: false);
+    } catch (e) {
+      print("Error sharing PDF: $e");
+      _showSnackbar('Error sharing PDF: ${e.toString()}', isError: true);
+    } finally {
+      setState(() => _isLoadingResults = false);
+    }
+  }
+
+
+  // --- Show Export Options Dialog ---
+  Future<void> _showExportOptions() async {
+     if (_selectedClassSection == null || _selectedSubject == null || _selectedTerm == null || _examResultsList.isEmpty) {
+       _showSnackbar('Please select class, term, subject with data to export.', isError: true, isInfo: true);
+       return;
+     }
+     if (_isEditing) {
+       _showSnackbar('Please save or cancel edits before exporting.', isError: true, isInfo: true);
+       return;
+     }
+
+     showDialog(
+       context: context,
+       builder: (BuildContext context) {
+         return AlertDialog(
+           title: const Text('Export Results'),
+           content: const Text('Choose the export format:'),
+           actions: <Widget>[
+             TextButton(
+               child: const Text('Excel (.xlsx)'),
+               onPressed: () {
+                 Navigator.of(context).pop(); // Close dialog
+                 _exportResultsAsExcel();
+               },
+             ),
+             TextButton(
+               child: const Text('PDF (.pdf)'),
+               onPressed: () {
+                 Navigator.of(context).pop(); // Close dialog
+                 _exportResultsAsPdf();
+               },
+             ),
+             TextButton(
+               child: const Text('Cancel'),
+               onPressed: () {
+                 Navigator.of(context).pop(); // Close dialog
+               },
+             ),
+           ],
+         );
+       },
+     );
+   }
+
+
+
+
   void _showSnackbar(String message, {required bool isError, bool isInfo = false}) {
+    // Debounce snackbar calls
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -556,33 +708,6 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
 
 
   // --- UI Building Methods ---
-
-  void _onBottomNavItemTapped(int index) {
-    if (_selectedIndex == index) return;
-
-    // Prevent navigation if in edit mode
-    if (_isEditing) {
-      _showSnackbar("Please save or cancel edits before navigating.", isError: true, isInfo: true);
-      return;
-    }
-
-    setState(() { _selectedIndex = index; });
-
-    Future.delayed(150.ms, () {
-      if (!mounted) return;
-      switch (index) {
-        case 0: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen())); break;
-        case 1: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const StudentListScreen())); break;
-        case 2: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TeacherListScreen())); break;
-        case 3: break; // Already on Exam Results Screen (or Attendance if reusing index)
-        case 4:
-          AuthController.instance.signOut();
-          Navigator.pushAndRemoveUntil( context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false );
-          break;
-        // Add case for Exam Results if it gets its own index
-      }
-    });
-  }
 
   Widget _buildProfileAvatar() {
     // Reusing the exact logic from AttendanceSummaryScreen
@@ -760,7 +885,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           const SizedBox(width: kDefaultPadding / 2),
           // Share Button
           ElevatedButton(
-            onPressed: (_examResultsList.isEmpty || _isLoadingResults || _isEditing) ? null : _shareExamResults,
+            onPressed: (_examResultsList.isEmpty || _isLoadingResults || _isEditing) ? null : _showExportOptions, // Updated call
             style: ElevatedButton.styleFrom(
               backgroundColor: kSecondaryColor,
               foregroundColor: kPrimaryColor,
@@ -843,22 +968,6 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
     final textTheme = Theme.of(context).textTheme;
     // final colorScheme = Theme.of(context).colorScheme;
 
-    // Copied from AttendanceSummaryScreen for consistency
-    final Map<int, IconData> navIcons = {
-      0: Icons.dashboard_rounded,
-      1: Icons.school_rounded,
-      2: Icons.co_present_rounded,
-      3: Icons.assignment_rounded, // Using Attendance icon for Exam Results
-      4: Icons.logout_rounded
-    };
-    final Map<int, String> navLabels = {
-      0: 'Dashboard',
-      1: 'Students',
-      2: 'Teachers',
-      3: 'Exams', // Changed label
-      4: 'Logout'
-    };
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -891,25 +1000,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           _buildResultsTable(),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: List.generate(navIcons.length, (index) {
-          return BottomNavigationBarItem(
-            icon: Icon(navIcons[index]),
-            label: navLabels[index],
-          );
-        }),
-        currentIndex: _selectedIndex,
-        onTap: _onBottomNavItemTapped,
-        type: BottomNavigationBarType.fixed, // Keep labels visible
-        backgroundColor: kSecondaryColor,
-        selectedItemColor: kPrimaryColor,
-        unselectedItemColor: kLightTextColor.withOpacity(0.7),
-        // selectedLabelStyle and unselectedLabelStyle are not valid properties
-        // Use selectedFontSize and unselectedFontSize for basic text styling
-        selectedFontSize: 12.0,
-        unselectedFontSize: 11.0, // Example size
-        elevation: 8.0,
-      ).animate().fadeIn(duration: 200.ms),
+      // Bottom Navigation Bar Removed
     );
   }
 }

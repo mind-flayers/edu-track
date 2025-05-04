@@ -43,6 +43,7 @@ class Student {
   final bool isActive;
   final String? sex; // Added sex
   final Timestamp? dob; // Added Date of Birth (as Timestamp)
+  final List<String> subjectsChoosed; // Added subjects chosen by the student
 
   Student({
     required this.id,
@@ -61,10 +62,17 @@ class Student {
     required this.isActive,
     this.sex, // Added
     this.dob, // Added
+    required this.subjectsChoosed, // Added
   });
 
   factory Student.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map;
+    // Explicitly handle null before passing to List.from
+    var subjectsData = data['subjectsChoosed'];
+    List<String> chosenSubjects = (subjectsData == null)
+        ? [] // Provide an empty list if null
+        : List<String>.from(subjectsData); // Cast if not null
+
     return Student(
       id: doc.id,
       name: data['name'] ?? 'N/A',
@@ -82,6 +90,7 @@ class Student {
       isActive: data['isActive'] ?? true,
       sex: data['sex'], // Added
       dob: data['dob'], // Added
+      subjectsChoosed: chosenSubjects, // Pass the safe list
     );
   }
 
@@ -591,8 +600,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     );
   }
 
-
-  Widget _buildExamResultsSection(List<ExamTerm> allTerms, List<ExamResult> currentResults) {
+  // Updated signature to accept Student
+  Widget _buildExamResultsSection(Student student, List<ExamTerm> allTerms, List<ExamResult> currentResults) {
      // Extract unique years and terms for dropdowns
     final years = allTerms.map((t) => t.year).toSet().toList();
     years.sort((a, b) => b.compareTo(a)); // Descending order
@@ -672,7 +681,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                 icon: const Icon(Icons.edit),
                 onPressed: _selectedExamTermId == null ? null : () {
                    final selectedTerm = allTerms.firstWhere((t) => t.id == _selectedExamTermId);
-                  _showEditExamResultsDialog(currentResults, selectedTerm);
+                   // Pass the student object here
+                   _showEditExamResultsDialog(student, currentResults, selectedTerm);
                 },
                 tooltip: "Edit Results",
               ),
@@ -681,7 +691,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
           const SizedBox(height: 24),
           // Bar Chart
           if (currentResults.isNotEmpty)
-             _buildExamChart(currentResults)
+             // Pass the student object (already available in this scope)
+             _buildExamChart(student, currentResults)
           else if (_selectedExamTermId != null)
              const Center(child: Text("No results found for this term."))
           else
@@ -692,11 +703,15 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     );
   }
 
-  Widget _buildExamChart(List<ExamResult> results) {
-    if (results.isEmpty) return const SizedBox(height: 150, child: Center(child: Text("No data")));
+  // Updated signature to accept Student
+  Widget _buildExamChart(Student student, List<ExamResult> results) {
+    // Filter results based on student's chosen subjects
+    final filteredResults = results.where((r) => student.subjectsChoosed.contains(r.subject)).toList();
 
-    // Find max marks across results for Y-axis scaling, default to 100
-    final double maxPossibleMark = results.fold<double>(100.0, (prev, elem) => elem.maxMarks > prev ? elem.maxMarks : prev);
+    if (filteredResults.isEmpty) return const SizedBox(height: 150, child: Center(child: Text("No data for chosen subjects")));
+
+    // Find max marks across filtered results for Y-axis scaling, default to 100
+    final double maxPossibleMark = filteredResults.fold<double>(100.0, (prev, elem) => elem.maxMarks > prev ? elem.maxMarks : prev);
     final double maxY = (maxPossibleMark / 10).ceil() * 10; // Round up to nearest 10
 
     return SizedBox(
@@ -710,7 +725,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
              touchTooltipData: BarTouchTooltipData(
                  // Removed tooltipBgColor as it's not a valid parameter in this version
                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                   final result = results[groupIndex];
+                   // Use filteredResults here
+                   final result = filteredResults[groupIndex];
                    return BarTooltipItem(
                      '${result.subject}\n',
                      const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
@@ -737,11 +753,12 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                 showTitles: true,
                 getTitlesWidget: (double value, TitleMeta meta) {
                   final index = value.toInt();
-                  if (index >= 0 && index < results.length) {
+                  // Use filteredResults here
+                  if (index >= 0 && index < filteredResults.length) {
                      // Abbreviate long subject names if necessary
-                     String subjectName = results[index].subject;
+                     String subjectName = filteredResults[index].subject;
                      if (subjectName.length > 5) {
-                       subjectName = '${subjectName.substring(0, 3)}.';
+                       subjectName = '${subjectName.substring(0, 3)}.'; // Keep abbreviation logic
                      }
                     return SideTitleWidget(
                        meta: meta, // Added required meta parameter
@@ -779,9 +796,10 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                );
              },
            ),
-          barGroups: results.asMap().entries.map((entry) {
-            int index = entry.key;
-            ExamResult result = entry.value;
+         // Use filteredResults here
+         barGroups: filteredResults.asMap().entries.map((entry) {
+           int index = entry.key;
+           ExamResult result = entry.value;
             return BarChartGroupData(
               x: index,
               barRods: [
@@ -1104,17 +1122,20 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     }
   }
 
-  void _showEditExamResultsDialog(List<ExamResult> currentResults, ExamTerm term) {
+  // Updated signature to accept Student
+  void _showEditExamResultsDialog(Student student, List<ExamResult> currentResults, ExamTerm term) {
      // Create controllers for each subject's text field
      Map<String, TextEditingController> controllers = {};
      Map<String, String> initialMarks = {}; // Store initial marks to detect changes
      Map<String, String> resultDocIds = {}; // Store doc IDs for updating
 
-     // Initialize controllers with current marks
-     for (String subject in term.subjects) {
+     // Initialize controllers with current marks FOR CHOSEN SUBJECTS ONLY
+     for (String subject in student.subjectsChoosed) {
+        // Find the existing result for this subject, if any
         final result = currentResults.firstWhere(
            (r) => r.subject == subject,
-           orElse: () => ExamResult(id: '', termId: term.id, subject: subject, marks: 0, maxMarks: 100) // Default if no result exists yet
+           // If no result exists yet for a chosen subject, create a default one
+           orElse: () => ExamResult(id: '', termId: term.id, subject: subject, marks: 0, maxMarks: 100)
         );
         controllers[subject] = TextEditingController(text: result.marks.toStringAsFixed(0));
         initialMarks[subject] = result.marks.toStringAsFixed(0);
@@ -1132,10 +1153,13 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
            content: SingleChildScrollView(
              child: Column(
                mainAxisSize: MainAxisSize.min,
-               children: term.subjects.map((subject) {
-                 return Padding(
-                   padding: const EdgeInsets.symmetric(vertical: 8.0),
-                   child: TextField(
+                // Iterate over chosen subjects only
+                children: student.subjectsChoosed.map((subject) {
+                  // Check if controller exists (it should, from the loop above)
+                  if (!controllers.containsKey(subject)) return const SizedBox.shrink(); // Skip if somehow missing
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: TextField(
                      controller: controllers[subject],
                      decoration: InputDecoration(
                        labelText: subject,
@@ -1159,12 +1183,23 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                child: const Text("Save Changes"),
                onPressed: () async {
                   // --- Save Logic ---
+                  final String? adminUid = AuthController.instance.user?.uid;
+                  if (adminUid == null) {
+                     _showToast("Error: Admin not logged in. Cannot save results.", error: true);
+                     return;
+                  }
                   final firestore = FirebaseFirestore.instance;
+                  final adminRef = firestore.collection('admins').doc(adminUid); // Get admin reference
+                  final studentResultsRef = adminRef.collection('students').doc(widget.studentId).collection('examResults'); // Correct path
                   final batch = firestore.batch();
                   bool hasChanges = false;
                   bool errorOccurred = false;
 
-                  for (String subject in term.subjects) {
+                  // Iterate over chosen subjects only
+                  for (String subject in student.subjectsChoosed) {
+                     // Check if controller exists for this chosen subject
+                     if (!controllers.containsKey(subject)) continue; // Skip if no controller (shouldn't happen)
+
                      final controller = controllers[subject]!;
                      final currentMarkStr = controller.text.trim();
                      final initialMarkStr = initialMarks[subject]!;
@@ -1179,9 +1214,10 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
 
                         hasChanges = true;
                         final resultDocId = resultDocIds[subject];
-                        final docRef = resultDocId != null
-                           ? firestore.collection('students').doc(widget.studentId).collection('examResults').doc(resultDocId)
-                           : firestore.collection('students').doc(widget.studentId).collection('examResults').doc(); // Create new doc if needed
+                        // Use the correct reference: adminRef -> students -> studentId -> examResults
+                        final docRef = resultDocId != null && resultDocId.isNotEmpty
+                           ? studentResultsRef.doc(resultDocId)
+                           : studentResultsRef.doc(); // Create new doc if needed under the correct path
 
                         batch.set(docRef, {
                            'term': term.id,
@@ -1189,7 +1225,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                            'marks': newMark,
                            'maxMarks': 100, // Assuming max marks is 100
                            'resultDate': Timestamp.now(), // Update timestamp
-                           'updatedBy': 'ADMIN_UID_PLACEHOLDER', // TODO: Get actual admin UID
+                           'updatedBy': adminUid, // Use the actual admin UID
                         }, SetOptions(merge: true)); // Use merge to create or update
                      }
                   }
@@ -1283,8 +1319,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                          return Center(child: Text("Error loading terms: ${termsSnapshot.error}"));
                        }
                        final allTerms = termsSnapshot.data ?? [];
-                       // Pass the already fetched currentResults here
-                       return _buildExamResultsSection(allTerms, currentResults);
+                       // Pass the student object here as well
+                       return _buildExamResultsSection(student, allTerms, currentResults);
                      }
                    );
                 }
@@ -1294,7 +1330,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildStudentInfoSection(student, currentResults), // Pass results here
+                      _buildStudentInfoSection(student, currentResults), // Pass student and results here
                       const Divider(),
                       resultsSectionWidget, // Display the results section (or loading/error)
                       const Divider(),
