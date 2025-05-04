@@ -193,8 +193,8 @@ class ProfileController extends GetxController {
         );
 
         // Check for success by verifying the secureUrl is present and not empty
-        if (response.secureUrl != null && response.secureUrl!.isNotEmpty) {
-          final String newImageUrl = response.secureUrl!;
+        if (response.secureUrl.isNotEmpty) {
+          final String newImageUrl = response.secureUrl;
           if (kDebugMode) {
             print('Cloudinary Upload Successful: $newImageUrl');
             print('Cloudinary Public ID: ${response.publicId}'); // Log the actual public ID returned

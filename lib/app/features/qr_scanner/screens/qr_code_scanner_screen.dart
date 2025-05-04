@@ -1,8 +1,8 @@
-import 'dart:convert';
+// import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
-import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // For profile avatar logic
+// import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // For profile avatar logic
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -405,7 +405,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
 
       // Send SMS
       final formattedAmount = NumberFormat("#,##0.00").format(amount);
-      final message = "Payment received! ${_foundStudent!.name} from ${_foundStudent!.className} has paid Rs.${formattedAmount} for ${_selectedMonth!}/$currentYear. - $_academyName | Powered by EduTrack.";
+      final message = "Payment received! ${_foundStudent!.name} from ${_foundStudent!.className} has paid Rs.$formattedAmount for ${_selectedMonth!}/$currentYear. - $_academyName | Powered by EduTrack.";
       final smsSent = await _sendSms(_foundStudent!.parentPhone, message);
 
       if (smsSent) {
@@ -880,8 +880,8 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                              Expanded(
                                child: OutlinedButton(
                                  onPressed: () => setState(() => _currentScreenState = ScreenState.showStudentDetails),
-                                 child: const Text('Go Back'),
                                  style: OutlinedButton.styleFrom(foregroundColor: kPrimaryColor),
+                                 child: const Text('Go Back'),
                                ).animate().fadeIn(delay: 250.ms),
                              ),
                            ],

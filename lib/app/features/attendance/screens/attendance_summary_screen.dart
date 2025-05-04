@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
-import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
+// import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/features/students/screens/student_list_screen.dart';
 import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
@@ -34,7 +34,7 @@ class _AttendanceData {
   final String? photoUrl;
   String status; // 'present', 'absent', or '-' if no record
   final String? attendanceDocId; // ID of the attendance document if it exists
-  bool isEditing;
+  bool isEditing = false;
 
   _AttendanceData({
     required this.studentId,
@@ -42,7 +42,6 @@ class _AttendanceData {
     this.photoUrl,
     required this.status,
     this.attendanceDocId,
-    this.isEditing = false,
   });
 }
 
@@ -624,7 +623,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
+    // final colorScheme = Theme.of(context).colorScheme;
 
     final Map<int, IconData> navIcons = {
       0: Icons.dashboard_rounded,

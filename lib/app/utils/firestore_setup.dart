@@ -40,7 +40,7 @@ Future<void> setupFirestoreDatabase() async {
   final firestore = FirebaseFirestore.instance;
   final adminUid = 'AzzSlxVmw8UkwfJUjemxqcqQaJX2'; // Your Admin UID
   final now = Timestamp.now();
-  final currentYear = DateTime.now().year;
+  // final currentYear = DateTime.now().year;
 
   // Use batch writes for efficiency
   final batch = firestore.batch();

@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart'; // Keep if needed for direct auth access
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart'; // Keep if needed for direct auth access
 import 'package:edu_track/app/features/profile/controllers/profile_controller.dart'; // Import the controller
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/app/widgets/dialogs.dart'; // Assuming dialogs are here
@@ -217,8 +217,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                                 onTap: _pickImage,
                                 customBorder: const CircleBorder(),
                                 child: const Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: const Icon(Icons.edit, color: kSecondaryColor, size: 20),
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Icon(Icons.edit, color: kSecondaryColor, size: 20),
                                 ),
                               ),
                             ),

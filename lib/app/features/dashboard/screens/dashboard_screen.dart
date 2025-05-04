@@ -4,7 +4,6 @@ import 'package:edu_track/app/features/attendance/screens/attendance_summary_scr
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/features/exam/screens/exam_results_screen.dart';
-import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/features/qr_scanner/screens/qr_code_scanner_screen.dart';
 import 'package:edu_track/app/features/students/screens/add_student_screen.dart';
 import 'package:edu_track/app/features/students/screens/student_list_screen.dart';

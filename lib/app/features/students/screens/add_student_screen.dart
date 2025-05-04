@@ -5,7 +5,7 @@ import 'dart:ui' as ui;
 import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
-import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
+// import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/app/utils/firestore_setup.dart'; // For generateIndexNumber
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
@@ -47,10 +47,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   XFile? _selectedImage;
   bool _isLoading = false;
   String? _qrData; // Holds the data for the QR code (student ID)
-  String? _statusMessage; // For success/error messages
+  // String? _statusMessage; // For success/error messages
   bool _isSuccess = false;
-  String? _downloadStatusMessage;
-  final bool _isDownloadSuccess = false;
+  // String? _downloadStatusMessage;
+  // final bool _isDownloadSuccess = false;
   final GlobalKey _qrKey = GlobalKey(); // Key to capture QR code widget
 
   List<String> _availableClasses = [];
@@ -212,9 +212,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
     setState(() {
       _isLoading = true;
-      _statusMessage = null;
+      // _statusMessage = null;
       _qrData = null;
-      _downloadStatusMessage = null;
+      // _downloadStatusMessage = null;
     });
 
     try {

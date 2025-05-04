@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
-import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/features/students/screens/student_list_screen.dart';
 import 'package:edu_track/app/features/teachers/screens/add_teacher_screen.dart';
 import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
@@ -128,7 +127,7 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
+    // final colorScheme = Theme.of(context).colorScheme;
 
     // Define Bottom Nav Bar items (same as StudentListScreen)
     final Map<int, IconData> navIcons = {

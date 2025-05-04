@@ -5,14 +5,14 @@ import 'package:edu_track/app/features/students/screens/student_list_screen.dart
 import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
-import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart'; // For nav bar consistency
+// import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart'; // For nav bar consistency
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
+// import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:excel/excel.dart' as ex;
 import 'package:share_plus/share_plus.dart';
@@ -795,7 +795,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding),
           child: DataTable(
             columnSpacing: kDefaultPadding,
-            headingRowColor: MaterialStateProperty.all(kPrimaryColor.withOpacity(0.1)),
+            headingRowColor: WidgetStateProperty.all(kPrimaryColor.withOpacity(0.1)),
             dataRowMinHeight: 50,
             dataRowMaxHeight: 60,
             border: TableBorder.all(
@@ -841,7 +841,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
+    // final colorScheme = Theme.of(context).colorScheme;
 
     // Copied from AttendanceSummaryScreen for consistency
     final Map<int, IconData> navIcons = {

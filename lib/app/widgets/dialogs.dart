@@ -34,8 +34,8 @@ class Dialogs {
                 backgroundColor: kPrimaryColor, // Or kSuccessColor depending on context
                 padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding * 1.5, vertical: kDefaultPadding * 0.6),
               ),
-              child: Text(confirmText),
-              onPressed: onConfirm, // onConfirm should handle dialog closing if needed after action
+              onPressed: onConfirm,
+              child: Text(confirmText), // onConfirm should handle dialog closing if needed after action
             ),
           ],
         );
@@ -77,8 +77,8 @@ class Dialogs {
                 backgroundColor: kPrimaryColor,
                 padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding * 1.5, vertical: kDefaultPadding * 0.6),
               ),
-              child: Text(confirmText),
-              onPressed: onConfirm, // Let the confirm callback handle closing if necessary
+              onPressed: onConfirm,
+              child: Text(confirmText), // Let the confirm callback handle closing if necessary
             ),
           ],
         );
