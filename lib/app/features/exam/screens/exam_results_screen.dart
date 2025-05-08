@@ -598,10 +598,9 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
     final String title = 'Exam Results: ${_selectedClassSection!} - ${_selectedSubject!} (${_selectedTerm!.name})';
 
     // --- Load Font Data ---
-    // Using Roboto font data (assuming google_fonts package provides it)
-    // Adjust path if using a different font added to assets
-    final fontData = await rootBundle.load("google_fonts/Roboto-Regular.ttf");
-    final boldFontData = await rootBundle.load("google_fonts/Roboto-Bold.ttf");
+    // Load font data from the declared assets path
+    final fontData = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
+    final boldFontData = await rootBundle.load("assets/fonts/Roboto-Bold.ttf");
     final ttf = pw.Font.ttf(fontData);
     final boldTtf = pw.Font.ttf(boldFontData);
     // --- End Font Loading ---
