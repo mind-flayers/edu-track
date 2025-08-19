@@ -9,7 +9,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:saver_gallery/saver_gallery.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:excel/excel.dart' hide TextSpan;
+import 'package:excel/excel.dart' hide TextSpan, Border; // Hide Border from excel package
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
@@ -20,6 +20,11 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:share_plus/share_plus.dart'; // Added share_plus
+import 'package:pdf/widgets.dart' as pw; // PDF generation
+import 'package:pdf/pdf.dart' as pdf_core; // PDF page format
+import 'package:printing/printing.dart'; // PDF sharing/printing
+import 'package:flutter/services.dart' show rootBundle; // Needed for font loading
+
 
 // TODO: Import necessary controllers/providers
 // import 'package:edu_track/app/features/students/controllers/student_details_controller.dart';
@@ -200,6 +205,10 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   String? _selectedExamTermId;
   String? _selectedFeeYear;
   bool _isCapturingQr = false; // State variable for QR capture visibility
+  String? _statusMessage;
+  bool _isErrorStatus = false;
+  final _formKeyStudentEdit = GlobalKey<FormState>(); // For student edit dialog
+  String? _academyName; // To store fetched academy name
 
   // TODO: Replace with Riverpod providers for data fetching and state management
   late Future<Student> _studentFuture;
@@ -236,6 +245,18 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     // TODO: Replace with Riverpod logic
     final firestore = FirebaseFirestore.instance;
     final adminRef = firestore.collection('admins').doc(adminUid);
+
+    // Fetch Admin Profile for Academy Name
+    adminRef.collection('adminProfile').doc('profile').get().then((profileDoc) {
+      if (profileDoc.exists && profileDoc.data() != null) {
+        setState(() {
+          _academyName = profileDoc.data()!['academyName'] as String?;
+        });
+      }
+    }).catchError((error) {
+      print("Error fetching admin profile for academy name: $error");
+      // Handle error if needed, maybe show a default name or message
+    });
 
     _studentFuture = adminRef
         .collection('students')
@@ -413,9 +434,87 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
       title: Text('Student Details', style: textTheme.titleLarge?.copyWith(color: kSecondaryColor)), // Use constant
       centerTitle: true,
       actions: [
+        // Share button for student details
+        FutureBuilder<Student>(
+          future: _studentFuture, // Ensure student data is loaded
+          builder: (context, studentSnapshot) {
+            if (studentSnapshot.hasData && studentSnapshot.data != null) {
+              return IconButton(
+                icon: const Icon(Icons.share_rounded, color: kSecondaryColor),
+                tooltip: 'Share Student Details',
+                onPressed: () => _showStudentDetailsExportOptions(studentSnapshot.data!),
+              );
+            }
+            return const SizedBox.shrink(); // Don't show if student data not ready
+          }
+        ),
         _buildProfileAvatar(), // Use the copied method
       ],
     );
+  }
+
+  // --- Status Message Widget (similar to AddTeacherScreen) ---
+  Widget _buildStatusMessageWidget() {
+    final textTheme = Theme.of(context).textTheme;
+    return AnimatedOpacity(
+      opacity: _statusMessage != null ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      child: _statusMessage == null
+          ? const SizedBox.shrink()
+          : Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: kDefaultPadding, vertical: kDefaultPadding * 0.6),
+              margin: const EdgeInsets.only(bottom: kDefaultPadding, left: kDefaultPadding, right: kDefaultPadding),
+              decoration: BoxDecoration(
+                color: _isErrorStatus
+                    ? kErrorColor.withOpacity(0.1)
+                    : kSuccessColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(kDefaultRadius),
+                border: Border.all( // This should now correctly refer to Flutter's Border
+                    color: _isErrorStatus ? kErrorColor : kSuccessColor,
+                    width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _isErrorStatus
+                        ? Icons.error_outline_rounded
+                        : Icons.check_circle_outline_rounded,
+                    color: _isErrorStatus ? kErrorColor : kSuccessColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: kDefaultPadding / 2),
+                  Expanded(
+                    child: Text(
+                      _statusMessage!,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: _isErrorStatus ? kErrorColor : kSuccessColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  void _showStatusFlashMessage(String message, {required bool isError}) {
+    if (!mounted) return;
+    setState(() {
+      _statusMessage = message;
+      _isErrorStatus = isError;
+    });
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _statusMessage = null;
+        });
+      }
+    });
   }
 
   // Updated to accept exam results for calculations and match layout
@@ -555,6 +654,21 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                 ),
               ],
             ),
+            const SizedBox(height: kDefaultPadding / 2),
+            // Edit Student Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                label: const Text("Edit Student Details"),
+                onPressed: () => _showEditStudentDetailsDialog(student),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimaryColor, // Changed kAccentColor to kPrimaryColor
+                  foregroundColor: kSecondaryColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: kDefaultPadding /2),
             // Use Visibility instead of Offstage for QR capture
             Visibility(
               visible: _isCapturingQr,
@@ -627,7 +741,35 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Exam Results", style: Theme.of(context).textTheme.titleLarge),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Exam Results", style: Theme.of(context).textTheme.titleLarge),
+              // Share button for exam results - Apply AttendanceSummaryScreen style
+              if (currentResults.isNotEmpty && _selectedExamTermId != null)
+                ElevatedButton(
+                  onPressed: () {
+                    final selectedTerm = allTerms.firstWhereOrNull((t) => t.id == _selectedExamTermId);
+                    if (selectedTerm != null) {
+                      _showStudentExamResultsExportOptions(currentResults, selectedTerm, student);
+                    } else {
+                      _showToast("Selected term not found.", error: true);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kDefaultRadius),
+                    ),
+                    minimumSize: const Size(50, 50), // Match size
+                    padding: EdgeInsets.zero, // Remove padding for icon only
+                    backgroundColor: kPrimaryColor,
+                    foregroundColor: kSecondaryColor, // Icon color
+                    elevation: 3,
+                  ),
+                  child: const Icon(Icons.share_rounded, size: 24),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -817,7 +959,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     );
   }
 
-  Widget _buildMonthlyFeesSection(List<FeeRecord> allFees) {
+  // Modified to accept Student object
+  Widget _buildMonthlyFeesSection(Student student, List<FeeRecord> allFees) {
      final years = allFees.map((f) => f.year.toString()).toSet().toList();
      years.sort((a, b) => b.compareTo(a)); // Descending
 
@@ -868,10 +1011,32 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                 ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.share),
-                label: const Text(""),
-                onPressed: _selectedFeeYear == null ? null : () => _exportFeesToExcel(feesForSelectedYear, _selectedFeeYear!),
+              // Edit Fees Button
+              IconButton(
+                icon: const Icon(Icons.edit_rounded),
+                tooltip: "Edit Fees for $_selectedFeeYear",
+                onPressed: _selectedFeeYear == null ? null : () {
+                  // student object is now available directly in this scope
+                  _showEditMonthlyFeesDialog(student, feesForSelectedYear, _selectedFeeYear!);
+                },
+              ),
+              const SizedBox(width: 8),
+              // Share button for monthly fees - Apply AttendanceSummaryScreen style
+              ElevatedButton(
+                onPressed: _selectedFeeYear == null || feesForSelectedYear.isEmpty && !allFees.any((f) => f.year.toString() == _selectedFeeYear && f.paid) // Keep original condition
+                    ? null
+                    : () => _showMonthlyFeesExportOptions(student, feesForSelectedYear, _selectedFeeYear!),
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                  ),
+                  minimumSize: const Size(50, 50), // Match size
+                  padding: EdgeInsets.zero, // Remove padding for icon only
+                  backgroundColor: kPrimaryColor,
+                  foregroundColor: kSecondaryColor, // Icon color
+                  elevation: 3,
+                ),
+                child: const Icon(Icons.share_rounded, size: 24),
               ),
             ],
           ),
@@ -1042,9 +1207,59 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
      }
   }
 
-  Future<void> _exportFeesToExcel(List<FeeRecord> fees, String year) async {
-    if (fees.isEmpty) {
-      _showToast("No fee data for $year to export.", error: true);
+  Future<void> _showMonthlyFeesExportOptions(Student student, List<FeeRecord> fees, String year) async {
+    // Check if there's any data to export, considering all months for the year, not just paid ones for the dialog.
+    final allMonthsForYear = List.generate(12, (i) => i + 1);
+    final hasAnyDataForYear = fees.any((f) => f.year.toString() == year) || allMonthsForYear.any((m) => fees.any((f) => f.month == m));
+
+    if (!hasAnyDataForYear) {
+      _showToast("No fee data available for $year to export.", error: true);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Export Monthly Fees for $year'),
+          content: const Text('Choose the export format:'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Excel (.xlsx)'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _exportFeesAsExcel(student, fees, year);
+              },
+            ),
+            TextButton(
+              child: const Text('PDF (.pdf)'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _exportFeesAsPdf(student, fees, year);
+              },
+            ),
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _exportFeesAsExcel(Student student, List<FeeRecord> fees, String year) async {
+    // Filter fees for the specific year before checking emptiness
+    final feesForYear = fees.where((f) => f.year.toString() == year).toList();
+    final allMonths = List.generate(12, (i) => i + 1);
+    final feeMapForYear = { for (var fee in feesForYear) fee.month : fee };
+    bool hasDisplayableData = allMonths.any((month) => feeMapForYear[month] != null);
+
+
+    if (!hasDisplayableData) {
+      _showToast("No fee data for $year to export to Excel.", error: true);
       return;
     }
 
@@ -1085,8 +1300,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
       // Get the temporary directory
       final Directory tempDir = await getTemporaryDirectory();
       final path = tempDir.path;
-      final sanitizedStudentIdFile = widget.studentId.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_');
-      final fileName = 'student_${sanitizedStudentIdFile}_fees_$year.xlsx';
+      final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+      final fileName = 'Fees_${sanitizedStudentName}_$year.xlsx';
       final filePath = '$path/$fileName';
       print("Saving temporary Excel file to: $filePath");
 
@@ -1098,15 +1313,15 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
 
         // Use share_plus to share the file
         final xFile = XFile(filePath, name: fileName, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        final result = await Share.shareXFiles([xFile], text: 'Student Fees Export $year');
+        final result = await Share.shareXFiles([xFile], text: 'Monthly Fees for ${student.name} - $year');
 
         // Check share result status (optional)
         if (result.status == ShareResultStatus.success) {
-           _showToast("Excel file ready to be saved/shared.");
+           _showToast("Fee details for $year ready to be saved/shared.");
         } else if (result.status == ShareResultStatus.dismissed) {
-           _showToast("Share cancelled.", error: true);
+           _showToast("Share cancelled for fee details.", error: true);
         } else {
-           _showToast("Sharing failed: ${result.status}", error: true);
+           _showToast("Sharing failed for fee details: ${result.status}", error: true);
         }
 
         // Optionally delete the temp file after sharing attempt
@@ -1122,8 +1337,97 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     }
   }
 
+  Future<void> _exportFeesAsPdf(Student student, List<FeeRecord> fees, String year) async {
+    final feesForYear = fees.where((f) => f.year.toString() == year).toList();
+    final allMonths = List.generate(12, (i) => i + 1);
+    final feeMapForYear = { for (var fee in feesForYear) fee.month : fee };
+    bool hasDisplayableData = allMonths.any((month) => feeMapForYear[month] != null);
+
+    if (!hasDisplayableData) {
+      _showToast("No fee data for $year to export to PDF.", error: true);
+      return;
+    }
+
+    final pdf = pw.Document();
+    final String title = 'Monthly Fees: ${student.name} - $year';
+    final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+
+    final fontData = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
+    final boldFontData = await rootBundle.load("assets/fonts/Roboto-Bold.ttf");
+    final ttf = pw.Font.ttf(fontData);
+    final boldTtf = pw.Font.ttf(boldFontData);
+
+    List<List<String>> tableData = [
+      ['Month', 'Status', 'Amount', 'Paid Date'],
+    ];
+
+    for (var month in allMonths) {
+      final fee = feeMapForYear[month];
+      final monthName = DateFormat('MMMM').format(DateTime(int.parse(year), month));
+      final status = fee?.paid ?? false ? 'Paid' : 'Unpaid';
+      final amount = fee?.amount.toStringAsFixed(2) ?? '-';
+      final paidDate = fee?.paidAt != null ? DateFormat('yyyy-MM-dd').format(fee!.paidAt!.toDate()) : '-';
+      tableData.add([monthName, status, amount, paidDate]);
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: pdf_core.PdfPageFormat.a4,
+        theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
+        header: (pw.Context context) {
+          if (_academyName == null || _academyName!.isEmpty) return pw.Container();
+          return pw.Center(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 10), // Add some padding below academy name
+              child: pw.Text(
+                _academyName!,
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 22, color: pdf_core.PdfColors.black) // Make it bigger and bolder
+              ),
+            )
+          );
+        },
+        footer: (pw.Context context) {
+          return pw.Center(
+            child: pw.Text(
+              'Generated by EduTrack',
+              style: const pw.TextStyle(fontSize: 8, color: pdf_core.PdfColors.grey)
+            ),
+          );
+        },
+        build: (pw.Context context) => [
+          pw.Header(level: 0, child: pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18))),
+          pw.SizedBox(height: 5),
+          pw.Text('Student: ${student.name} (Index: ${student.indexNumber})', style: const pw.TextStyle(fontSize: 12)),
+          pw.SizedBox(height: 20),
+          pw.TableHelper.fromTextArray(
+            context: null,
+            cellAlignment: pw.Alignment.centerLeft,
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            cellStyle: const pw.TextStyle(fontSize: 10),
+            headerDecoration: const pw.BoxDecoration(color: pdf_core.PdfColors.grey300),
+            data: tableData,
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2), // Month
+              1: const pw.FlexColumnWidth(1.5), // Status
+              2: const pw.FlexColumnWidth(1.5), // Amount
+              3: const pw.FlexColumnWidth(2), // Paid Date
+            },
+          ),
+        ],
+      ),
+    );
+
+    try {
+      await Printing.sharePdf(bytes: await pdf.save(), filename: 'MonthlyFees_${sanitizedStudentName}_$year.pdf');
+      _showToast("Monthly fees PDF for $year ready to be shared.");
+    } catch (e) {
+      _showToast("Error sharing monthly fees PDF: $e", error: true);
+    }
+  }
+
   // Updated signature to accept Student
   void _showEditExamResultsDialog(Student student, List<ExamResult> currentResults, ExamTerm term) {
+     final textTheme = Theme.of(context).textTheme;
      // Create controllers for each subject's text field
      Map<String, TextEditingController> controllers = {};
      Map<String, String> initialMarks = {}; // Store initial marks to detect changes
@@ -1149,40 +1453,46 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
        context: context,
        builder: (BuildContext context) {
          return AlertDialog(
-           title: Text("Edit Results - ${term.name}"),
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)), // Use constant radius
+           title: Text("Edit Results - ${term.name}", style: textTheme.titleLarge), // Use theme style
+           contentPadding: const EdgeInsets.all(kDefaultPadding), // Use constant padding
            content: SingleChildScrollView(
-             child: Column(
-               mainAxisSize: MainAxisSize.min,
-                // Iterate over chosen subjects only
+             child: ListBody( // Use ListBody for better structure
                 children: student.subjectsChoosed.map((subject) {
-                  // Check if controller exists (it should, from the loop above)
-                  if (!controllers.containsKey(subject)) return const SizedBox.shrink(); // Skip if somehow missing
+                  if (!controllers.containsKey(subject)) return const SizedBox.shrink();
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: TextField(
+                    padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75), // Consistent padding
+                    child: TextFormField(
                      controller: controllers[subject],
-                     decoration: InputDecoration(
+                     decoration: InputDecoration( // Use theme's InputDecoration
                        labelText: subject,
-                       border: const OutlineInputBorder(),
-                       hintText: "Enter marks", // Placeholder if empty
+                       hintText: "Enter marks (0-100)",
+                       prefixIcon: const Icon(Icons.calculate_outlined, size: 18), // Add an icon
                      ),
-                     keyboardType: TextInputType.numberWithOptions(decimal: true),
+                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                     validator: (value) {
+                       if (value == null || value.isEmpty) return 'Enter marks';
+                       final marks = double.tryParse(value);
+                       if (marks == null || marks < 0 || marks > 100) return 'Marks must be 0-100';
+                       return null;
+                     },
+                     autovalidateMode: AutovalidateMode.onUserInteraction,
                    ),
                  );
                }).toList(),
              ),
            ),
+           actionsPadding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2), // Use constant padding
            actions: <Widget>[
-             TextButton(
+             TextButton( // Use theme style implicitly
                child: const Text("Cancel"),
-               onPressed: () {
-                 Navigator.of(context).pop();
-               },
+               onPressed: () => Navigator.of(context).pop(),
              ),
-             ElevatedButton(
+             ElevatedButton( // Use theme style implicitly
                child: const Text("Save Changes"),
                onPressed: () async {
-                  // --- Save Logic ---
+                  // --- Save Logic (ensure validation is checked if using TextFormField) ---
+                  // Consider adding form key and validation check here if needed
                   final String? adminUid = AuthController.instance.user?.uid;
                   if (adminUid == null) {
                      _showToast("Error: Admin not logged in. Cannot save results.", error: true);
@@ -1269,9 +1579,702 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
      );
    }
 
+ // --- Export Student Details Logic (similar to ExamResultsScreen) ---
+ Future<void> _showStudentDetailsExportOptions(Student student) async {
+   showDialog(
+     context: context,
+     builder: (BuildContext context) {
+       return AlertDialog(
+         title: const Text('Export Student Details'),
+         content: const Text('Choose the export format:'),
+         actions: <Widget>[
+           TextButton(
+             child: const Text('Excel (.xlsx)'),
+             onPressed: () {
+               Navigator.of(context).pop();
+               _exportStudentDetailsAsExcel(student);
+             },
+           ),
+           TextButton(
+             child: const Text('PDF (.pdf)'),
+             onPressed: () {
+               Navigator.of(context).pop();
+               _exportStudentDetailsAsPdf(student);
+             },
+           ),
+           TextButton(
+             child: const Text('Cancel'),
+             onPressed: () {
+               Navigator.of(context).pop();
+             },
+           ),
+         ],
+       );
+     },
+   );
+ }
 
-  // --- Main Build Method ---
-  @override
+ Future<void> _exportStudentDetailsAsExcel(Student student) async {
+   try {
+     final excel = Excel.createExcel();
+     final Sheet sheet = excel[excel.getDefaultSheet()!];
+
+     sheet.appendRow([TextCellValue('Field'), TextCellValue('Value')]);
+     sheet.appendRow([TextCellValue('Name'), TextCellValue(student.name)]);
+     sheet.appendRow([TextCellValue('Index No'), TextCellValue(student.indexNumber)]);
+     sheet.appendRow([TextCellValue('Grade'), TextCellValue(student.grade)]);
+     sheet.appendRow([TextCellValue('Section'), TextCellValue(student.section)]);
+     sheet.appendRow([TextCellValue('Sex'), TextCellValue(student.sex ?? "N/A")]);
+     sheet.appendRow([TextCellValue('DOB'), TextCellValue(student.dob != null ? DateFormat('yyyy/MM/dd').format(student.dob!.toDate()) : "N/A")]);
+     sheet.appendRow([TextCellValue('Email'), TextCellValue(student.email)]);
+     sheet.appendRow([TextCellValue('Parent Name'), TextCellValue(student.parentName)]);
+     sheet.appendRow([TextCellValue('Parent Phone'), TextCellValue(student.parentPhone)]);
+     sheet.appendRow([TextCellValue('WhatsApp'), TextCellValue(student.whatsappNumber ?? "N/A")]);
+     sheet.appendRow([TextCellValue('Address'), TextCellValue(student.address ?? "N/A")]);
+     sheet.appendRow([TextCellValue('Joined At'), TextCellValue(DateFormat('yyyy/MM/dd').format(student.joinedAt.toDate()))]);
+     sheet.appendRow([TextCellValue('Subjects Chosen'), TextCellValue(student.subjectsChoosed.join(', '))]);
+
+
+     final directory = await getTemporaryDirectory();
+     final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+     final filePath = '${directory.path}/StudentDetails_$sanitizedStudentName.xlsx';
+     final fileBytes = excel.save();
+
+     if (fileBytes != null) {
+       final file = File(filePath);
+       await file.writeAsBytes(fileBytes, flush: true);
+       final xFile = XFile(filePath, name: 'StudentDetails_$sanitizedStudentName.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+       final result = await Share.shareXFiles([xFile], text: 'Details for ${student.name}');
+       if (result.status == ShareResultStatus.success) {
+         _showToast("Student details ready to be saved/shared.");
+       } else {
+         _showToast("Sharing student details cancelled or failed.", error: true);
+       }
+     } else {
+       _showToast("Failed to generate Excel file for student details.", error: true);
+     }
+   } catch (e) {
+     _showToast("Error exporting student details to Excel: $e", error: true);
+   }
+ }
+
+ Future<void> _exportStudentDetailsAsPdf(Student student) async {
+   final pdf = pw.Document();
+   final String title = 'Student Details: ${student.name}';
+
+   final fontData = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
+   final boldFontData = await rootBundle.load("assets/fonts/Roboto-Bold.ttf");
+   final ttf = pw.Font.ttf(fontData);
+   final boldTtf = pw.Font.ttf(boldFontData);
+
+   List<pw.Widget> content = [
+     pw.Header(level: 0, child: pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18))),
+     pw.SizedBox(height: 20),
+     pw.TableHelper.fromTextArray(
+       context: null, // Context not strictly needed for basic table
+       cellAlignment: pw.Alignment.centerLeft,
+       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+       cellStyle: const pw.TextStyle(fontSize: 10),
+       headerDecoration: const pw.BoxDecoration(color: pdf_core.PdfColors.grey300),
+       data: <List<String>>[
+         ['Field', 'Value'],
+         ['Name', student.name],
+         ['Index No', student.indexNumber],
+         ['Grade', student.grade],
+         ['Section', student.section],
+         ['Sex', student.sex ?? "N/A"],
+         ['DOB', student.dob != null ? DateFormat('yyyy/MM/dd').format(student.dob!.toDate()) : "N/A"],
+         ['Email', student.email],
+         ['Parent Name', student.parentName],
+         ['Parent Phone', student.parentPhone],
+         ['WhatsApp', student.whatsappNumber ?? "N/A"],
+         ['Address', student.address ?? "N/A"],
+         ['Joined At', DateFormat('yyyy/MM/dd').format(student.joinedAt.toDate())],
+         ['Subjects Chosen', student.subjectsChoosed.join(', ')],
+       ],
+       columnWidths: {
+         0: const pw.FlexColumnWidth(1.5),
+         1: const pw.FlexColumnWidth(3.5),
+       },
+     ),
+     pw.SizedBox(height: 20),
+   ];
+
+   // Add QR Code if data exists
+   if (student.qrCodeData.isNotEmpty) {
+     content.add(pw.SizedBox(height: 20));
+     content.add(pw.Center(child: pw.Text("Student QR Code", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14))));
+     content.add(pw.SizedBox(height: 10));
+     content.add(
+       pw.Center(
+         child: pw.BarcodeWidget(
+           barcode: pw.Barcode.qrCode(),
+           data: student.qrCodeData,
+           width: 150,
+           height: 150,
+           color: pdf_core.PdfColors.black,
+         ),
+       )
+     );
+   }
+
+
+   pdf.addPage(
+     pw.MultiPage(
+       pageFormat: pdf_core.PdfPageFormat.a4,
+       theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
+       // Ensure Student Details PDF Header has the correct style
+       header: (pw.Context context) {
+         if (_academyName == null || _academyName!.isEmpty) return pw.Container();
+         return pw.Center(
+           child: pw.Padding(
+             padding: const pw.EdgeInsets.only(bottom: 10), // Add some padding below academy name
+             child: pw.Text(
+               _academyName!,
+               style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 22, color: pdf_core.PdfColors.black) // Make it bigger and bolder
+             ),
+           )
+         );
+       },
+       footer: (pw.Context context) {
+         return pw.Center(
+           child: pw.Text(
+             'Generated by EduTrack',
+             style: const pw.TextStyle(fontSize: 8, color: pdf_core.PdfColors.grey)
+           ),
+         );
+       },
+       build: (pw.Context context) => content,
+     ),
+   );
+
+   try {
+     final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+     await Printing.sharePdf(bytes: await pdf.save(), filename: 'StudentDetails_$sanitizedStudentName.pdf');
+     _showToast("Student details PDF ready to be shared.");
+   } catch (e) {
+     _showToast("Error sharing student details PDF: $e", error: true);
+   }
+ }
+
+ // --- Export Student's Exam Results Logic ---
+ Future<void> _showStudentExamResultsExportOptions(List<ExamResult> results, ExamTerm term, Student student) async {
+   if (results.isEmpty) {
+     _showToast("No exam results for ${term.name} to export.", error: true);
+     return;
+   }
+   showDialog(
+     context: context,
+     builder: (BuildContext context) {
+       return AlertDialog(
+         title: Text('Export ${student.name}\'s Results for ${term.termOnlyName} (${term.year})'),
+         content: const Text('Choose the export format:'),
+         actions: <Widget>[
+           TextButton(
+             child: const Text('Excel (.xlsx)'),
+             onPressed: () {
+               Navigator.of(context).pop();
+               _exportStudentExamResultsAsExcel(results, term, student);
+             },
+           ),
+           TextButton(
+             child: const Text('PDF (.pdf)'),
+             onPressed: () {
+               Navigator.of(context).pop();
+               _exportStudentExamResultsAsPdf(results, term, student);
+             },
+           ),
+           TextButton(
+             child: const Text('Cancel'),
+             onPressed: () {
+               Navigator.of(context).pop();
+             },
+           ),
+         ],
+       );
+     },
+   );
+ }
+
+ Future<void> _exportStudentExamResultsAsExcel(List<ExamResult> results, ExamTerm term, Student student) async {
+   try {
+     final excel = Excel.createExcel();
+     final Sheet sheet = excel[excel.getDefaultSheet()!];
+     final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+     final sanitizedTermName = term.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+
+     sheet.appendRow([
+       TextCellValue('Student: ${student.name} (${student.indexNumber})'),
+     ]);
+     sheet.appendRow([
+       TextCellValue('Term: ${term.name}'),
+     ]);
+     sheet.appendRow([]); // Empty row for spacing
+
+     sheet.appendRow([
+       TextCellValue('Subject'),
+       TextCellValue('Marks'),
+       TextCellValue('Max Marks'),
+       TextCellValue('Percentage'),
+     ]);
+
+     for (var result in results) {
+       // Only include subjects the student has chosen
+       if (student.subjectsChoosed.contains(result.subject)) {
+         sheet.appendRow([
+           TextCellValue(result.subject),
+           DoubleCellValue(result.marks),
+           DoubleCellValue(result.maxMarks),
+           DoubleCellValue(result.maxMarks > 0 ? (result.marks / result.maxMarks) * 100 : 0),
+         ]);
+       }
+     }
+
+     final directory = await getTemporaryDirectory();
+     final filePath = '${directory.path}/ExamResults_${sanitizedStudentName}_$sanitizedTermName.xlsx';
+     final fileBytes = excel.save();
+
+     if (fileBytes != null) {
+       final file = File(filePath);
+       await file.writeAsBytes(fileBytes, flush: true);
+       final xFile = XFile(filePath, name: 'ExamResults_${sanitizedStudentName}_$sanitizedTermName.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+       final shareResult = await Share.shareXFiles([xFile], text: 'Exam Results for ${student.name} - ${term.name}');
+       if (shareResult.status == ShareResultStatus.success) {
+         _showToast("Exam results for ${term.name} ready to be saved/shared.");
+       } else {
+         _showToast("Sharing exam results cancelled or failed.", error: true);
+       }
+     } else {
+       _showToast("Failed to generate Excel file for exam results.", error: true);
+     }
+   } catch (e) {
+     _showToast("Error exporting exam results to Excel: $e", error: true);
+   }
+ }
+
+ Future<void> _exportStudentExamResultsAsPdf(List<ExamResult> results, ExamTerm term, Student student) async {
+   final pdf = pw.Document();
+   final String title = 'Exam Results: ${student.name} - ${term.name}';
+   final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+   final sanitizedTermName = term.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+
+   final fontData = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
+   final boldFontData = await rootBundle.load("assets/fonts/Roboto-Bold.ttf");
+   final ttf = pw.Font.ttf(fontData);
+   final boldTtf = pw.Font.ttf(boldFontData);
+
+   List<List<String>> tableData = [
+     ['Subject', 'Marks', 'Max Marks', 'Percentage'],
+   ];
+   for (var result in results) {
+      if (student.subjectsChoosed.contains(result.subject)) {
+       tableData.add([
+         result.subject,
+         result.marks.toStringAsFixed(1),
+         result.maxMarks.toStringAsFixed(1),
+         result.maxMarks > 0 ? '${((result.marks / result.maxMarks) * 100).toStringAsFixed(1)}%' : '0%',
+       ]);
+     }
+   }
+
+   pdf.addPage(
+     pw.MultiPage(
+       pageFormat: pdf_core.PdfPageFormat.a4,
+       theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
+       header: (pw.Context context) {
+         if (_academyName == null || _academyName!.isEmpty) return pw.Container();
+         return pw.Center(
+           child: pw.Padding(
+             padding: const pw.EdgeInsets.only(bottom: 10),
+             child: pw.Text(
+                 _academyName!,
+                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 22, color: pdf_core.PdfColors.black)
+             ),
+           )
+         );
+       },
+       footer: (pw.Context context) {
+         return pw.Center(
+           child: pw.Text(
+             'Generated by EduTrack',
+             style: const pw.TextStyle(fontSize: 8, color: pdf_core.PdfColors.grey)
+           ),
+         );
+       },
+       build: (pw.Context context) => [
+         pw.Header(level: 0, child: pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18))),
+         pw.SizedBox(height: 5),
+         pw.Text('Student: ${student.name} (Index: ${student.indexNumber})', style: const pw.TextStyle(fontSize: 12)),
+         pw.SizedBox(height: 20),
+         pw.TableHelper.fromTextArray(
+           context: null,
+           cellAlignment: pw.Alignment.centerLeft,
+           headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+           cellStyle: const pw.TextStyle(fontSize: 10),
+           headerDecoration: const pw.BoxDecoration(color: pdf_core.PdfColors.grey300),
+           data: tableData,
+            columnWidths: {
+             0: const pw.FlexColumnWidth(2.5),
+             1: const pw.FlexColumnWidth(1),
+             2: const pw.FlexColumnWidth(1),
+             3: const pw.FlexColumnWidth(1),
+           },
+         ),
+       ],
+     ),
+   );
+
+   try {
+     await Printing.sharePdf(bytes: await pdf.save(), filename: 'ExamResults_${sanitizedStudentName}_$sanitizedTermName.pdf');
+     _showToast("Exam results PDF for ${term.name} ready to be shared.");
+   } catch (e) {
+     _showToast("Error sharing exam results PDF: $e", error: true);
+   }
+ }
+
+
+ // --- Edit Student Details Dialog ---
+ void _showEditStudentDetailsDialog(Student student) {
+   final nameController = TextEditingController(text: student.name);
+   final emailController = TextEditingController(text: student.email);
+   final parentNameController = TextEditingController(text: student.parentName);
+   final parentPhoneController = TextEditingController(text: student.parentPhone);
+   final whatsappController = TextEditingController(text: student.whatsappNumber);
+   final addressController = TextEditingController(text: student.address);
+   final sexController = TextEditingController(text: student.sex);
+   // For DOB, we'll use a text field and a date picker
+   final dobController = TextEditingController(
+       text: student.dob != null ? DateFormat('yyyy-MM-dd').format(student.dob!.toDate()) : '');
+   DateTime? selectedDob = student.dob?.toDate();
+
+   showDialog(
+     context: context,
+     builder: (BuildContext context) {
+       final textTheme = Theme.of(context).textTheme; // Get theme
+       return AlertDialog(
+         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)), // Use constant radius
+         title: Text("Edit Student Details", style: textTheme.titleLarge), // Use theme style
+         contentPadding: const EdgeInsets.all(kDefaultPadding), // Use constant padding
+         content: Form(
+           key: _formKeyStudentEdit,
+           child: SingleChildScrollView(
+             child: Column(
+               mainAxisSize: MainAxisSize.min,
+               children: <Widget>[
+                 // Apply consistent padding and use theme's InputDecoration
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(controller: nameController, decoration: const InputDecoration(labelText: 'Name', prefixIcon: Icon(Icons.person_outline_rounded, size: 18)), validator: (value) => value!.isEmpty ? 'Name cannot be empty' : null),
+                 ),
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(controller: emailController, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined, size: 18)), keyboardType: TextInputType.emailAddress, validator: (value) => value!.isEmpty ? 'Email cannot be empty' : (!GetUtils.isEmail(value) ? 'Invalid email' : null)),
+                 ),
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(controller: parentNameController, decoration: const InputDecoration(labelText: 'Parent Name', prefixIcon: Icon(Icons.supervisor_account_outlined, size: 18)), validator: (value) => value!.isEmpty ? 'Parent name cannot be empty' : null),
+                 ),
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(controller: parentPhoneController, decoration: const InputDecoration(labelText: 'Parent Phone', prefixIcon: Icon(Icons.phone_outlined, size: 18)), keyboardType: TextInputType.phone, validator: (value) => value!.isEmpty ? 'Parent phone cannot be empty' : null),
+                 ),
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(controller: whatsappController, decoration: const InputDecoration(labelText: 'WhatsApp Number (Optional)', prefixIcon: Icon(Icons.chat_bubble_outline_rounded, size: 18)), keyboardType: TextInputType.phone),
+                 ),
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(controller: addressController, decoration: const InputDecoration(labelText: 'Address (Optional)', prefixIcon: Icon(Icons.location_on_outlined, size: 18)), maxLines: 2),
+                 ),
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(controller: sexController, decoration: const InputDecoration(labelText: 'Sex (e.g., Male, Female) (Optional)', prefixIcon: Icon(Icons.wc_rounded, size: 18))),
+                 ),
+                 Padding(
+                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+                   child: TextFormField(
+                     controller: dobController,
+                     decoration: InputDecoration(
+                       labelText: 'Date of Birth (Optional)', // Simplified label
+                       prefixIcon: const Icon(Icons.cake_outlined, size: 18),
+                       suffixIcon: IconButton(
+                         icon: const Icon(Icons.calendar_today_rounded),
+                         tooltip: 'Select Date',
+                         onPressed: () async {
+                           final DateTime? picked = await showDatePicker(
+                             context: context,
+                             initialDate: selectedDob ?? DateTime.now(),
+                             firstDate: DateTime(1950),
+                             lastDate: DateTime.now(),
+                           );
+                           if (picked != null && picked != selectedDob) {
+                             selectedDob = picked;
+                             dobController.text = DateFormat('yyyy-MM-dd').format(picked);
+                           }
+                         },
+                       ),
+                     ),
+                     readOnly: true, // Make it read-only to force date picker usage
+                      onTap: () async { // Also trigger on tap
+                         final DateTime? picked = await showDatePicker(
+                           context: context,
+                           initialDate: selectedDob ?? DateTime.now(),
+                           firstDate: DateTime(1950),
+                           lastDate: DateTime.now(),
+                         );
+                         if (picked != null && picked != selectedDob) {
+                           selectedDob = picked;
+                           dobController.text = DateFormat('yyyy-MM-dd').format(picked);
+                         }
+                       },
+                   ),
+                 ),
+               ],
+             ),
+           ),
+         ),
+         actionsPadding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2), // Use constant padding
+         actions: <Widget>[
+           TextButton(child: const Text("Cancel"), onPressed: () => Navigator.of(context).pop()), // Use theme style implicitly
+           ElevatedButton( // Use theme style implicitly
+             child: const Text("Save Changes"),
+             onPressed: () async {
+               if (_formKeyStudentEdit.currentState!.validate()) {
+                 final String? adminUid = AuthController.instance.user?.uid;
+                 if (adminUid == null) {
+                   _showStatusFlashMessage("Error: Admin not logged in.", isError: true);
+                   return;
+                 }
+                 final Map<String, dynamic> updatedData = {
+                   'name': nameController.text.trim(),
+                   'email': emailController.text.trim(),
+                   'parentName': parentNameController.text.trim(),
+                   'parentPhone': parentPhoneController.text.trim(),
+                   'whatsappNumber': whatsappController.text.trim().isEmpty ? null : whatsappController.text.trim(),
+                   'address': addressController.text.trim().isEmpty ? null : addressController.text.trim(),
+                   'sex': sexController.text.trim().isEmpty ? null : sexController.text.trim(),
+                   'dob': selectedDob != null ? Timestamp.fromDate(selectedDob!) : null,
+                   'updatedAt': Timestamp.now(),
+                 };
+
+                 try {
+                   await FirebaseFirestore.instance
+                       .collection('admins')
+                       .doc(adminUid)
+                       .collection('students')
+                       .doc(student.id)
+                       .update(updatedData);
+                   _showStatusFlashMessage("Student details updated successfully!", isError: false);
+                   Navigator.of(context).pop();
+                   // Reload student data
+                   setState(() {
+                     _studentFuture = FirebaseFirestore.instance
+                         .collection('admins').doc(adminUid)
+                         .collection('students').doc(widget.studentId)
+                         .get().then((doc) => Student.fromFirestore(doc));
+                   });
+                 } catch (e) {
+                   _showStatusFlashMessage("Error updating student details: $e", isError: true);
+                 }
+               }
+             },
+           ),
+         ],
+       );
+     },
+   );
+ }
+
+ // --- Edit Monthly Fees Dialog ---
+ void _showEditMonthlyFeesDialog(Student student, List<FeeRecord> feesForSelectedYear, String selectedYear) {
+   // Create controllers for each month's amount and paid status
+   Map<int, TextEditingController> amountControllers = {};
+   Map<int, bool> paidStatuses = {};
+   Map<int, String?> feeDocIds = {}; // To store existing document IDs
+
+   final allMonths = List.generate(12, (index) => index + 1);
+   final feeMap = { for (var fee in feesForSelectedYear) fee.month : fee };
+
+   for (int month in allMonths) {
+     final fee = feeMap[month];
+     amountControllers[month] = TextEditingController(text: fee?.amount.toStringAsFixed(0) ?? '0');
+     paidStatuses[month] = fee?.paid ?? false;
+     feeDocIds[month] = fee?.id;
+   }
+
+   showDialog(
+     context: context,
+     builder: (BuildContext context) {
+       final textTheme = Theme.of(context).textTheme; // Get theme
+       return StatefulBuilder( // Needed to update checkboxes inside the dialog
+         builder: (context, setDialogState) {
+           return AlertDialog(
+             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)), // Use constant radius
+             title: Text("Edit Fees for $selectedYear", style: textTheme.titleLarge), // Use theme style
+             contentPadding: const EdgeInsets.all(kDefaultPadding), // Use constant padding
+             content: SingleChildScrollView(
+               child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: allMonths.map((month) {
+                   final monthName = DateFormat('MMMM').format(DateTime(int.parse(selectedYear), month));
+                   return Padding(
+                     padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75), // Consistent padding
+                     child: Row(
+                       crossAxisAlignment: CrossAxisAlignment.center, // Align items vertically
+                       children: [
+                         Expanded(flex: 3, child: Text(monthName, style: textTheme.bodyMedium)), // Increased flex for month name
+                         const SizedBox(width: kDefaultPadding / 2),
+                         Expanded(
+                           flex: 3, // Increased flex for amount field
+                           child: TextFormField(
+                             controller: amountControllers[month],
+                             decoration: const InputDecoration( // Use theme's InputDecoration
+                               labelText: "Amount",
+                               prefixIcon: Icon(Icons.attach_money_rounded, size: 18),
+                               isDense: true, // Keep dense for compactness
+                               // border: OutlineInputBorder(), // Use default theme border
+                             ),
+                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                             validator: (value) { // Add validation
+                               if (value == null || value.isEmpty) return 'Enter amount';
+                               final amount = double.tryParse(value);
+                               if (amount == null || amount < 0) return 'Invalid amount';
+                               return null;
+                             },
+                             autovalidateMode: AutovalidateMode.onUserInteraction,
+                           ),
+                         ),
+                         const SizedBox(width: kDefaultPadding / 2),
+                         Expanded(
+                           flex: 2, // Adjusted flex for checkbox
+                           child: Transform.scale( // Make checkbox slightly smaller
+                             scale: 0.9,
+                             child: CheckboxListTile(
+                               title: Text("Paid", style: textTheme.bodySmall), // Use theme style
+                               value: paidStatuses[month],
+                               onChanged: (bool? value) {
+                                 setDialogState(() {
+                                   paidStatuses[month] = value ?? false;
+                                 });
+                               },
+                               controlAffinity: ListTileControlAffinity.leading,
+                               contentPadding: EdgeInsets.zero,
+                               dense: true,
+                               activeColor: kSuccessColor, // Use success color
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                   );
+                 }).toList(),
+               ),
+             ),
+             actionsPadding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2), // Use constant padding
+             actions: <Widget>[
+               TextButton(child: const Text("Cancel"), onPressed: () => Navigator.of(context).pop()), // Use theme style implicitly
+               ElevatedButton( // Use theme style implicitly
+                 child: const Text("Save Fee Changes"),
+                 onPressed: () async {
+                   // Add validation check before proceeding
+                   bool isValid = true;
+                   for (int month in allMonths) {
+                      final amountStr = amountControllers[month]!.text.trim();
+                      final amount = double.tryParse(amountStr);
+                      if (amount == null || amount < 0) {
+                        isValid = false;
+                        _showToast("Invalid amount entered for ${DateFormat('MMMM').format(DateTime(int.parse(selectedYear), month))}.", error: true);
+                        break;
+                      }
+                   }
+                   if (!isValid) return; // Stop if validation fails
+
+                   final String? adminUid = AuthController.instance.user?.uid;
+                   if (adminUid == null) {
+                     _showStatusFlashMessage("Error: Admin not logged in.", isError: true);
+                     return;
+                   }
+                   final firestore = FirebaseFirestore.instance;
+                   final studentFeesRef = firestore.collection('admins').doc(adminUid)
+                                             .collection('students').doc(student.id)
+                                             .collection('fees');
+                   final batch = firestore.batch();
+                   bool hasChanges = false;
+
+                   for (int month in allMonths) {
+                     final originalFee = feeMap[month];
+                     final newAmountStr = amountControllers[month]!.text.trim();
+                     final double? newAmount = double.tryParse(newAmountStr);
+                     final bool newPaidStatus = paidStatuses[month]!;
+
+                     if (newAmount == null || newAmount < 0) {
+                       _showStatusFlashMessage("Invalid amount for ${DateFormat('MMMM').format(DateTime(int.parse(selectedYear), month))}.", isError: true);
+                       return; // Stop on first error
+                     }
+
+                     // Check if there's any change for this month
+                     bool monthChanged = (originalFee?.amount ?? 0) != newAmount || (originalFee?.paid ?? false) != newPaidStatus;
+                     if (newPaidStatus && !(originalFee?.paid ?? false)) { // If newly marked as paid
+                         monthChanged = true;
+                     }
+
+
+                     if (monthChanged) {
+                       hasChanges = true;
+                       final docId = feeDocIds[month];
+                       final docRef = docId != null && docId.isNotEmpty
+                                     ? studentFeesRef.doc(docId)
+                                     : studentFeesRef.doc(); // Create new if no ID
+
+                       Map<String, dynamic> dataToSave = {
+                         'year': int.parse(selectedYear),
+                         'month': month,
+                         'amount': newAmount,
+                         'paid': newPaidStatus,
+                         'updatedAt': Timestamp.now(),
+                       };
+                       if (newPaidStatus && !(originalFee?.paid ?? false)) { // If newly paid
+                           dataToSave['paidAt'] = Timestamp.now();
+                       } else if (!newPaidStatus && (originalFee?.paid ?? false)) { // If changed from paid to unpaid
+                           dataToSave['paidAt'] = null;
+                       } else if (newPaidStatus) { // If already paid and still paid, keep original paidAt or update if null
+                           dataToSave['paidAt'] = originalFee?.paidAt ?? Timestamp.now();
+                       }
+
+
+                       batch.set(docRef, dataToSave, SetOptions(merge: true));
+                     }
+                   }
+
+                   if (hasChanges) {
+                     try {
+                       await batch.commit();
+                       _showStatusFlashMessage("Monthly fees updated successfully!", isError: false);
+                       Navigator.of(context).pop();
+                       // Reload fees
+                       setState(() {
+                         _feesFuture = _fetchFees(_selectedFeeYear);
+                       });
+                     } catch (e) {
+                       _showStatusFlashMessage("Error updating monthly fees: $e", isError: true);
+                     }
+                   } else {
+                     _showStatusFlashMessage("No changes detected in fees.", isError: false);
+                     Navigator.of(context).pop();
+                   }
+                 },
+               ),
+             ],
+           );
+         }
+       );
+     },
+   );
+ }
+
+
+ // --- Main Build Method ---
+ @override
   Widget build(BuildContext context) {
     // Standard FutureBuilder implementation
     return Scaffold(
@@ -1331,6 +2334,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildStudentInfoSection(student, currentResults), // Pass student and results here
+                      _buildStatusMessageWidget(), // Display status messages here
                       const Divider(),
                       resultsSectionWidget, // Display the results section (or loading/error)
                       const Divider(),
@@ -1346,7 +2350,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                              return Center(child: Text("Error loading fees: ${feesSnapshot.error}"));
                            }
                            final allFees = feesSnapshot.data ?? [];
-                           return _buildMonthlyFeesSection(allFees);
+                           // Pass student object here
+                           return _buildMonthlyFeesSection(student, allFees);
                         }
                       ),
                     ],
