@@ -73,7 +73,8 @@ class Student {
   factory Student.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map;
     // Explicitly handle null before passing to List.from
-    var subjectsData = data['subjectsChoosed'];
+    // Check for both field names since database structure shows 'Subjects'
+    var subjectsData = data['Subjects'] ?? data['subjectsChoosed'];
     List<String> chosenSubjects = (subjectsData == null)
         ? [] // Provide an empty list if null
         : List<String>.from(subjectsData); // Cast if not null
@@ -165,6 +166,62 @@ class FeeRecord {
    String get monthName => DateFormat('MMMM').format(DateTime(year, month));
 }
 
+// Placeholder for Attendance Record data model
+class AttendanceRecord {
+   final String id;
+   final String date; // YYYY-MM-DD format
+   final String status; // 'present' or 'absent'
+   final String? subject; // Subject for which attendance was marked (if applicable)
+   final Timestamp markedAt;
+
+   AttendanceRecord({
+     required this.id,
+     required this.date,
+     required this.status,
+     this.subject,
+     required this.markedAt,
+   });
+
+   factory AttendanceRecord.fromFirestore(DocumentSnapshot doc) {
+     Map data = doc.data() as Map;
+     return AttendanceRecord(
+       id: doc.id,
+       date: data['date'] ?? '',
+       status: data['status'] ?? 'absent',
+       subject: data['subject'], // May be null for overall attendance
+       markedAt: data['markedAt'] ?? Timestamp.now(),
+     );
+   }
+
+   // Extract month from date
+   int get month {
+     try {
+       final parts = date.split('-');
+       if (parts.length >= 2) {
+         return int.parse(parts[1]);
+       }
+       return DateTime.now().month;
+     } catch (e) {
+       return DateTime.now().month;
+     }
+   }
+
+   // Extract year from date
+   int get year {
+     try {
+       final parts = date.split('-');
+       if (parts.isNotEmpty) {
+         return int.parse(parts[0]);
+       }
+       return DateTime.now().year;
+     } catch (e) {
+       return DateTime.now().year;
+     }
+   }
+
+   String get monthName => DateFormat('MMMM').format(DateTime(year, month));
+}
+
 // Placeholder for Exam Term data model
 class ExamTerm {
   final String id;
@@ -204,6 +261,9 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   String? _selectedExamYear;
   String? _selectedExamTermId;
   String? _selectedFeeYear;
+  String? _selectedAttendanceMonth; // For attendance filtering
+  String? _selectedAttendanceYear; // For attendance filtering
+  String? _selectedAttendanceSubject; // For attendance filtering
   bool _isCapturingQr = false; // State variable for QR capture visibility
   String? _statusMessage;
   bool _isErrorStatus = false;
@@ -215,6 +275,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   late Future<List<ExamTerm>> _examTermsFuture;
   late Future<List<ExamResult>> _examResultsFuture;
   late Future<List<FeeRecord>> _feesFuture;
+  late Future<List<AttendanceRecord>> _attendanceFuture;
 
   @override
   void initState() {
@@ -232,6 +293,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
         _examTermsFuture = Future.value([]);
         _examResultsFuture = Future.value([]);
         _feesFuture = Future.value([]);
+        _attendanceFuture = Future.value([]);
       });
       // Optionally show a snackbar
       if (mounted) {
@@ -275,6 +337,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     // Initial load for results and fees
     _examResultsFuture = _fetchExamResults(null); // Pass adminUid implicitly via _fetchExamResults
     _feesFuture = _fetchFees(null); // Pass adminUid implicitly via _fetchFees
+    _attendanceFuture = _fetchAttendance(null, null); // Initial load for attendance
 
      // Set default filter values after terms/fees are loaded
     _examTermsFuture.then((terms) {
@@ -302,6 +365,24 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
             _selectedFeeYear = DateTime.now().year.toString();
           });
        }
+     });
+
+     // Set default attendance values
+     _attendanceFuture.then((attendance) {
+       final years = attendance.map((a) => a.year.toString()).toSet().toList();
+       years.sort((a, b) => b.compareTo(a)); // Sort descending
+       final currentYearStr = DateTime.now().year.toString();
+       if (!years.contains(currentYearStr)) {
+         years.insert(0, currentYearStr);
+       }
+       
+       setState(() {
+         _selectedAttendanceYear = years.isNotEmpty ? years.first : currentYearStr;
+         _selectedAttendanceMonth = DateTime.now().month.toString();
+         _selectedAttendanceSubject = 'All Subjects';
+         // Reload attendance with default selections
+         _attendanceFuture = _fetchAttendance(_selectedAttendanceYear, _selectedAttendanceMonth);
+       });
      });
   }
 
@@ -358,6 +439,36 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
 
     final snapshot = await query.orderBy('month').get(); // Order by month
     return snapshot.docs.map((doc) => FeeRecord.fromFirestore(doc)).toList();
+  }
+
+   Future<List<AttendanceRecord>> _fetchAttendance(String? year, String? month) async {
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      print("Error: Admin UID is null. Cannot fetch attendance.");
+      return []; // Return empty list if admin is not logged in
+    }
+
+    Query query = FirebaseFirestore.instance
+        .collection('admins')
+        .doc(adminUid)
+        .collection('students')
+        .doc(widget.studentId)
+        .collection('attendance');
+
+    // Filter by year and month if provided
+    if (year != null && month != null) {
+      // For date filtering, we need to filter by date string patterns
+      final startDate = '$year-${month.padLeft(2, '0')}-01';
+      final nextMonth = int.parse(month) == 12 ? 1 : int.parse(month) + 1;
+      final nextYear = int.parse(month) == 12 ? int.parse(year) + 1 : int.parse(year);
+      final endDate = '$nextYear-${nextMonth.toString().padLeft(2, '0')}-01';
+      
+      query = query.where('date', isGreaterThanOrEqualTo: startDate)
+                   .where('date', isLessThan: endDate);
+    }
+
+    final snapshot = await query.orderBy('date', descending: true).get(); // Order by date descending
+    return snapshot.docs.map((doc) => AttendanceRecord.fromFirestore(doc)).toList();
   }
 
   // --- UI Builders ---
@@ -520,8 +631,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
   // Updated to accept exam results for calculations and match layout
   Widget _buildStudentInfoSection(Student student, List<ExamResult> currentResults) {
     final textTheme = Theme.of(context).textTheme;
-    // Calculate subject count (using currentResults as per original logic)
-    int subjectCount = currentResults.length;
+    // Calculate subject count (using student's chosen subjects, not current results)
+    int subjectCount = student.subjectsChoosed.length;
 
     // Define image size - adjust as needed based on visual preference
     const double imageSize = 130.0; // Slightly larger?
@@ -702,6 +813,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3.0), // Slightly more vertical padding
       child: RichText(
+        overflow: TextOverflow.ellipsis, // Add overflow handling
+        maxLines: 2, // Allow up to 2 lines for longer content
         text: TextSpan(
           // Use theme's bodyMedium style as base
           style: textTheme.bodyMedium?.copyWith(color: kTextColor),
@@ -777,7 +890,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: _selectedExamYear,
-                  hint: const Text("Select Year"),
+                  hint: const Text("Year"),
                   onChanged: (String? newValue) {
                     setState(() {
                       _selectedExamYear = newValue;
@@ -801,7 +914,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: _selectedExamTermId,
-                  hint: const Text("Select Term"),
+                  hint: const Text("Term"),
                   onChanged: (String? newValue) {
                     setState(() {
                       _selectedExamTermId = newValue;
@@ -994,7 +1107,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: _selectedFeeYear,
-                  hint: const Text("Select Year"),
+                  hint: const Text("Year"),
                   onChanged: (String? newValue) {
                     setState(() {
                       _selectedFeeYear = newValue;
@@ -1069,14 +1182,28 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                        },
                      ),
                      cells: [
-                       DataCell(Text(monthName)),
+                       DataCell(Text(monthName, overflow: TextOverflow.ellipsis)),
                        DataCell(
                          isPaid
-                             ? const Row(children: [Icon(Icons.check_circle, color: Colors.green, size: 18), SizedBox(width: 4), Text('Paid')])
-                             : const Row(children: [Icon(Icons.cancel, color: Colors.red, size: 18), SizedBox(width: 4), Text('Unpaid')]),
+                             ? const Row(
+                                 mainAxisSize: MainAxisSize.min,
+                                 children: [
+                                   Icon(Icons.check_circle, color: Colors.green, size: 18), 
+                                   SizedBox(width: 4), 
+                                   Flexible(child: Text('Paid', overflow: TextOverflow.ellipsis))
+                                 ]
+                               )
+                             : const Row(
+                                 mainAxisSize: MainAxisSize.min,
+                                 children: [
+                                   Icon(Icons.cancel, color: Colors.red, size: 18), 
+                                   SizedBox(width: 4), 
+                                   Flexible(child: Text('Unpaid', overflow: TextOverflow.ellipsis))
+                                 ]
+                               ),
                        ),
-                        DataCell(Text(amount)),
-                        DataCell(Text(paidDate)),
+                        DataCell(Text(amount, overflow: TextOverflow.ellipsis)),
+                        DataCell(Text(paidDate, overflow: TextOverflow.ellipsis)),
                      ],
                    );
                  }).toList(),
@@ -1084,6 +1211,235 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
             )
           else
              const Center(child: Text("Select a year to view fee details.")),
+        ],
+      ),
+    );
+  }
+
+  // Modified to accept Student object for attendance section
+  Widget _buildAttendanceSection(Student student, List<AttendanceRecord> allAttendance) {
+     final years = allAttendance.map((a) => a.year.toString()).toSet().toList();
+     years.sort((a, b) => b.compareTo(a)); // Descending
+
+     // Add current year if not present in attendance
+     final currentYearStr = DateTime.now().year.toString();
+     if (!years.contains(currentYearStr)) {
+       years.insert(0, currentYearStr);
+     }
+
+     final months = List.generate(12, (i) => (i + 1).toString());
+     
+     // Set default selections
+     if (_selectedAttendanceYear == null && years.isNotEmpty) {
+       _selectedAttendanceYear = years.first;
+     }
+     if (_selectedAttendanceMonth == null) {
+       _selectedAttendanceMonth = DateTime.now().month.toString();
+     }
+     if (_selectedAttendanceSubject == null && student.subjectsChoosed.isNotEmpty) {
+       _selectedAttendanceSubject = 'All Subjects'; // Default to all subjects
+     }
+
+     // Filter attendance for the selected year and month
+     final filteredAttendance = allAttendance.where((a) => 
+       (_selectedAttendanceYear == null || a.year.toString() == _selectedAttendanceYear) &&
+       (_selectedAttendanceMonth == null || a.month.toString() == _selectedAttendanceMonth) &&
+       (_selectedAttendanceSubject == null || _selectedAttendanceSubject == 'All Subjects' || a.subject == _selectedAttendanceSubject)
+     ).toList();
+
+     // Calculate attendance statistics
+     final totalDays = filteredAttendance.length;
+     final presentDays = filteredAttendance.where((a) => a.status == 'present').length;
+     final attendancePercentage = totalDays > 0 ? (presentDays / totalDays * 100) : 0.0;
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Student Attendance", style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+          // Filter controls - Split into two rows to prevent overflow
+          Column(
+            children: [
+              // First row: Year and Month dropdowns
+              Row(
+                children: [
+                  // Year dropdown
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedAttendanceYear,
+                      hint: const Text("Year"),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedAttendanceYear = newValue;
+                          // Reload attendance data
+                          _attendanceFuture = _fetchAttendance(_selectedAttendanceYear, _selectedAttendanceMonth);
+                        });
+                      },
+                      items: years.map<DropdownMenuItem<String>>((String year) {
+                        return DropdownMenuItem<String>(
+                          value: year,
+                          child: Text(year),
+                        );
+                      }).toList(),
+                       decoration: const InputDecoration(border: OutlineInputBorder()),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Month dropdown
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedAttendanceMonth,
+                      hint: const Text("Month"),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedAttendanceMonth = newValue;
+                          // Reload attendance data
+                          _attendanceFuture = _fetchAttendance(_selectedAttendanceYear, _selectedAttendanceMonth);
+                        });
+                      },
+                      items: months.map<DropdownMenuItem<String>>((String month) {
+                        final monthName = DateFormat('MMMM').format(DateTime(2024, int.parse(month)));
+                        return DropdownMenuItem<String>(
+                          value: month,
+                          child: Text(monthName, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                       decoration: const InputDecoration(border: OutlineInputBorder()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Second row: Subject dropdown and Share button
+              Row(
+                children: [
+                  // Subject dropdown
+                  Expanded(
+                    flex: 3, // Give more space to subject dropdown
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedAttendanceSubject,
+                      hint: const Text("Subject"),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedAttendanceSubject = newValue;
+                          // Filter is applied in the widget, no need to refetch
+                        });
+                      },
+                      items: ['All Subjects', ...student.subjectsChoosed].map<DropdownMenuItem<String>>((String subject) {
+                        return DropdownMenuItem<String>(
+                          value: subject,
+                          child: Text(subject, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                       decoration: const InputDecoration(border: OutlineInputBorder()),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Share button for attendance
+                  ElevatedButton(
+                    onPressed: filteredAttendance.isEmpty
+                        ? null
+                        : () => _showAttendanceExportOptions(student, filteredAttendance, _selectedAttendanceYear!, _selectedAttendanceMonth!),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(kDefaultRadius),
+                      ),
+                      minimumSize: const Size(50, 50),
+                      padding: EdgeInsets.zero,
+                      backgroundColor: kPrimaryColor,
+                      foregroundColor: kSecondaryColor,
+                      elevation: 3,
+                    ),
+                    child: const Icon(Icons.share_rounded, size: 24),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Attendance summary
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
+                    children: [
+                      Text(totalDays.toString(), style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: kPrimaryColor)),
+                      const Text('Total Days'),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text(presentDays.toString(), style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: kSuccessColor)),
+                      const Text('Present Days'),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text((totalDays - presentDays).toString(), style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: kErrorColor)),
+                      const Text('Absent Days'),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text('${attendancePercentage.toStringAsFixed(1)}%', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: attendancePercentage >= 75 ? kSuccessColor : kErrorColor)),
+                      const Text('Attendance'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Attendance table
+          if (filteredAttendance.isNotEmpty)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 30,
+                columns: const [
+                  DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Subject', style: TextStyle(fontWeight: FontWeight.bold))),
+                ],
+                rows: filteredAttendance.map((attendance) {
+                   final isPresent = attendance.status == 'present';
+                   final displayDate = DateFormat('dd MMM yyyy').format(DateTime.tryParse(attendance.date) ?? DateTime.now());
+                   return DataRow(
+                     cells: [
+                       DataCell(Text(displayDate, overflow: TextOverflow.ellipsis)),
+                       DataCell(
+                         Row(
+                           mainAxisSize: MainAxisSize.min,
+                           children: [
+                             Icon(
+                               isPresent ? Icons.check_circle : Icons.cancel,
+                               color: isPresent ? kSuccessColor : kErrorColor,
+                               size: 18,
+                             ),
+                             const SizedBox(width: 4),
+                             Flexible(
+                               child: Text(
+                                 isPresent ? 'Present' : 'Absent',
+                                 style: TextStyle(color: isPresent ? kSuccessColor : kErrorColor),
+                                 overflow: TextOverflow.ellipsis,
+                               ),
+                             ),
+                           ],
+                         ),
+                       ),
+                       DataCell(Text(attendance.subject ?? 'General', overflow: TextOverflow.ellipsis)),
+                     ],
+                   );
+                 }).toList(),
+              ),
+            )
+          else
+             Center(child: Text("No attendance records found for ${_selectedAttendanceMonth != null ? DateFormat('MMMM').format(DateTime(2024, int.parse(_selectedAttendanceMonth!))) : 'selected period'}${_selectedAttendanceYear != null ? ' $_selectedAttendanceYear' : ''}.")),
         ],
       ),
     );
@@ -1932,6 +2288,200 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
    }
  }
 
+  Future<void> _showAttendanceExportOptions(Student student, List<AttendanceRecord> attendance, String year, String month) async {
+    if (attendance.isEmpty) {
+      _showToast("No attendance data available to export.", error: true);
+      return;
+    }
+
+    final monthName = DateFormat('MMMM').format(DateTime(2024, int.parse(month)));
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Export Attendance for $monthName $year'),
+          content: const Text('Choose the export format:'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Excel (.xlsx)'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _exportAttendanceAsExcel(student, attendance, year, month);
+              },
+            ),
+            TextButton(
+              child: const Text('PDF (.pdf)'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _exportAttendanceAsPdf(student, attendance, year, month);
+              },
+            ),
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _exportAttendanceAsExcel(Student student, List<AttendanceRecord> attendance, String year, String month) async {
+    if (attendance.isEmpty) {
+      _showToast("No attendance data for $month $year to export to Excel.", error: true);
+      return;
+    }
+
+    try {
+      var excel = Excel.createExcel();
+      final monthName = DateFormat('MMMM').format(DateTime(2024, int.parse(month)));
+      Sheet sheetObject = excel['Attendance_${monthName}_$year'];
+
+      // Add Header Row
+      sheetObject.appendRow([
+        TextCellValue('Date'),
+        TextCellValue('Status'),
+        TextCellValue('Subject'),
+        TextCellValue('Marked At'),
+      ]);
+
+      // Add Data Rows
+      for (var record in attendance) {
+        final displayDate = DateFormat('dd MMM yyyy').format(DateTime.tryParse(record.date) ?? DateTime.now());
+        final markedAt = DateFormat('dd MMM yyyy HH:mm').format(record.markedAt.toDate());
+        
+        sheetObject.appendRow([
+          TextCellValue(displayDate),
+          TextCellValue(record.status.toUpperCase()),
+          TextCellValue(record.subject ?? 'General'),
+          TextCellValue(markedAt),
+        ]);
+      }
+
+      // Get the temporary directory
+      final Directory tempDir = await getTemporaryDirectory();
+      final path = tempDir.path;
+      final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+      final fileName = 'Attendance_${sanitizedStudentName}_${monthName}_$year.xlsx';
+      final filePath = '$path/$fileName';
+
+      // Save the file to the temporary directory
+      final fileBytes = excel.save();
+      if (fileBytes != null) {
+        final file = File(filePath);
+        await file.writeAsBytes(fileBytes, flush: true);
+
+        // Use share_plus to share the file
+        final xFile = XFile(filePath, name: fileName, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        final result = await Share.shareXFiles([xFile], text: 'Attendance for ${student.name} - $monthName $year');
+
+        if (result.status == ShareResultStatus.success) {
+           _showToast("Attendance details for $monthName $year ready to be saved/shared.");
+        } else if (result.status == ShareResultStatus.dismissed) {
+           _showToast("Share cancelled for attendance details.", error: true);
+        } else {
+           _showToast("Sharing failed for attendance details: ${result.status}", error: true);
+        }
+      } else {
+        _showToast("Failed to generate Excel file.", error: true);
+      }
+
+    } catch (e) {
+      print("Error exporting/sharing attendance to Excel: $e");
+      _showToast("Error exporting attendance: $e", error: true);
+    }
+  }
+
+  Future<void> _exportAttendanceAsPdf(Student student, List<AttendanceRecord> attendance, String year, String month) async {
+    if (attendance.isEmpty) {
+      _showToast("No attendance data for $month $year to export to PDF.", error: true);
+      return;
+    }
+
+    final pdf = pw.Document();
+    final monthName = DateFormat('MMMM').format(DateTime(2024, int.parse(month)));
+    final String title = 'Attendance: ${student.name} - $monthName $year';
+    final sanitizedStudentName = student.name.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').replaceAll(' ', '_');
+
+    final fontData = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
+    final boldFontData = await rootBundle.load("assets/fonts/Roboto-Bold.ttf");
+    final ttf = pw.Font.ttf(fontData);
+    final boldTtf = pw.Font.ttf(boldFontData);
+
+    List<List<String>> tableData = [
+      ['Date', 'Status', 'Subject', 'Marked At'],
+    ];
+
+    for (var record in attendance) {
+      final displayDate = DateFormat('dd MMM yyyy').format(DateTime.tryParse(record.date) ?? DateTime.now());
+      final markedAt = DateFormat('dd MMM yyyy HH:mm').format(record.markedAt.toDate());
+      tableData.add([displayDate, record.status.toUpperCase(), record.subject ?? 'General', markedAt]);
+    }
+
+    // Calculate attendance statistics
+    final totalDays = attendance.length;
+    final presentDays = attendance.where((a) => a.status == 'present').length;
+    final attendancePercentage = totalDays > 0 ? (presentDays / totalDays * 100) : 0.0;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: pdf_core.PdfPageFormat.a4,
+        theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
+        header: (pw.Context context) {
+          if (_academyName == null || _academyName!.isEmpty) return pw.Container();
+          return pw.Center(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 10),
+              child: pw.Text(
+                _academyName!,
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 22, color: pdf_core.PdfColors.black)
+              ),
+            )
+          );
+        },
+        footer: (pw.Context context) {
+          return pw.Center(
+            child: pw.Text(
+              'Generated by EduTrack',
+              style: const pw.TextStyle(fontSize: 8, color: pdf_core.PdfColors.grey)
+            ),
+          );
+        },
+        build: (pw.Context context) => [
+          pw.Header(level: 0, child: pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18))),
+          pw.SizedBox(height: 5),
+          pw.Text('Student: ${student.name} (Index: ${student.indexNumber})', style: const pw.TextStyle(fontSize: 12)),
+          pw.SizedBox(height: 10),
+          pw.Text('Attendance Summary: $presentDays/$totalDays days present (${attendancePercentage.toStringAsFixed(1)}%)', style: const pw.TextStyle(fontSize: 12)),
+          pw.SizedBox(height: 20),
+          pw.TableHelper.fromTextArray(
+            context: null,
+            cellAlignment: pw.Alignment.centerLeft,
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            cellStyle: const pw.TextStyle(fontSize: 10),
+            headerDecoration: const pw.BoxDecoration(color: pdf_core.PdfColors.grey300),
+            data: tableData,
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2), // Date
+              1: const pw.FlexColumnWidth(1.5), // Status
+              2: const pw.FlexColumnWidth(2), // Subject
+              3: const pw.FlexColumnWidth(2.5), // Marked At
+            },
+          ),
+        ],
+      ),
+    );
+
+    try {
+      await Printing.sharePdf(bytes: await pdf.save(), filename: 'Attendance_${sanitizedStudentName}_${monthName}_$year.pdf');
+      _showToast("Attendance PDF for $monthName $year ready to be shared.");
+    } catch (e) {
+      _showToast("Error sharing attendance PDF: $e", error: true);
+    }
+  }
+
 
  // --- Edit Student Details Dialog ---
  void _showEditStudentDetailsDialog(Student student) {
@@ -1941,147 +2491,365 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
    final parentPhoneController = TextEditingController(text: student.parentPhone);
    final whatsappController = TextEditingController(text: student.whatsappNumber);
    final addressController = TextEditingController(text: student.address);
-   final sexController = TextEditingController(text: student.sex);
    // For DOB, we'll use a text field and a date picker
    final dobController = TextEditingController(
        text: student.dob != null ? DateFormat('yyyy-MM-dd').format(student.dob!.toDate()) : '');
    DateTime? selectedDob = student.dob?.toDate();
+   String? selectedSex = student.sex;
 
    showDialog(
      context: context,
      builder: (BuildContext context) {
-       final textTheme = Theme.of(context).textTheme; // Get theme
-       return AlertDialog(
-         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)), // Use constant radius
-         title: Text("Edit Student Details", style: textTheme.titleLarge), // Use theme style
-         contentPadding: const EdgeInsets.all(kDefaultPadding), // Use constant padding
-         content: Form(
-           key: _formKeyStudentEdit,
-           child: SingleChildScrollView(
-             child: Column(
-               mainAxisSize: MainAxisSize.min,
-               children: <Widget>[
-                 // Apply consistent padding and use theme's InputDecoration
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(controller: nameController, decoration: const InputDecoration(labelText: 'Name', prefixIcon: Icon(Icons.person_outline_rounded, size: 18)), validator: (value) => value!.isEmpty ? 'Name cannot be empty' : null),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(controller: emailController, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined, size: 18)), keyboardType: TextInputType.emailAddress, validator: (value) => value!.isEmpty ? 'Email cannot be empty' : (!GetUtils.isEmail(value) ? 'Invalid email' : null)),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(controller: parentNameController, decoration: const InputDecoration(labelText: 'Parent Name', prefixIcon: Icon(Icons.supervisor_account_outlined, size: 18)), validator: (value) => value!.isEmpty ? 'Parent name cannot be empty' : null),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(controller: parentPhoneController, decoration: const InputDecoration(labelText: 'Parent Phone', prefixIcon: Icon(Icons.phone_outlined, size: 18)), keyboardType: TextInputType.phone, validator: (value) => value!.isEmpty ? 'Parent phone cannot be empty' : null),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(controller: whatsappController, decoration: const InputDecoration(labelText: 'WhatsApp Number (Optional)', prefixIcon: Icon(Icons.chat_bubble_outline_rounded, size: 18)), keyboardType: TextInputType.phone),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(controller: addressController, decoration: const InputDecoration(labelText: 'Address (Optional)', prefixIcon: Icon(Icons.location_on_outlined, size: 18)), maxLines: 2),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(controller: sexController, decoration: const InputDecoration(labelText: 'Sex (e.g., Male, Female) (Optional)', prefixIcon: Icon(Icons.wc_rounded, size: 18))),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
-                   child: TextFormField(
-                     controller: dobController,
-                     decoration: InputDecoration(
-                       labelText: 'Date of Birth (Optional)', // Simplified label
-                       prefixIcon: const Icon(Icons.cake_outlined, size: 18),
-                       suffixIcon: IconButton(
-                         icon: const Icon(Icons.calendar_today_rounded),
-                         tooltip: 'Select Date',
-                         onPressed: () async {
-                           final DateTime? picked = await showDatePicker(
-                             context: context,
-                             initialDate: selectedDob ?? DateTime.now(),
-                             firstDate: DateTime(1950),
-                             lastDate: DateTime.now(),
-                           );
-                           if (picked != null && picked != selectedDob) {
-                             selectedDob = picked;
-                             dobController.text = DateFormat('yyyy-MM-dd').format(picked);
-                           }
-                         },
+       final textTheme = Theme.of(context).textTheme;
+       return StatefulBuilder( // Use StatefulBuilder for dropdowns
+         builder: (context, setDialogState) {
+           return AlertDialog(
+             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius)),
+             title: Row(
+               children: [
+                 Icon(Icons.edit_rounded, color: kPrimaryColor, size: 24),
+                 const SizedBox(width: 8),
+                 Text("Edit Student Details", style: textTheme.titleLarge?.copyWith(color: kPrimaryColor)),
+               ],
+             ),
+             contentPadding: const EdgeInsets.fromLTRB(kDefaultPadding, kDefaultPadding / 2, kDefaultPadding, 0),
+             content: Form(
+               key: _formKeyStudentEdit,
+               child: SizedBox(
+                 width: MediaQuery.of(context).size.width * 0.9, // Make dialog wider
+                 height: MediaQuery.of(context).size.height * 0.7, // Set max height
+                 child: SingleChildScrollView(
+                   child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: <Widget>[
+                       // Personal Information Section
+                       _buildSectionHeader('Personal Information', Icons.person_rounded),
+                       _buildFormField(
+                         controller: nameController,
+                         label: 'Full Name',
+                         icon: Icons.person_outline_rounded,
+                         validator: (value) => value!.isEmpty ? 'Name cannot be empty' : null,
                        ),
-                     ),
-                     readOnly: true, // Make it read-only to force date picker usage
-                      onTap: () async { // Also trigger on tap
-                         final DateTime? picked = await showDatePicker(
-                           context: context,
-                           initialDate: selectedDob ?? DateTime.now(),
-                           firstDate: DateTime(1950),
-                           lastDate: DateTime.now(),
-                         );
-                         if (picked != null && picked != selectedDob) {
-                           selectedDob = picked;
-                           dobController.text = DateFormat('yyyy-MM-dd').format(picked);
-                         }
-                       },
+                       Row(
+                         children: [
+                           Expanded(
+                             child: _buildFormField(
+                               controller: emailController,
+                               label: 'Email Address',
+                               icon: Icons.email_outlined,
+                               keyboardType: TextInputType.emailAddress,
+                               validator: (value) => value!.isEmpty ? 'Email cannot be empty' : (!GetUtils.isEmail(value) ? 'Invalid email' : null),
+                             ),
+                           ),
+                           const SizedBox(width: 12),
+                           Expanded(
+                             child: _buildSexDropdown(selectedSex, setDialogState),
+                           ),
+                         ],
+                       ),
+                       _buildDateField(dobController, selectedDob, setDialogState),
+                       
+                       const SizedBox(height: kDefaultPadding),
+                       
+                       // Parent/Guardian Information Section
+                       _buildSectionHeader('Parent/Guardian Information', Icons.supervisor_account_rounded),
+                       _buildFormField(
+                         controller: parentNameController,
+                         label: 'Parent/Guardian Name',
+                         icon: Icons.supervisor_account_outlined,
+                         validator: (value) => value!.isEmpty ? 'Parent name cannot be empty' : null,
+                       ),
+                       Row(
+                         children: [
+                           Expanded(
+                             child: _buildFormField(
+                               controller: parentPhoneController,
+                               label: 'Parent Phone',
+                               icon: Icons.phone_outlined,
+                               keyboardType: TextInputType.phone,
+                               validator: (value) => value!.isEmpty ? 'Parent phone cannot be empty' : null,
+                             ),
+                           ),
+                           const SizedBox(width: 12),
+                           Expanded(
+                             child: _buildFormField(
+                               controller: whatsappController,
+                               label: 'WhatsApp (Optional)',
+                               icon: Icons.chat_bubble_outline_rounded,
+                               keyboardType: TextInputType.phone,
+                             ),
+                           ),
+                         ],
+                       ),
+                       
+                       const SizedBox(height: kDefaultPadding),
+                       
+                       // Additional Information Section
+                       _buildSectionHeader('Additional Information', Icons.info_outline_rounded),
+                       _buildFormField(
+                         controller: addressController,
+                         label: 'Home Address (Optional)',
+                         icon: Icons.location_on_outlined,
+                         maxLines: 2,
+                       ),
+                       
+                       const SizedBox(height: kDefaultPadding),
+                     ],
                    ),
                  ),
-               ],
+               ),
+             ),
+             actionsPadding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding),
+             actions: <Widget>[
+               TextButton.icon(
+                 icon: const Icon(Icons.cancel_outlined),
+                 label: const Text("Cancel"),
+                 onPressed: () => Navigator.of(context).pop(),
+                 style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
+               ),
+               ElevatedButton.icon(
+                 icon: const Icon(Icons.save_rounded),
+                 label: const Text("Save Changes"),
+                 style: ElevatedButton.styleFrom(
+                   backgroundColor: kPrimaryColor,
+                   foregroundColor: kSecondaryColor,
+                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kDefaultRadius * 0.8)),
+                 ),
+                 onPressed: () async {
+                   if (_formKeyStudentEdit.currentState!.validate()) {
+                     final String? adminUid = AuthController.instance.user?.uid;
+                     if (adminUid == null) {
+                       _showStatusFlashMessage("Error: Admin not logged in.", isError: true);
+                       return;
+                     }
+                     final Map<String, dynamic> updatedData = {
+                       'name': nameController.text.trim(),
+                       'email': emailController.text.trim(),
+                       'parentName': parentNameController.text.trim(),
+                       'parentPhone': parentPhoneController.text.trim(),
+                       'whatsappNumber': whatsappController.text.trim().isEmpty ? null : whatsappController.text.trim(),
+                       'address': addressController.text.trim().isEmpty ? null : addressController.text.trim(),
+                       'sex': selectedSex,
+                       'dob': selectedDob != null ? Timestamp.fromDate(selectedDob) : null,
+                       'updatedAt': Timestamp.now(),
+                     };
+
+                     try {
+                       await FirebaseFirestore.instance
+                           .collection('admins')
+                           .doc(adminUid)
+                           .collection('students')
+                           .doc(student.id)
+                           .update(updatedData);
+                       _showStatusFlashMessage("Student details updated successfully!", isError: false);
+                       Navigator.of(context).pop();
+                       // Reload student data
+                       setState(() {
+                         _studentFuture = FirebaseFirestore.instance
+                             .collection('admins').doc(adminUid)
+                             .collection('students').doc(widget.studentId)
+                             .get().then((doc) => Student.fromFirestore(doc));
+                       });
+                     } catch (e) {
+                       _showStatusFlashMessage("Error updating student details: $e", isError: true);
+                     }
+                   }
+                 },
+               ),
+             ],
+           );
+         }
+       );
+     },
+   );
+ }
+
+ Widget _buildSectionHeader(String title, IconData icon) {
+   return Padding(
+     padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75, top: kDefaultPadding * 0.5),
+     child: Row(
+       children: [
+         Icon(icon, size: 20, color: kPrimaryColor),
+         const SizedBox(width: 8),
+         Text(
+           title,
+           style: TextStyle(
+             fontSize: 16,
+             fontWeight: FontWeight.w600,
+             color: kPrimaryColor,
+           ),
+         ),
+         Expanded(
+           child: Container(
+             margin: const EdgeInsets.only(left: 12),
+             height: 1,
+             decoration: BoxDecoration(
+               gradient: LinearGradient(
+                 colors: [kPrimaryColor.withOpacity(0.3), Colors.transparent],
+                 stops: const [0.0, 1.0],
+               ),
              ),
            ),
          ),
-         actionsPadding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2), // Use constant padding
-         actions: <Widget>[
-           TextButton(child: const Text("Cancel"), onPressed: () => Navigator.of(context).pop()), // Use theme style implicitly
-           ElevatedButton( // Use theme style implicitly
-             child: const Text("Save Changes"),
-             onPressed: () async {
-               if (_formKeyStudentEdit.currentState!.validate()) {
-                 final String? adminUid = AuthController.instance.user?.uid;
-                 if (adminUid == null) {
-                   _showStatusFlashMessage("Error: Admin not logged in.", isError: true);
-                   return;
-                 }
-                 final Map<String, dynamic> updatedData = {
-                   'name': nameController.text.trim(),
-                   'email': emailController.text.trim(),
-                   'parentName': parentNameController.text.trim(),
-                   'parentPhone': parentPhoneController.text.trim(),
-                   'whatsappNumber': whatsappController.text.trim().isEmpty ? null : whatsappController.text.trim(),
-                   'address': addressController.text.trim().isEmpty ? null : addressController.text.trim(),
-                   'sex': sexController.text.trim().isEmpty ? null : sexController.text.trim(),
-                   'dob': selectedDob != null ? Timestamp.fromDate(selectedDob!) : null,
-                   'updatedAt': Timestamp.now(),
-                 };
+       ],
+     ),
+   );
+ }
 
-                 try {
-                   await FirebaseFirestore.instance
-                       .collection('admins')
-                       .doc(adminUid)
-                       .collection('students')
-                       .doc(student.id)
-                       .update(updatedData);
-                   _showStatusFlashMessage("Student details updated successfully!", isError: false);
-                   Navigator.of(context).pop();
-                   // Reload student data
-                   setState(() {
-                     _studentFuture = FirebaseFirestore.instance
-                         .collection('admins').doc(adminUid)
-                         .collection('students').doc(widget.studentId)
-                         .get().then((doc) => Student.fromFirestore(doc));
-                   });
-                 } catch (e) {
-                   _showStatusFlashMessage("Error updating student details: $e", isError: true);
-                 }
-               }
-             },
-           ),
-         ],
-       );
-     },
+ Widget _buildFormField({
+   required TextEditingController controller,
+   required String label,
+   required IconData icon,
+   TextInputType? keyboardType,
+   String? Function(String?)? validator,
+   int maxLines = 1,
+ }) {
+   return Padding(
+     padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+     child: TextFormField(
+       controller: controller,
+       decoration: InputDecoration(
+         labelText: label,
+         prefixIcon: Icon(icon, size: 18, color: kPrimaryColor.withOpacity(0.7)),
+         isDense: true, // Make text fields more compact
+         border: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.3)),
+         ),
+         enabledBorder: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.3)),
+         ),
+         focusedBorder: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor, width: 2),
+         ),
+         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+       ),
+       keyboardType: keyboardType,
+       validator: validator,
+       maxLines: maxLines,
+       autovalidateMode: AutovalidateMode.onUserInteraction,
+     ),
+   );
+ }
+
+ Widget _buildSexDropdown(String? selectedSex, StateSetter setDialogState) {
+   return Padding(
+     padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+     child: DropdownButtonFormField<String>(
+       value: selectedSex,
+       decoration: InputDecoration(
+         labelText: 'Sex (Optional)',
+         prefixIcon: Icon(Icons.wc_rounded, size: 18, color: kPrimaryColor.withOpacity(0.7)),
+         isDense: true, // Make dropdown more compact
+         border: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.3)),
+         ),
+         enabledBorder: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.3)),
+         ),
+         focusedBorder: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor, width: 2),
+         ),
+         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+       ),
+       items: ['Male', 'Female', 'Other'].map((String sex) {
+         return DropdownMenuItem<String>(
+           value: sex,
+           child: Text(sex),
+         );
+       }).toList(),
+       onChanged: (String? newValue) {
+         setDialogState(() {
+           selectedSex = newValue;
+         });
+       },
+     ),
+   );
+ }
+
+ Widget _buildDateField(TextEditingController dobController, DateTime? selectedDob, StateSetter setDialogState) {
+   return Padding(
+     padding: const EdgeInsets.only(bottom: kDefaultPadding * 0.75),
+     child: TextFormField(
+       controller: dobController,
+       decoration: InputDecoration(
+         labelText: 'Date of Birth (Optional)',
+         prefixIcon: Icon(Icons.cake_outlined, size: 18, color: kPrimaryColor.withOpacity(0.7)),
+         isDense: true, // Make date field more compact
+         suffixIcon: IconButton(
+           icon: Icon(Icons.calendar_today_rounded, color: kPrimaryColor),
+           tooltip: 'Select Date',
+           onPressed: () async {
+             final DateTime? picked = await showDatePicker(
+               context: context,
+               initialDate: selectedDob ?? DateTime.now().subtract(const Duration(days: 365 * 18)), // Default to 18 years ago
+               firstDate: DateTime(1950),
+               lastDate: DateTime.now(),
+               builder: (context, child) {
+                 return Theme(
+                   data: Theme.of(context).copyWith(
+                     colorScheme: Theme.of(context).colorScheme.copyWith(
+                       primary: kPrimaryColor,
+                     ),
+                   ),
+                   child: child!,
+                 );
+               },
+             );
+             if (picked != null) {
+               setDialogState(() {
+                 selectedDob = picked;
+                 dobController.text = DateFormat('yyyy-MM-dd').format(picked);
+               });
+             }
+           },
+         ),
+         border: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.3)),
+         ),
+         enabledBorder: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor.withOpacity(0.3)),
+         ),
+         focusedBorder: OutlineInputBorder(
+           borderRadius: BorderRadius.circular(kDefaultRadius * 0.8),
+           borderSide: BorderSide(color: kPrimaryColor, width: 2),
+         ),
+         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+       ),
+       readOnly: true,
+       onTap: () async {
+         final DateTime? picked = await showDatePicker(
+           context: context,
+           initialDate: selectedDob ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
+           firstDate: DateTime(1950),
+           lastDate: DateTime.now(),
+           builder: (context, child) {
+             return Theme(
+               data: Theme.of(context).copyWith(
+                 colorScheme: Theme.of(context).colorScheme.copyWith(
+                   primary: kPrimaryColor,
+                 ),
+               ),
+               child: child!,
+             );
+           },
+         );
+         if (picked != null) {
+           setDialogState(() {
+             selectedDob = picked;
+             dobController.text = DateFormat('yyyy-MM-dd').format(picked);
+           });
+         }
+       },
+     ),
    );
  }
 
@@ -2352,6 +3120,23 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> { // Change
                            final allFees = feesSnapshot.data ?? [];
                            // Pass student object here
                            return _buildMonthlyFeesSection(student, allFees);
+                        }
+                      ),
+                      const Divider(),
+                      // Attendance Section (needs attendance future)
+                      FutureBuilder<List<AttendanceRecord>>(
+                        future: _attendanceFuture, // This future updates based on filters
+                        builder: (context, attendanceSnapshot) {
+                           if (attendanceSnapshot.connectionState == ConnectionState.waiting && _selectedAttendanceYear != null) {
+                              // Show loading only when actively fetching for selected filters
+                              return const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()));
+                           }
+                           if (attendanceSnapshot.hasError) {
+                             return Center(child: Text("Error loading attendance: ${attendanceSnapshot.error}"));
+                           }
+                           final allAttendance = attendanceSnapshot.data ?? [];
+                           // Pass student object here
+                           return _buildAttendanceSection(student, allAttendance);
                         }
                       ),
                     ],

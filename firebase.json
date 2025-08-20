@@ -2,24 +2,28 @@
   "functions": {
     "source": "functions"
   },
+  "firestore": {
+    "rules": "firestore_rules_temp.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "flutter": {
     "platforms": {
       "android": {
         "default": {
-          "projectId": "edutrack-eb824",
-          "appId": "1:741991548014:android:9c2465b08899a4f869127f",
+          "projectId": "edutrack-73a2e",
+          "appId": "1:656920649358:android:bb9ea547cd1dd9a0b1b3df",
           "fileOutput": "android/app/google-services.json"
         }
       },
       "dart": {
         "lib/firebase_options.dart": {
-          "projectId": "edutrack-eb824",
+          "projectId": "edutrack-73a2e",
           "configurations": {
-            "android": "1:741991548014:android:9c2465b08899a4f869127f",
-            "ios": "1:741991548014:ios:4e1370d3265f9d6b69127f",
-            "macos": "1:741991548014:ios:4e1370d3265f9d6b69127f",
-            "web": "1:741991548014:web:037aea02350fe44969127f",
-            "windows": "1:741991548014:web:9da4a161ca973d0569127f"
+            "android": "1:656920649358:android:bb9ea547cd1dd9a0b1b3df",
+            "ios": "1:656920649358:ios:REPLACE_IF_AVAILABLE",
+            "macos": "1:656920649358:ios:REPLACE_IF_AVAILABLE",
+            "web": "1:656920649358:web:REPLACE_FOR_WEB",
+            "windows": "1:656920649358:web:REPLACE_FOR_WINDOWS"
           }
         }
       }

@@ -34,9 +34,9 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  firebase_core: ^3.3.0 # For Firebase initialization
+  firebase_core: ^3.15.2 # For Firebase initialization
   firebase_auth: ^5.1.2 # For Firebase Authentication
-  cloud_firestore: ^5.1.0 # For Firestore database
+  cloud_firestore: ^5.6.12 # For Firestore database
   firebase_storage: ^12.1.0 # For Firebase Storage (though using Cloudinary primarily)
   flutter_svg: ^2.0.10+1 # For SVG support
   get: ^4.6.6 # For state management and navigation
@@ -51,7 +51,7 @@ dependencies:
   permission_handler: ^12.0.0+1 # For handling permissions (storage)
   path_provider: ^2.1.3 # For finding local paths
   saver_gallery: ^4.0.1 # Replaced gallery_saver for saving images (using suggested version)
-  uuid: ^4.4.0 # For generating unique IDs
+  uuid: ^4.5.1 # For generating unique IDs
   device_info_plus: ^11.3.3 # To check Android version for permissions
   fl_chart: ^0.71.0 # For charts
   excel: ^4.0.2 # For Excel export

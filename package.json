@@ -1,6 +1,26 @@
 {
+  "name": "edutrack-firestore-setup",
+  "version": "1.0.0",
+  "description": "Firestore database setup script for EduTrack application",
+  "main": "setup_firestore_database.js",
+  "scripts": {
+    "setup-db": "node setup_firestore_database.js",
+    "setup": "npm install && npm run setup-db"
+  },
+  "keywords": [
+    "firebase",
+    "firestore",
+    "edutrack",
+    "education",
+    "database"
+  ],
+  "author": "EduTrack Team",
+  "license": "MIT",
   "dependencies": {
-    "firebase-admin": "^13.2.0",
-    "firebase-functions": "^6.3.2"
+    "firebase": "^12.1.0",
+    "firebase-admin": "^12.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
