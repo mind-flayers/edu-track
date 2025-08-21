@@ -6,6 +6,7 @@ import 'package:edu_track/app/features/authentication/controllers/auth_controlle
 import 'package:edu_track/app/features/authentication/screens/launching_screen.dart';
 import 'package:edu_track/app/features/profile/bindings/profile_binding.dart'; // Import ProfileBinding
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // Import ProfileScreen
+import 'package:edu_track/app/features/payments/screens/payment_management_screen.dart'; // Import PaymentManagementScreen
 import 'package:edu_track/app/services/whatsapp_service.dart'; // Import WhatsApp service
 import 'package:edu_track/app/services/whatsapp_queue_service.dart'; // Import WhatsApp queue service
 // Import firebase_options.dart (Generated via FlutterFire CLI)
@@ -62,6 +63,7 @@ class MyApp extends StatelessWidget {
 class AppRoutes {
   static const launching = '/';
   static const profileSettings = '/profile-settings';
+  static const paymentManagement = '/payment-management';
   // Add other routes here as needed
   // static const dashboard = '/dashboard';
   // static const addTeacher = '/add-teacher';
@@ -79,6 +81,11 @@ class AppPages {
       name: AppRoutes.profileSettings,
       page: () => const ProfileSettingsScreen(),
       binding: ProfileBinding(), // Apply the binding for this route
+    ),
+    GetPage(
+      name: AppRoutes.paymentManagement,
+      page: () => const PaymentManagementScreen(),
+      // No specific binding needed
     ),
     // Add other pages here
     // GetPage(name: AppRoutes.dashboard, page: () => DashboardScreen(), binding: DashboardBinding()),

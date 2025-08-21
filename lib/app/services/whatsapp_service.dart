@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:async';
-import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
 
@@ -64,6 +62,71 @@ class WhatsAppService {
           'amount': amount,
           'month': month,
           'year': year,
+        });
+  }
+
+  /// Send monthly payment notification via Firebase bridge
+  static Future<bool> sendMonthlyPaymentNotification({
+    required String studentName,
+    required String parentName,
+    required String parentPhone,
+    required double amount,
+    required String month,
+    required int year,
+    required List<String> subjects,
+    required String schoolName,
+  }) async {
+    final message = _formatMonthlyPaymentMessage(
+      studentName: studentName,
+      parentName: parentName,
+      amount: amount,
+      month: month,
+      year: year,
+      subjects: subjects,
+      schoolName: schoolName,
+    );
+
+    return await _queueMessageViaFirebase(
+        phoneNumber: parentPhone,
+        message: message,
+        type: 'monthly_payment',
+        metadata: {
+          'studentName': studentName,
+          'amount': amount,
+          'month': month,
+          'year': year,
+          'subjects': subjects,
+        });
+  }
+
+  /// Send daily payment notification via Firebase bridge
+  static Future<bool> sendDailyPaymentNotification({
+    required String studentName,
+    required String parentName,
+    required String parentPhone,
+    required double amount,
+    required String date,
+    required List<String> subjects,
+    required String schoolName,
+  }) async {
+    final message = _formatDailyPaymentMessage(
+      studentName: studentName,
+      parentName: parentName,
+      amount: amount,
+      date: date,
+      subjects: subjects,
+      schoolName: schoolName,
+    );
+
+    return await _queueMessageViaFirebase(
+        phoneNumber: parentPhone,
+        message: message,
+        type: 'daily_payment',
+        metadata: {
+          'studentName': studentName,
+          'amount': amount,
+          'date': date,
+          'subjects': subjects,
         });
   }
 
@@ -229,15 +292,15 @@ class WhatsAppService {
 
     return '''✅ *Attendance Marked*
 
-Hello $parentName,
+Hello Mr/Mrs $parentName,
 
-Your child *$studentName* from *$className* has been marked *PRESENT* for *$subject*.
+Your son/daughter *$studentName* from *$className* has been marked *PRESENT* for *$subject* class.
 
-📅 Date: $date
-🕒 Time: $time
+*Date:* $date
+*Time:* $time
 
 Best regards,
-*$schoolName*
+$schoolName,
 _Powered by EduTrack_''';
   }
 
@@ -254,16 +317,87 @@ _Powered by EduTrack_''';
     final receiptNo =
         'EDU${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
-    return '''💰 *Payment Received*
+    return '''✔️ *Payment Received*
 
 Dear $parentName,
 
 We have successfully received the payment for *$studentName*.
 
-💵 Amount: Rs. $formattedAmount
-📅 For: $month $year
-🧾 Receipt #: $receiptNo
-⏰ Paid on: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}
+*Amount:* Rs. $formattedAmount
+*For:* $month $year
+*Receipt #:* ```$receiptNo```
+*Paid on:* ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}
+
+Thank you for your payment! 🙏
+
+Best regards,
+$schoolName
+_Powered by EduTrack_''';
+  }
+
+  /// Format monthly payment notification message
+  static String _formatMonthlyPaymentMessage({
+    required String studentName,
+    required String parentName,
+    required double amount,
+    required String month,
+    required int year,
+    required List<String> subjects,
+    required String schoolName,
+  }) {
+    final formattedAmount = amount.toStringAsFixed(2);
+    final receiptNo =
+        'EDU${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final subjectsText = subjects.join(', ');
+
+    return '''✔️ *Monthly Payment Received*
+
+Dear $parentName,
+
+We have successfully received the monthly payment for *$studentName*.
+
+*Subjects:* $subjectsText
+*Amount:* Rs. $formattedAmount
+*For:* $month $year
+*Receipt #:* ```$receiptNo```
+*Paid on:* ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}
+
+Thank you for your monthly payment! 🙏
+
+Best regards,
+$schoolName
+_Powered by EduTrack_''';
+  }
+
+  /// Format daily payment notification message
+  static String _formatDailyPaymentMessage({
+    required String studentName,
+    required String parentName,
+    required double amount,
+    required String date,
+    required List<String> subjects,
+    required String schoolName,
+  }) {
+    final formattedAmount = amount.toStringAsFixed(2);
+    final receiptNo =
+        'EDU${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final subjectsText = subjects.join(', ');
+
+    // Format date for display
+    final dateObj = DateTime.parse(date);
+    final formattedDate = '${dateObj.day}/${dateObj.month}/${dateObj.year}';
+
+    return '''✔️ *Daily Payment Received*
+
+Dear $parentName,
+
+We have successfully received the daily class payment for *$studentName*.
+
+*Classes:* $subjectsText
+Date:* $formattedDate
+*Amount:* Rs. $formattedAmount
+*Receipt #:* ```$receiptNo```
+*Paid on:* ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}
 
 Thank you for your payment! 🙏
 

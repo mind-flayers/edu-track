@@ -134,37 +134,63 @@ class ExamResult {
   }
 }
 
-// Placeholder for Fee data model
+// Updated Fee data model to support both monthly and daily payments
 class FeeRecord {
   final String id;
+  final String paymentType; // 'monthly' or 'daily'
   final int year;
   final int month;
+  final String? date; // For daily payments (YYYY-MM-DD format)
+  final List<String> subjects; // List of subjects for this payment
   final double amount;
   final bool paid;
   final Timestamp? paidAt;
+  final String? paymentMethod;
+  final String? description;
 
   FeeRecord({
     required this.id,
+    required this.paymentType,
     required this.year,
     required this.month,
+    this.date,
+    required this.subjects,
     required this.amount,
     required this.paid,
     this.paidAt,
+    this.paymentMethod,
+    this.description,
   });
 
   factory FeeRecord.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map;
     return FeeRecord(
       id: doc.id,
+      paymentType: data['paymentType'] ??
+          'monthly', // Default to monthly for backward compatibility
       year: data['year'] ?? DateTime.now().year,
       month: data['month'] ?? 0,
+      date: data['date'],
+      subjects: List<String>.from(data['subjects'] ?? []),
       amount: (data['amount'] ?? 0.0).toDouble(),
       paid: data['paid'] ?? false,
       paidAt: data['paidAt'],
+      paymentMethod: data['paymentMethod'],
+      description: data['description'],
     );
   }
 
   String get monthName => DateFormat('MMMM').format(DateTime(year, month));
+
+  String get displayDate {
+    if (paymentType == 'daily' && date != null) {
+      final dateObj = DateTime.parse(date!);
+      return DateFormat('dd/MM/yyyy').format(dateObj);
+    }
+    return monthName;
+  }
+
+  String get subjectDisplay => subjects.join(', ');
 }
 
 // Placeholder for Attendance Record data model
@@ -1205,7 +1231,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
     );
   }
 
-  // Modified to accept Student object
+  // Updated to display both monthly and daily payments
   Widget _buildMonthlyFeesSection(Student student, List<FeeRecord> allFees) {
     final years = allFees.map((f) => f.year.toString()).toSet().toList();
     years.sort((a, b) => b.compareTo(a)); // Descending
@@ -1221,10 +1247,16 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         ? <FeeRecord>[]
         : allFees.where((f) => f.year.toString() == _selectedFeeYear).toList();
 
-    // Create a map of month -> FeeRecord for easy lookup
-    final feeMap = {for (var fee in feesForSelectedYear) fee.month: fee};
+    // Separate monthly and daily payments
+    final monthlyFees =
+        feesForSelectedYear.where((f) => f.paymentType == 'monthly').toList();
+    final dailyFees =
+        feesForSelectedYear.where((f) => f.paymentType == 'daily').toList();
 
-    // Generate all months for the table
+    // Group monthly fees by month for easy lookup
+    final monthlyFeeMap = {for (var fee in monthlyFees) fee.month: fee};
+
+    // Generate all months for the monthly table
     final allMonths = List.generate(12, (index) => index + 1);
 
     return Padding(
@@ -1232,7 +1264,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Monthly Fees", style: Theme.of(context).textTheme.titleLarge),
+          Text("Payment Records",
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -1270,16 +1303,13 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                       },
               ),
               const SizedBox(width: 8),
-              // Share button for monthly fees - Apply AttendanceSummaryScreen style
+              // Share button for fees - Apply AttendanceSummaryScreen style
               ElevatedButton(
-                onPressed: _selectedFeeYear == null ||
-                        feesForSelectedYear.isEmpty &&
-                            !allFees.any((f) =>
-                                f.year.toString() == _selectedFeeYear &&
-                                f.paid) // Keep original condition
-                    ? null
-                    : () => _showMonthlyFeesExportOptions(
-                        student, feesForSelectedYear, _selectedFeeYear!),
+                onPressed:
+                    _selectedFeeYear == null || feesForSelectedYear.isEmpty
+                        ? null
+                        : () => _showMonthlyFeesExportOptions(
+                            student, feesForSelectedYear, _selectedFeeYear!),
                 style: ElevatedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(kDefaultRadius),
@@ -1295,49 +1325,49 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          // Fees Table
-          if (_selectedFeeYear != null)
+          if (_selectedFeeYear != null) ...[
+            // Monthly Fees Section
+            Text("Monthly Fees",
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             SingleChildScrollView(
-              // Make table horizontally scrollable if needed
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                columnSpacing: 30, // Adjust spacing
+                columnSpacing: 25,
                 columns: const [
                   DataColumn(
                       label: Text('Month',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('Payment',
+                      label: Text('Status',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
                       label: Text('Amount',
-                          style: TextStyle(
-                              fontWeight:
-                                  FontWeight.bold))), // Optional: Show amount
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('Subjects',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
                       label: Text('Paid Date',
-                          style: TextStyle(
-                              fontWeight: FontWeight
-                                  .bold))), // Optional: Show paid date
+                          style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
                 rows: allMonths.map((month) {
-                  final fee = feeMap[month];
+                  final fee = monthlyFeeMap[month];
                   final monthName = DateFormat('MMMM')
                       .format(DateTime(int.parse(_selectedFeeYear!), month));
                   final isPaid = fee?.paid ?? false;
-                  final amount = fee?.amount.toStringAsFixed(2) ?? '-';
+                  final amount = fee != null
+                      ? 'Rs. ${fee.amount.toStringAsFixed(2)}'
+                      : '-';
+                  final subjects = fee?.subjectDisplay ?? '-';
                   final paidDate = fee?.paidAt != null
-                      ? DateFormat('yyyy-MM-dd').format(fee!.paidAt!.toDate())
+                      ? DateFormat('dd/MM/yyyy').format(fee!.paidAt!.toDate())
                       : '-';
 
                   return DataRow(
-                    color: WidgetStateProperty.resolveWith<Color?>(
-                      (Set<WidgetState> states) {
-                        // Optional: Alternate row colors
-                        // return allMonths.indexOf(month).isEven ? Colors.grey.shade100 : null;
-                        return null;
-                      },
-                    ),
                     cells: [
                       DataCell(
                           Text(monthName, overflow: TextOverflow.ellipsis)),
@@ -1349,9 +1379,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                                     Icon(Icons.check_circle,
                                         color: Colors.green, size: 18),
                                     SizedBox(width: 4),
-                                    Flexible(
-                                        child: Text('Paid',
-                                            overflow: TextOverflow.ellipsis))
+                                    Text('Paid'),
                                   ])
                             : const Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -1359,23 +1387,100 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                                     Icon(Icons.cancel,
                                         color: Colors.red, size: 18),
                                     SizedBox(width: 4),
-                                    Flexible(
-                                        child: Text('Unpaid',
-                                            overflow: TextOverflow.ellipsis))
+                                    Text('Unpaid'),
                                   ]),
                       ),
                       DataCell(Text(amount, overflow: TextOverflow.ellipsis)),
+                      DataCell(Text(subjects, overflow: TextOverflow.ellipsis)),
                       DataCell(Text(paidDate, overflow: TextOverflow.ellipsis)),
                     ],
                   );
                 }).toList(),
               ),
-            )
-          else
-            const Center(child: Text("Select a year to view fee details.")),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Daily Fees Section
+            if (dailyFees.isNotEmpty) ...[
+              Text("Daily Payment Records",
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              // Sort daily fees by date (most recent first)
+              ..._buildDailyFeesCards(dailyFees
+                ..sort((a, b) {
+                  if (a.date != null && b.date != null) {
+                    return DateTime.parse(b.date!)
+                        .compareTo(DateTime.parse(a.date!));
+                  }
+                  return b.paidAt!.compareTo(a.paidAt!);
+                })),
+            ] else if (_selectedFeeYear != null) ...[
+              Text("Daily Payment Records",
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Center(
+                    child: Text(
+                      'No daily payment records found for $_selectedFeeYear',
+                      style: TextStyle(color: kLightTextColor),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ] else
+            const Center(child: Text("Select a year to view payment details.")),
         ],
       ),
     );
+  }
+
+  // Helper method to build daily fees cards
+  List<Widget> _buildDailyFeesCards(List<FeeRecord> dailyFees) {
+    return dailyFees.map((fee) {
+      return Card(
+        margin: const EdgeInsets.only(bottom: 8.0),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: kPrimaryColor.withOpacity(0.2),
+            child: Icon(Icons.calendar_today, color: kPrimaryColor, size: 20),
+          ),
+          title: Text(fee.displayDate,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Subjects: ${fee.subjectDisplay}'),
+              if (fee.description != null && fee.description!.isNotEmpty)
+                Text('Note: ${fee.description}',
+                    style: TextStyle(color: kLightTextColor, fontSize: 12)),
+            ],
+          ),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Rs. ${fee.amount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                      color: kSuccessColor, fontWeight: FontWeight.bold)),
+              if (fee.paidAt != null)
+                Text(DateFormat('dd/MM/yyyy').format(fee.paidAt!.toDate()),
+                    style: TextStyle(color: kLightTextColor, fontSize: 12)),
+            ],
+          ),
+          isThreeLine: fee.description != null && fee.description!.isNotEmpty,
+        ),
+      );
+    }).toList();
   }
 
   // Modified to accept Student object for attendance section

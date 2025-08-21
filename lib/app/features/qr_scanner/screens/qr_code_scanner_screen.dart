@@ -89,8 +89,13 @@ enum ScreenState {
   scanning,
   showIndexInput,
   showStudentDetails,
-  showPaymentInput
+  showPaymentTypeSelection,
+  showMonthlyPaymentInput,
+  showDailyPaymentInput
 }
+
+// Enum for payment types
+enum PaymentType { monthly, daily }
 
 class QRCodeScannerScreen extends StatefulWidget {
   const QRCodeScannerScreen({super.key});
@@ -116,7 +121,10 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   bool _isLoading = false;
   String? _statusMessage;
   bool _isError = false;
-  String? _selectedMonth; // For payment dropdown
+  String? _selectedMonth; // For monthly payment dropdown
+  DateTime? _selectedDate; // For daily payment date picker
+  PaymentType? _selectedPaymentType; // Monthly or Daily
+  List<String> _selectedSubjects = []; // For both payment types
   String? _academyName;
 
   // List of months for the dropdown
@@ -477,10 +485,17 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
     }
   }
 
-  Future<void> _markPayment() async {
+  Future<void> _markMonthlyPayment() async {
     if (_foundStudent == null ||
         _selectedMonth == null ||
-        !_formKeyPayment.currentState!.validate()) return;
+        _selectedSubjects.isEmpty ||
+        !_formKeyPayment.currentState!.validate()) {
+      if (_selectedSubjects.isEmpty) {
+        _showStatusMessage('Please select at least one subject', isError: true);
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
     FocusScope.of(context).unfocus();
 
@@ -492,6 +507,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
       if (amount == null || amount <= 0) {
         throw Exception("Invalid amount entered.");
       }
+
       final monthIndex = _months.indexOf(_selectedMonth!) + 1; // 1-based index
       final currentYear = DateTime.now().year;
 
@@ -502,51 +518,149 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
           .doc(_foundStudent!.id)
           .collection('fees');
 
-      // Add payment record
+      // Add monthly payment record with new structure
       await feesRef.add({
+        'paymentType': 'monthly',
         'year': currentYear,
         'month': monthIndex,
+        'date': null, // null for monthly payments
+        'subjects': _selectedSubjects,
         'amount': amount,
         'paid': true,
         'paidAt': Timestamp.now(),
-        'paymentMethod': 'Manual/QR', // Indicate how it was marked
+        'paymentMethod': 'Manual/QR',
         'markedBy': adminUid,
+        'description':
+            'Monthly fee for ${_selectedSubjects.join(", ")} - $_selectedMonth $currentYear',
       });
 
-      // Send WhatsApp notification
-      final whatsappSent = await WhatsAppService.sendPaymentNotification(
+      // Send WhatsApp notification for monthly payment
+      final whatsappSent = await WhatsAppService.sendMonthlyPaymentNotification(
         studentName: _foundStudent!.name,
         parentName: _foundStudent!.parentName,
-        parentPhone: _foundStudent!
-            .whatsappNumber, // Use whatsappNumber instead of parentPhone
+        parentPhone: _foundStudent!.whatsappNumber,
         amount: amount,
         month: _selectedMonth!,
         year: currentYear,
+        subjects: _selectedSubjects,
         schoolName: _academyName ?? 'EduTrack Academy',
       );
 
       if (whatsappSent) {
-        _showStatusMessage('Payment marked & WhatsApp sent! 💰📱✅',
+        _showStatusMessage('Monthly payment marked & WhatsApp sent! 💰📱✅',
             isError: false);
       } else {
-        _showStatusMessage('Payment marked but WhatsApp notification failed.',
+        _showStatusMessage(
+            'Monthly payment marked but WhatsApp notification failed.',
             isError: true);
       }
 
       // Navigate back to initial screen
+      _resetPaymentState();
       setState(() {
         _currentScreenState = ScreenState.initial;
         _foundStudent = null;
-        _selectedMonth = null;
-        _amountController.clear();
       });
     } catch (e) {
-      print("Error marking payment: $e");
+      print("Error marking monthly payment: $e");
       _showStatusMessage('Failed to mark payment. $e', isError: true);
-      // Stay on payment input screen on error
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _markDailyPayment() async {
+    if (_foundStudent == null ||
+        _selectedDate == null ||
+        _selectedSubjects.isEmpty ||
+        !_formKeyPayment.currentState!.validate()) {
+      if (_selectedDate == null) {
+        _showStatusMessage('Please select a date', isError: true);
+      } else if (_selectedSubjects.isEmpty) {
+        _showStatusMessage('Please select at least one subject', isError: true);
+      }
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    FocusScope.of(context).unfocus();
+
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid == null) throw Exception("Admin not logged in.");
+
+      final amount = double.tryParse(_amountController.text.trim());
+      if (amount == null || amount <= 0) {
+        throw Exception("Invalid amount entered.");
+      }
+
+      final dateString =
+          '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}';
+
+      final feesRef = _firestore
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .doc(_foundStudent!.id)
+          .collection('fees');
+
+      // Add daily payment record with new structure
+      await feesRef.add({
+        'paymentType': 'daily',
+        'year': _selectedDate!.year,
+        'month': _selectedDate!.month,
+        'date': dateString,
+        'subjects': _selectedSubjects,
+        'amount': amount,
+        'paid': true,
+        'paidAt': Timestamp.now(),
+        'paymentMethod': 'Manual/QR',
+        'markedBy': adminUid,
+        'description':
+            'Daily class fee for ${_selectedSubjects.join(", ")} - $dateString',
+      });
+
+      // Send WhatsApp notification for daily payment
+      final whatsappSent = await WhatsAppService.sendDailyPaymentNotification(
+        studentName: _foundStudent!.name,
+        parentName: _foundStudent!.parentName,
+        parentPhone: _foundStudent!.whatsappNumber,
+        amount: amount,
+        date: dateString,
+        subjects: _selectedSubjects,
+        schoolName: _academyName ?? 'EduTrack Academy',
+      );
+
+      if (whatsappSent) {
+        _showStatusMessage('Daily payment marked & WhatsApp sent! 💰📱✅',
+            isError: false);
+      } else {
+        _showStatusMessage(
+            'Daily payment marked but WhatsApp notification failed.',
+            isError: true);
+      }
+
+      // Navigate back to initial screen
+      _resetPaymentState();
+      setState(() {
+        _currentScreenState = ScreenState.initial;
+        _foundStudent = null;
+      });
+    } catch (e) {
+      print("Error marking daily payment: $e");
+      _showStatusMessage('Failed to mark payment. $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Helper method to reset payment state
+  void _resetPaymentState() {
+    _selectedMonth = null;
+    _selectedDate = null;
+    _selectedPaymentType = null;
+    _selectedSubjects.clear();
+    _amountController.clear();
   }
 
   // --- UI Building ---
@@ -566,11 +680,16 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                 _currentScreenState == ScreenState.showIndexInput) {
               setState(() => _currentScreenState = ScreenState.initial);
             } else if (_currentScreenState == ScreenState.showStudentDetails) {
-              setState(() => _currentScreenState =
-                  ScreenState.initial); // Or scanning? Decide behavior
-            } else if (_currentScreenState == ScreenState.showPaymentInput) {
+              setState(() => _currentScreenState = ScreenState.initial);
+            } else if (_currentScreenState ==
+                ScreenState.showPaymentTypeSelection) {
               setState(
                   () => _currentScreenState = ScreenState.showStudentDetails);
+            } else if (_currentScreenState ==
+                    ScreenState.showMonthlyPaymentInput ||
+                _currentScreenState == ScreenState.showDailyPaymentInput) {
+              setState(() =>
+                  _currentScreenState = ScreenState.showPaymentTypeSelection);
             } else {
               Navigator.pop(context); // Default back action
             }
@@ -601,8 +720,12 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         return _buildIndexInputUI(context);
       case ScreenState.showStudentDetails:
         return _buildStudentDetailsUI(context);
-      case ScreenState.showPaymentInput:
-        return _buildPaymentInputUI(context);
+      case ScreenState.showPaymentTypeSelection:
+        return _buildPaymentTypeSelectionUI(context);
+      case ScreenState.showMonthlyPaymentInput:
+        return _buildMonthlyPaymentInputUI(context);
+      case ScreenState.showDailyPaymentInput:
+        return _buildDailyPaymentInputUI(context);
     }
   }
 
@@ -857,7 +980,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                               child: OutlinedButton(
                                 onPressed: () => setState(() =>
                                     _currentScreenState =
-                                        ScreenState.showPaymentInput),
+                                        ScreenState.showPaymentTypeSelection),
                                 child: const Text('Mark Payment'),
                               ),
                             ),
@@ -903,8 +1026,8 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
     );
   }
 
-  // --- UI for Payment Input ---
-  Widget _buildPaymentInputUI(BuildContext context) {
+  // --- UI for Payment Type Selection ---
+  Widget _buildPaymentTypeSelectionUI(BuildContext context) {
     if (_foundStudent == null) {
       return const Center(child: Text('Error: Student data not found.'));
     }
@@ -917,16 +1040,109 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
           elevation: 4,
           child: Padding(
             padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Select Payment Type',
+                    style: textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: kDefaultPadding * 1.5),
+
+                // Student Info
+                Text('For: ${_foundStudent!.name}',
+                    style:
+                        textTheme.titleMedium?.copyWith(color: kPrimaryColor)),
+                Text('Class: ${_foundStudent!.className}',
+                    style:
+                        textTheme.bodyMedium?.copyWith(color: kLightTextColor)),
+                const SizedBox(height: kDefaultPadding * 1.5),
+
+                // Payment Type Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          _selectedPaymentType = PaymentType.monthly;
+                          setState(() => _currentScreenState =
+                              ScreenState.showMonthlyPaymentInput);
+                        },
+                        icon: const Icon(Icons.calendar_month_outlined),
+                        label: const Text('Monthly Payment'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: kDefaultPadding * 1.2),
+                        ),
+                      ).animate().fadeIn(delay: 100.ms),
+                    ),
+                    const SizedBox(width: kDefaultPadding),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          _selectedPaymentType = PaymentType.daily;
+                          setState(() => _currentScreenState =
+                              ScreenState.showDailyPaymentInput);
+                        },
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        label: const Text('Daily Payment'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: kDefaultPadding * 1.2),
+                        ),
+                      ).animate().fadeIn(delay: 150.ms),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: kDefaultPadding * 1.5),
+
+                // Back Button
+                OutlinedButton(
+                  onPressed: () => setState(() =>
+                      _currentScreenState = ScreenState.showStudentDetails),
+                  style:
+                      OutlinedButton.styleFrom(foregroundColor: kPrimaryColor),
+                  child: const Text('Go Back'),
+                ).animate().fadeIn(delay: 200.ms),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- UI for Monthly Payment Input ---
+  Widget _buildMonthlyPaymentInputUI(BuildContext context) {
+    if (_foundStudent == null) {
+      return const Center(child: Text('Error: Student data not found.'));
+    }
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+      child: SingleChildScrollView(
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(kDefaultPadding * 1.5),
             child: Form(
               key: _formKeyPayment,
               child: Column(
-                mainAxisSize: MainAxisSize.min, // Make card wrap content
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Mark for Payment',
+                  Text('Monthly Payment',
                       style: textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: kDefaultPadding),
+
+                  // Student Info
+                  Text('For: ${_foundStudent!.name}',
+                      style: textTheme.titleMedium
+                          ?.copyWith(color: kPrimaryColor)),
                   const SizedBox(height: kDefaultPadding * 1.5),
+
                   // Month Dropdown
                   DropdownButtonFormField<String>(
                     value: _selectedMonth,
@@ -949,13 +1165,17 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                     ),
                   ).animate().fadeIn(delay: 100.ms),
                   const SizedBox(height: kDefaultPadding),
+
+                  // Subject Selection
+                  _buildSubjectSelectionWidget(),
+                  const SizedBox(height: kDefaultPadding),
+
                   // Amount Input
                   TextFormField(
                     controller: _amountController,
                     decoration: const InputDecoration(
                       labelText: 'Enter the Amount',
-                      prefixIcon:
-                          Icon(Icons.currency_rupee_rounded), // Assuming Rupee
+                      prefixIcon: Icon(Icons.currency_rupee_rounded),
                     ),
                     keyboardType:
                         TextInputType.numberWithOptions(decimal: true),
@@ -969,8 +1189,9 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                       return null;
                     },
                     autovalidateMode: AutovalidateMode.onUserInteraction,
-                  ).animate().fadeIn(delay: 150.ms),
+                  ).animate().fadeIn(delay: 200.ms),
                   const SizedBox(height: kDefaultPadding * 1.5),
+
                   // Action Buttons
                   _isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -978,20 +1199,20 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                           children: [
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: _markPayment,
+                                onPressed: _markMonthlyPayment,
                                 child: const Text('Mark Payment'),
-                              ).animate().fadeIn(delay: 200.ms),
+                              ).animate().fadeIn(delay: 250.ms),
                             ),
                             const SizedBox(width: kDefaultPadding),
                             Expanded(
                               child: OutlinedButton(
                                 onPressed: () => setState(() =>
                                     _currentScreenState =
-                                        ScreenState.showStudentDetails),
+                                        ScreenState.showPaymentTypeSelection),
                                 style: OutlinedButton.styleFrom(
                                     foregroundColor: kPrimaryColor),
                                 child: const Text('Go Back'),
-                              ).animate().fadeIn(delay: 250.ms),
+                              ).animate().fadeIn(delay: 300.ms),
                             ),
                           ],
                         ),
@@ -1001,6 +1222,171 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // --- UI for Daily Payment Input ---
+  Widget _buildDailyPaymentInputUI(BuildContext context) {
+    if (_foundStudent == null) {
+      return const Center(child: Text('Error: Student data not found.'));
+    }
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+      child: SingleChildScrollView(
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+            child: Form(
+              key: _formKeyPayment,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Daily Payment',
+                      style: textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: kDefaultPadding),
+
+                  // Student Info
+                  Text('For: ${_foundStudent!.name}',
+                      style: textTheme.titleMedium
+                          ?.copyWith(color: kPrimaryColor)),
+                  const SizedBox(height: kDefaultPadding * 1.5),
+
+                  // Date Picker
+                  InkWell(
+                    onTap: () async {
+                      final selectedDate = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedDate ?? DateTime.now(),
+                        firstDate:
+                            DateTime.now().subtract(const Duration(days: 30)),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                      );
+                      if (selectedDate != null) {
+                        setState(() {
+                          _selectedDate = selectedDate;
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Select Date',
+                        prefixIcon: Icon(Icons.calendar_today_outlined),
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Text(
+                        _selectedDate != null
+                            ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                            : 'Tap to select date',
+                      ),
+                    ),
+                  ).animate().fadeIn(delay: 100.ms),
+                  const SizedBox(height: kDefaultPadding),
+
+                  // Subject Selection
+                  _buildSubjectSelectionWidget(),
+                  const SizedBox(height: kDefaultPadding),
+
+                  // Amount Input
+                  TextFormField(
+                    controller: _amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Enter the Amount',
+                      prefixIcon: Icon(Icons.currency_rupee_rounded),
+                    ),
+                    keyboardType:
+                        TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) {
+                      if (value == null || value.isEmpty)
+                        return 'Please enter amount';
+                      if (double.tryParse(value) == null)
+                        return 'Invalid amount';
+                      if (double.parse(value) <= 0)
+                        return 'Amount must be positive';
+                      return null;
+                    },
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                  ).animate().fadeIn(delay: 200.ms),
+                  const SizedBox(height: kDefaultPadding * 1.5),
+
+                  // Action Buttons
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _markDailyPayment,
+                                child: const Text('Mark Payment'),
+                              ).animate().fadeIn(delay: 250.ms),
+                            ),
+                            const SizedBox(width: kDefaultPadding),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => setState(() =>
+                                    _currentScreenState =
+                                        ScreenState.showPaymentTypeSelection),
+                                style: OutlinedButton.styleFrom(
+                                    foregroundColor: kPrimaryColor),
+                                child: const Text('Go Back'),
+                              ).animate().fadeIn(delay: 300.ms),
+                            ),
+                          ],
+                        ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Subject Selection Widget ---
+  Widget _buildSubjectSelectionWidget() {
+    if (_foundStudent == null || _foundStudent!.subjects.isEmpty) {
+      return Container();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Select Subjects:',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: kDefaultPadding / 2),
+        Wrap(
+          spacing: 8.0,
+          runSpacing: 4.0,
+          children: _foundStudent!.subjects.map((subject) {
+            final isSelected = _selectedSubjects.contains(subject);
+            return FilterChip(
+              label: Text(subject),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedSubjects.add(subject);
+                  } else {
+                    _selectedSubjects.remove(subject);
+                  }
+                });
+              },
+              selectedColor: kPrimaryColor.withOpacity(0.2),
+              checkmarkColor: kPrimaryColor,
+            );
+          }).toList(),
+        ),
+        if (_selectedSubjects.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text('Please select at least one subject',
+                style: TextStyle(color: kErrorColor, fontSize: 12)),
+          ),
+      ],
     );
   }
 

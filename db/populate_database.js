@@ -45,8 +45,35 @@ async function populateDatabase() {
     });
     console.log('✔ Admin profile created');
 
-    // 2. Exam Terms (Subjects list as specified)
-    const subjects = ['Maths', 'Science', 'English', 'History', 'ICT', 'Tamil', 'Sinhala', 'Commerce'];
+    // 2. Fee Structure Configuration (NEW)
+    const feeStructures = [
+      { subject: 'Maths', dailyFee: 120, monthlyFee: 2500 },
+      { subject: 'Science', dailyFee: 150, monthlyFee: 3000 },
+      { subject: 'English', dailyFee: 100, monthlyFee: 2000 },
+      { subject: 'History', dailyFee: 80, monthlyFee: 1800 },
+      { subject: 'ICT', dailyFee: 200, monthlyFee: 4000 },
+      { subject: 'Tamil', dailyFee: 90, monthlyFee: 1900 },
+      { subject: 'Sinhala', dailyFee: 90, monthlyFee: 1900 },
+      { subject: 'Commerce', dailyFee: 110, monthlyFee: 2200 }
+    ];
+    
+    for (const feeStructure of feeStructures) {
+      await setDoc(doc(db, 'admins', adminId, 'feeStructure', feeStructure.subject), {
+        subject: feeStructure.subject,
+        dailyFee: feeStructure.dailyFee,
+        monthlyFee: feeStructure.monthlyFee,
+        currency: 'LKR',
+        effectiveFrom: new Date('2025-01-01'),
+        createdAt: seedDate,
+        updatedAt: seedDate,
+        createdBy: adminId,
+        isActive: true
+      });
+    }
+    console.log('✔ Fee structures created (8 subjects)');
+
+    // 3. Exam Terms (Subjects list as specified)
+    const examSubjects = ['Maths', 'Science', 'English', 'History', 'ICT', 'Tamil', 'Sinhala', 'Commerce'];
     const examTermsData = [
       { name: 'First Term - 2025', start: '2025-02-01', end: '2025-04-30' },
       { name: 'Second Term - 2025', start: '2025-05-01', end: '2025-07-31' },
@@ -58,13 +85,13 @@ async function populateDatabase() {
         name: term.name,
         startDate: new Date(term.start),
         endDate: new Date(term.end),
-        subjects
+        subjects: examSubjects
       });
       termIdMap[term.name] = ref.id;
     }
     console.log('✔ Exam terms created (3) with IDs:', termIdMap);
 
-    // 3. Teachers (4 Muslim community based profiles)
+    // 4. Teachers (4 Muslim community based profiles)
     const teachers = [
       {
         name: 'Mr. Mohamed Fazil',
@@ -108,18 +135,18 @@ async function populateDatabase() {
     }
     console.log('✔ Teachers created (4)');
 
-    // 4. Students (10) – Sri Lankan Muslim community focus
+    // 5. Students (10) – Sri Lankan Muslim community focus with enhanced payment configurations
     const students = [
-      { name: 'Mohamed Aadil Rahman', class: 'Grade 10', section: 'A', dob: '2010-03-15', sex: 'Male', parentName: 'Mr. & Mrs. M. Rahman', parentPhone: '0776010010', whatsappNumber: '0776010010', address: '12, Mosque Road, Kattankudy', subjects: ['Maths', 'Science', 'English', 'History', 'ICT'] },
-      { name: 'Fathima Zainab Nazeera', class: 'Grade 11', section: 'A', dob: '2009-07-22', sex: 'Female', parentName: 'Mr. & Mrs. A. Nazeera', parentPhone: '0776020011', whatsappNumber: '0776020011', address: '34, Main Street, Mawanella', subjects: ['Maths', 'Science', 'English', 'Tamil', 'Commerce'] },
-      { name: 'Mohamed Irfan Ameer', class: 'Grade 10', section: 'A', dob: '2010-01-08', sex: 'Male', parentName: 'Mr. & Mrs. I. Ameer', parentPhone: '0776030012', whatsappNumber: '0776030012', address: '23, Beach Road, Beruwala', subjects: ['Maths', 'Science', 'English', 'ICT', 'History'] },
-      { name: 'Ayesha Safna Jameel', class: 'Grade 9', section: 'B', dob: '2011-11-30', sex: 'Female', parentName: 'Mr. & Mrs. S. Jameel', parentPhone: '0776040013', whatsappNumber: '0776040013', address: '2nd Cross St, Colombo 12', subjects: ['Maths', 'Science', 'English', 'Tamil', 'History'] },
-      { name: 'Muhammed Thameem Razik', class: 'Grade 9', section: 'A', dob: '2011-05-17', sex: 'Male', parentName: 'Mr. & Mrs. T. Razik', parentPhone: '0776050014', whatsappNumber: '0776050014', address: '67, Hospital Road, Kalmunai', subjects: ['Maths', 'Science', 'English', 'ICT', 'Tamil'] },
-      { name: 'Fathima Hajara Sameem', class: 'Grade 11', section: 'B', dob: '2009-09-04', sex: 'Female', parentName: 'Mr. & Mrs. H. Sameem', parentPhone: '0776060015', whatsappNumber: '0776060015', address: '89, Main Street, Akkaraipattu', subjects: ['Maths', 'English', 'Commerce', 'Tamil', 'History'] },
-      { name: 'Ahamed Rilwan Mubarak', class: 'Grade 10', section: 'B', dob: '2010-12-25', sex: 'Male', parentName: 'Mr. & Mrs. R. Mubarak', parentPhone: '0776070016', whatsappNumber: '0776070016', address: '156, Unity Place, Colombo 06', subjects: ['Maths', 'Science', 'English', 'Commerce', 'ICT'] },
-      { name: 'Nusrath Shifana Ismail', class: 'Grade 9', section: 'A', dob: '2011-08-13', sex: 'Female', parentName: 'Mr. & Mrs. I. Ismail', parentPhone: '0776080017', whatsappNumber: '0776080017', address: '23/A, Marine Drive, Wellawatte', subjects: ['Maths', 'Science', 'English', 'Tamil', 'History'] },
-      { name: 'Mohamed Akeel Haniffa', class: 'Grade 8', section: 'A', dob: '2012-02-28', sex: 'Male', parentName: 'Mr. & Mrs. A. Haniffa', parentPhone: '0776090018', whatsappNumber: '0776090018', address: '45, Bazaar Street, Puttalam', subjects: ['Maths', 'Science', 'English', 'Tamil'] },
-      { name: 'Fathima Rifqa Azeez', class: 'Grade 11', section: 'A', dob: '2009-06-19', sex: 'Female', parentName: 'Mr. & Mrs. R. Azeez', parentPhone: '0776100019', whatsappNumber: '0776100019', address: '14, Mosque Lane, Eravur', subjects: ['Maths', 'Science', 'English', 'Commerce', 'Tamil'] }
+      { name: 'Mohamed Aadil Rahman', class: 'Grade 10', section: 'A', dob: '2010-03-15', sex: 'Male', parentName: 'Mr. & Mrs. M. Rahman', parentPhone: '0776010010', whatsappNumber: '0776010010', address: '12, Mosque Road, Kattankudy', subjects: ['Maths', 'Science', 'English', 'History', 'ICT'], paymentConfig: { 'Maths': 'monthly', 'Science': 'monthly', 'English': 'daily', 'History': 'daily', 'ICT': 'monthly' } },
+      { name: 'Fathima Zainab Nazeera', class: 'Grade 11', section: 'A', dob: '2009-07-22', sex: 'Female', parentName: 'Mr. & Mrs. A. Nazeera', parentPhone: '0776020011', whatsappNumber: '0776020011', address: '34, Main Street, Mawanella', subjects: ['Maths', 'Science', 'English', 'Tamil', 'Commerce'], paymentConfig: { 'Maths': 'monthly', 'Science': 'daily', 'English': 'monthly', 'Tamil': 'none', 'Commerce': 'monthly' } },
+      { name: 'Mohamed Irfan Ameer', class: 'Grade 10', section: 'A', dob: '2010-01-08', sex: 'Male', parentName: 'Mr. & Mrs. I. Ameer', parentPhone: '0776030012', whatsappNumber: '0776030012', address: '23, Beach Road, Beruwala', subjects: ['Maths', 'Science', 'English', 'ICT', 'History'], paymentConfig: { 'Maths': 'daily', 'Science': 'monthly', 'English': 'daily', 'ICT': 'monthly', 'History': 'none' } },
+      { name: 'Ayesha Safna Jameel', class: 'Grade 9', section: 'B', dob: '2011-11-30', sex: 'Female', parentName: 'Mr. & Mrs. S. Jameel', parentPhone: '0776040013', whatsappNumber: '0776040013', address: '2nd Cross St, Colombo 12', subjects: ['Maths', 'Science', 'English', 'Tamil', 'History'], paymentConfig: { 'Maths': 'monthly', 'Science': 'monthly', 'English': 'monthly', 'Tamil': 'daily', 'History': 'daily' } },
+      { name: 'Muhammed Thameem Razik', class: 'Grade 9', section: 'A', dob: '2011-05-17', sex: 'Male', parentName: 'Mr. & Mrs. T. Razik', parentPhone: '0776050014', whatsappNumber: '0776050014', address: '67, Hospital Road, Kalmunai', subjects: ['Maths', 'Science', 'English', 'ICT', 'Tamil'], paymentConfig: { 'Maths': 'none', 'Science': 'none', 'English': 'monthly', 'ICT': 'daily', 'Tamil': 'daily' } },
+      { name: 'Fathima Hajara Sameem', class: 'Grade 11', section: 'B', dob: '2009-09-04', sex: 'Female', parentName: 'Mr. & Mrs. H. Sameem', parentPhone: '0776060015', whatsappNumber: '0776060015', address: '89, Main Street, Akkaraipattu', subjects: ['Maths', 'English', 'Commerce', 'Tamil', 'History'], paymentConfig: { 'Maths': 'daily', 'English': 'monthly', 'Commerce': 'monthly', 'Tamil': 'none', 'History': 'daily' } },
+      { name: 'Ahamed Rilwan Mubarak', class: 'Grade 10', section: 'B', dob: '2010-12-25', sex: 'Male', parentName: 'Mr. & Mrs. R. Mubarak', parentPhone: '0776070016', whatsappNumber: '0776070016', address: '156, Unity Place, Colombo 06', subjects: ['Maths', 'Science', 'English', 'Commerce', 'ICT'], paymentConfig: { 'Maths': 'monthly', 'Science': 'daily', 'English': 'monthly', 'Commerce': 'daily', 'ICT': 'monthly' } },
+      { name: 'Nusrath Shifana Ismail', class: 'Grade 9', section: 'A', dob: '2011-08-13', sex: 'Female', parentName: 'Mr. & Mrs. I. Ismail', parentPhone: '0776080017', whatsappNumber: '0776080017', address: '23/A, Marine Drive, Wellawatte', subjects: ['Maths', 'Science', 'English', 'Tamil', 'History'], paymentConfig: { 'Maths': 'daily', 'Science': 'monthly', 'English': 'daily', 'Tamil': 'daily', 'History': 'monthly' } },
+      { name: 'Mohamed Akeel Haniffa', class: 'Grade 8', section: 'A', dob: '2012-02-28', sex: 'Male', parentName: 'Mr. & Mrs. A. Haniffa', parentPhone: '0776090018', whatsappNumber: '0776090018', address: '45, Bazaar Street, Puttalam', subjects: ['Maths', 'Science', 'English', 'Tamil'], paymentConfig: { 'Maths': 'monthly', 'Science': 'monthly', 'English': 'daily', 'Tamil': 'none' } },
+      { name: 'Fathima Rifqa Azeez', class: 'Grade 11', section: 'A', dob: '2009-06-19', sex: 'Female', parentName: 'Mr. & Mrs. R. Azeez', parentPhone: '0776100019', whatsappNumber: '0776100019', address: '14, Mosque Lane, Eravur', subjects: ['Maths', 'Science', 'English', 'Commerce', 'Tamil'], paymentConfig: { 'Maths': 'monthly', 'Science': 'monthly', 'English': 'monthly', 'Commerce': 'daily', 'Tamil': 'daily' } }
     ];
 
     const studentIds = [];
@@ -152,6 +179,14 @@ async function populateDatabase() {
       classCounters[classSection] = (classCounters[classSection] || 0) + 1;
       const indexNumber = generateIndexNumber(2025, s.class, s.section, classCounters[classSection]);
 
+      // Create payment configuration map
+      const paymentConfig = {};
+      for (const subject of s.subjects) {
+        paymentConfig[subject] = {
+          paymentType: s.paymentConfig[subject] || 'monthly'
+        };
+      }
+
       await setDoc(doc(db, 'admins', adminId, 'students', studentId), {
         name: s.name,
         class: s.class,
@@ -167,7 +202,8 @@ async function populateDatabase() {
         photoUrl: 'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864635/profiles/students/vm6bgpeg4ccvy58nig6r.jpg',
         qrCodeData: studentId,
         joinedAt: seedDate,
-        isActive: true
+        isActive: true,
+        paymentConfig: paymentConfig // NEW: Payment configuration per subject
       });
 
       // Attendance (ONLY present students get a document; absence is implied by lack of record)
@@ -186,18 +222,89 @@ async function populateDatabase() {
         }
       }
 
-      // Fees (June, July, August 2025)
+      // Enhanced Fees with partial payment support (June, July, August 2025)
       for (const month of [6, 7, 8]) {
-        const paid = month < 8 || i % 4 !== 0; // some August pending
-        await addDoc(collection(db, 'admins', adminId, 'students', studentId, 'fees'), {
-          year: 2025,
-          month,
-          amount: 2500 + (i * 100),
-          paid,
-          paidAt: paid ? new Date(2025, month - 1, 5 + (i % 5)) : null,
-          paymentMethod: paid ? (i % 2 === 0 ? 'cash' : 'bank_transfer') : null,
-          markedBy: adminId
-        });
+        for (const subject of s.subjects) {
+          const paymentType = s.paymentConfig[subject];
+          const feeStructure = feeStructures.find(fs => fs.subject === subject);
+          
+          if (!feeStructure) continue; // Skip if no fee structure found
+          
+          let expectedAmount = 0;
+          if (paymentType === 'monthly') {
+            expectedAmount = feeStructure.monthlyFee;
+          } else if (paymentType === 'daily') {
+            // For demonstration, assume 20 days per month for daily payees
+            expectedAmount = feeStructure.dailyFee * 20;
+          } else if (paymentType === 'none') {
+            expectedAmount = 0; // None payees have 0 expected amount
+          }
+          
+          // Simulate payment scenarios
+          const isFullyPaid = month < 8 || i % 4 !== 0; // Some August pending
+          let paidAmount = 0;
+          let transactions = [];
+          
+          if (paymentType === 'none') {
+            // None payees can still have transactions for tracking, but usually 0
+            paidAmount = 0;
+            transactions = [];
+          } else if (isFullyPaid) {
+            // Full payment
+            paidAmount = expectedAmount;
+            transactions = [{
+              id: `txn_${Date.now()}_${i}_${month}_${subject}`,
+              amount: expectedAmount,
+              paidAt: new Date(2025, month - 1, 5 + (i % 5)),
+              paymentMethod: i % 2 === 0 ? 'cash' : 'bank_transfer',
+              markedBy: adminId,
+              description: `Full ${paymentType} payment for ${subject}`
+            }];
+          } else {
+            // Partial payment (60% paid)
+            paidAmount = Math.round(expectedAmount * 0.6);
+            transactions = [{
+              id: `txn_${Date.now()}_${i}_${month}_${subject}`,
+              amount: paidAmount,
+              paidAt: new Date(2025, month - 1, 8 + (i % 5)),
+              paymentMethod: i % 2 === 0 ? 'cash' : 'bank_transfer',
+              markedBy: adminId,
+              description: `Partial ${paymentType} payment for ${subject}`
+            }];
+          }
+          
+          const remainingAmount = expectedAmount - paidAmount;
+          
+          await addDoc(collection(db, 'admins', adminId, 'students', studentId, 'fees'), {
+            // New enhanced fields
+            paymentType: paymentType,
+            year: 2025,
+            month: month,
+            date: paymentType === 'daily' ? `2025-${month.toString().padStart(2, '0')}-15` : null,
+            subject: subject,
+            expectedAmount: expectedAmount,
+            paidAmount: paidAmount,
+            remainingAmount: remainingAmount,
+            transactions: transactions,
+            isFullyPaid: remainingAmount <= 0,
+            studentPaymentMode: paymentType,
+            createdAt: seedDate,
+            updatedAt: seedDate,
+            description: paymentType === 'monthly' 
+              ? `Monthly fee for ${subject} - ${new Date(2025, month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`
+              : paymentType === 'daily'
+              ? `Daily fees for ${subject} - ${new Date(2025, month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`
+              : `None payee record for ${subject} - ${new Date(2025, month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`,
+            
+            // Legacy fields for backward compatibility
+            subjects: [subject],
+            amount: expectedAmount,
+            paid: isFullyPaid,
+            paidAt: isFullyPaid && transactions.length > 0 ? transactions[0].paidAt : null,
+            paymentMethod: isFullyPaid && transactions.length > 0 ? transactions[0].paymentMethod : null,
+            markedBy: adminId
+          });
+        }
       }
 
       // Exam Results (First & Second Term core subjects only)
@@ -223,7 +330,64 @@ async function populateDatabase() {
       console.log(`✔ Student ${i + 1}/10 created: ${s.name}`);
     }
 
-    // 5. Attendance Summary
+    // 6. Class Conduction Tracking (NEW)
+    const allSubjects = [...new Set(students.flatMap(s => s.subjects))]; // Get unique subjects
+    for (const date of attendanceDates) {
+      for (const subject of allSubjects) {
+        // Find students present for this date/subject
+        const studentsPresent = [];
+        let totalStudentsForSubject = 0;
+        
+        for (let i = 0; i < students.length; i++) {
+          const student = students[i];
+          const studentId = studentIds[i]; // Use the actual studentId from the array
+          
+          // Check if student takes this subject
+          if (student.subjects.includes(subject)) {
+            totalStudentsForSubject++;
+            
+            // Check if student was present (same logic as attendance creation)
+            const isPresent = (i + new Date(date).getDate()) % 5 !== 0;
+            if (isPresent) {
+              studentsPresent.push(studentId);
+            }
+          }
+        }
+        
+        // Only create conduction record if there are students for this subject
+        if (totalStudentsForSubject > 0) {
+          const conducted = studentsPresent.length > 0;
+          
+          await setDoc(doc(db, 'admins', adminId, 'classConduction', `${date}_${subject}`), {
+            date: date,
+            subject: subject,
+            conducted: conducted,
+            studentsPresent: studentsPresent,
+            totalStudents: totalStudentsForSubject,
+            presentCount: studentsPresent.length,
+            createdAt: new Date(`${date}T08:00:00`),
+            updatedAt: new Date(`${date}T08:00:00`)
+          });
+        }
+      }
+    }
+    console.log('✔ Class conduction records created');
+
+    // 7. Attendance Summary
+    for (const date of attendanceDates) {
+      const presentStudents = studentIds.filter((_, i) => (i + new Date(date).getDate()) % 5 !== 0);
+      // Only create a summary if at least one student present (optional – keep anyway)
+      await setDoc(doc(db, 'admins', adminId, 'attendanceSummary', date), {
+        class: 'Overall',
+        present: presentStudents.length,
+        studentsPresent: presentStudents,
+        markedBy: adminId,
+        markedAt: new Date(`${date}T08:00:00`)
+      });
+    }
+    console.log('✔ Class conduction records created');
+
+    // 7. Attendance Summary
     for (const date of attendanceDates) {
       const presentStudents = studentIds.filter((_, i) => (i + new Date(date).getDate()) % 5 !== 0);
       // Only create a summary if at least one student present (optional – keep anyway)
@@ -237,11 +401,19 @@ async function populateDatabase() {
     }
     console.log('✔ Attendance summaries created');
 
-    console.log('=== SEED COMPLETE ===');
+    console.log('=== ENHANCED SEED COMPLETE ===');
     console.log('Admin ID:', adminId);
     console.log('Students:', students.length);
     console.log('Teachers:', teachers.length);
     console.log('Exam Terms: 3');
+    console.log('Fee Structures: 8 subjects');
+    console.log('Class Conduction Records:', attendanceDates.length * allSubjects.length);
+    console.log('Enhanced Features:');
+    console.log('  ✔ Admin-configurable fee structures');
+    console.log('  ✔ Student payment configurations (monthly/daily/none per subject)');
+    console.log('  ✔ Partial payment support with transactions');
+    console.log('  ✔ Class conduction tracking');
+    console.log('  ✔ Backward compatibility with legacy fee fields');
   } catch (err) {
     console.error('❌ Error populating database:', err);
   }
