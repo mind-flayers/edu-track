@@ -5,14 +5,15 @@ import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:excel/excel.dart' as ex;
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:flutter/services.dart'
-    show rootBundle; // Needed for font loading
+    show
+        FilteringTextInputFormatter,
+        rootBundle; // Needed for input formatters and font loading
 import 'package:pdf/widgets.dart' as pw; // PDF generation
 import 'package:pdf/pdf.dart'; // PDF page format
 import 'package:printing/printing.dart'; // PDF sharing/printing
@@ -207,18 +208,11 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
       _isEditing = false; // Exit edit mode
     });
 
-    // Simulate loading subjects (already fetched with term)
-    Future.delayed(Duration.zero, () {
-      setState(() {
-        _availableSubjects = _selectedTerm?.subjects ?? [];
-        _availableSubjects.sort();
-        _isLoadingSubjects = false;
-        // Automatically select the first subject if available
-        if (_availableSubjects.isNotEmpty) {
-          // _selectedSubject = _availableSubjects.first;
-          // _fetchExamResults(); // Fetch results if class is also selected
-        }
-      });
+    // Load subjects from the selected term immediately
+    setState(() {
+      _availableSubjects = _selectedTerm?.subjects ?? [];
+      _availableSubjects.sort();
+      _isLoadingSubjects = false;
     });
   }
 
@@ -351,20 +345,20 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
 
         // Prepare query values
         final String subjectToQuery = selectedSubjectTrimmed;
-        final String termToQuery = _selectedTerm!
-            .name; // DB stores term as human-readable name in seeded data
+        final String termIdToQuery =
+            _selectedTerm!.id; // DB stores term as document ID
 
         print(
-            "  Querying examResults for studentId: $studentId, term: '$termToQuery', subject: '$subjectToQuery'");
+            "  Querying examResults for studentId: $studentId, termId: '$termIdToQuery', subject: '$subjectToQuery'");
 
-        // Fetch exam result from the nested subcollection, query by both term name and subject for efficiency
-        final examResultSnapshot = await FirebaseFirestore.instance
+        // Query by term document ID (this is how populate_database.js stores it)
+        var examResultSnapshot = await FirebaseFirestore.instance
             .collection('admins')
             .doc(adminUid)
             .collection('students')
             .doc(studentId)
             .collection('examResults')
-            .where('term', isEqualTo: termToQuery)
+            .where('term', isEqualTo: termIdToQuery)
             .where('subject', isEqualTo: subjectToQuery)
             .limit(1)
             .get();
@@ -382,7 +376,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
               "  Student: $studentName, Found marks: $marks (docId: $examResultDocId)");
         } else {
           print(
-              "  Student: $studentName, No examResult doc found for term='$termToQuery' and subject='$subjectToQuery'");
+              "  Student: $studentName, No examResult doc found for termId='$termIdToQuery' and subject='$subjectToQuery'");
         }
         tempData.add(_ExamResultData(
           studentId: studentId,
@@ -473,8 +467,9 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
               .doc(result.studentId)
               .collection('examResults');
 
+          // Store the exam term document ID in the 'term' field (matches populate_database.js)
           final dataToSave = {
-            'term': _selectedTerm!.id,
+            'term': _selectedTerm!.id, // Store term document ID only
             'subject': _selectedSubject!,
             'marks': newMarks,
             'maxMarks': 100, // Assuming max marks is 100, adjust if needed
@@ -607,61 +602,107 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
     setState(() => _isLoadingResults = true);
 
     final pdf = pw.Document();
-    final String title =
-        'Exam Results: ${_selectedClassSection!} - ${_selectedSubject!} (${_selectedTerm!.name})';
 
-    // --- Load Font Data ---
-    // Load font data from the declared assets path
-    final fontData = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
-    final boldFontData = await rootBundle.load("assets/fonts/Roboto-Bold.ttf");
+    // Try to fetch academyName from admin profile similar to attendance
+    String academyName = 'Academy';
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid != null) {
+        final profileDoc = await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(adminUid)
+            .collection('adminProfile')
+            .doc('profile')
+            .get();
+        if (profileDoc.exists) {
+          final data = profileDoc.data();
+          if (data != null && data.containsKey('academyName')) {
+            final val = data['academyName'];
+            if (val is String && val.trim().isNotEmpty)
+              academyName = val.trim();
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching academyName for PDF header: $e');
+    }
+
+    final fontData = await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
+    final boldFontData = await rootBundle.load('assets/fonts/Roboto-Bold.ttf');
     final ttf = pw.Font.ttf(fontData);
     final boldTtf = pw.Font.ttf(boldFontData);
-    // --- End Font Loading ---
 
-    // Build PDF content
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        theme: pw.ThemeData.withFont(
-            base: ttf, bold: boldTtf), // Apply theme with loaded fonts
-        build: (pw.Context context) => [
-          pw.Header(
-              level: 0,
-              child: pw.Text(title,
-                  style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold, fontSize: 18))),
-          pw.SizedBox(height: 20),
-          pw.Table.fromTextArray(
-            headers: ['Student Name', 'Marks'],
-            data: _examResultsList
-                .map((result) =>
-                    [result.studentName, result.currentMarks.toString()])
-                .toList(),
-            headerStyle: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold), // Will use boldTtf from theme
-            cellAlignment: pw.Alignment.centerLeft,
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
-            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
-            cellStyle:
-                const pw.TextStyle(fontSize: 10), // Will use ttf from theme
-            columnWidths: {
-              0: const pw.FlexColumnWidth(3), // Name column wider
-              1: const pw.FlexColumnWidth(1), // Marks column narrower
-            },
-          ),
-        ],
-      ),
-    );
+    // Prepare table data
+    List<List<String>> tableData = [
+      ['Student Name', 'Marks'],
+    ];
+    for (var result in _examResultsList) {
+      tableData.add([result.studentName, result.currentMarks.toString()]);
+    }
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
+      header: (pw.Context context) {
+        return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Center(
+                  child: pw.Text(academyName,
+                      style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 22))),
+              pw.SizedBox(height: 6),
+              pw.Center(
+                  child: pw.Text('Exam Results',
+                      style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 16))),
+              pw.SizedBox(height: 8),
+              pw.Text('Class: ${_selectedClassSection ?? ''}',
+                  style: pw.TextStyle(fontSize: 12)),
+              pw.Text('Subject: ${_selectedSubject ?? ''}',
+                  style: pw.TextStyle(fontSize: 12)),
+              pw.Text('Term: ${_selectedTerm?.name ?? ''}',
+                  style: pw.TextStyle(fontSize: 12)),
+              pw.SizedBox(height: 8),
+            ]);
+      },
+      footer: (pw.Context context) {
+        return pw.Center(
+            child: pw.Text('Generated by EduTrack',
+                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey)));
+      },
+      build: (pw.Context context) => [
+        pw.SizedBox(height: 2),
+        pw.TableHelper.fromTextArray(
+          context: null,
+          cellAlignment: pw.Alignment.centerLeft,
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          cellStyle: const pw.TextStyle(fontSize: 10),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+          data: tableData,
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1)
+          },
+        ),
+      ],
+    ));
+
+    final sanitizedClass = (_selectedClassSection ?? '')
+        .replaceAll(RegExp(r'[\\/*?:"<>|]'), '_')
+        .replaceAll(' ', '_');
+    final sanitizedSubject = (_selectedSubject ?? '')
+        .replaceAll(RegExp(r'[\\/*?:"<>|]'), '_')
+        .replaceAll(' ', '_');
+    final fileName =
+        'Exam_${sanitizedClass}_${sanitizedSubject}_${_selectedTerm?.name.replaceAll(' ', '_') ?? ''}.pdf';
 
     try {
-      // Use printing package to share
-      await Printing.sharePdf(
-          bytes: await pdf.save(),
-          filename: '${title.replaceAll(' ', '_').replaceAll(':', '')}.pdf');
-      _showSnackbar('PDF shared successfully!', isError: false);
+      await Printing.sharePdf(bytes: await pdf.save(), filename: fileName);
+      _showSnackbar('PDF ready to be shared.', isError: false);
     } catch (e) {
-      print("Error sharing PDF: $e");
-      _showSnackbar('Error sharing PDF: ${e.toString()}', isError: true);
+      print('Error sharing PDF: $e');
+      _showSnackbar('Error sharing PDF: $e', isError: true);
     } finally {
       setState(() => _isLoadingResults = false);
     }
@@ -804,160 +845,189 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
   }
 
   Widget _buildFilterDropdowns() {
+    // Recreate the same two-row layout as AttendanceSummaryScreen
+    final textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
-      child: Row(
+      padding: const EdgeInsets.all(kDefaultPadding),
+      child: Column(
         children: [
-          // Class/Section Dropdown
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedClassSection,
-              hint: Text('Class', style: kHintTextStyle),
-              isExpanded: true,
-              onChanged: _isLoadingClasses ? null : _onClassSectionSelected,
-              items: _availableClassSections
-                  .map((cs) => DropdownMenuItem(
-                      value: cs,
-                      child: Text(cs, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10, horizontal: kDefaultPadding),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kDefaultRadius)),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(kDefaultRadius),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(kDefaultRadius),
-                  borderSide: const BorderSide(color: kPrimaryColor),
-                ),
-              ),
-              style: kBodyTextStyle,
-              dropdownColor: kSecondaryColor,
-            ),
-          ),
-          const SizedBox(width: kDefaultPadding / 2),
-
-          // Term Dropdown
-          Expanded(
-            child: DropdownButtonFormField<_ExamTerm>(
-              value: _selectedTerm,
-              hint: Text('Term', style: kHintTextStyle),
-              isExpanded: true,
-              onChanged: _isLoadingTerms ? null : _onTermSelected,
-              items: _availableTerms
-                  .map((term) => DropdownMenuItem(
-                      value: term,
-                      child: Text(term.name, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10, horizontal: kDefaultPadding),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kDefaultRadius)),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(kDefaultRadius),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(kDefaultRadius),
-                  borderSide: const BorderSide(color: kPrimaryColor),
+          // First row: Class/Section and Term
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: kDefaultPadding * 0.75,
+                      vertical: kDefaultPadding * 0.25),
+                  decoration: BoxDecoration(
+                    color: kSecondaryColor,
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                    border: Border.all(
+                        color: kPrimaryColor.withOpacity(0.4), width: 1.5),
+                  ),
+                  child: _isLoadingClasses
+                      ? const Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2)))
+                      : DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedClassSection,
+                            isExpanded: true,
+                            hint: Text('Select Class',
+                                style: textTheme.bodyMedium
+                                    ?.copyWith(color: kLightTextColor)),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                                color: kPrimaryColor),
+                            items: _availableClassSections
+                                .map((cs) => DropdownMenuItem(
+                                    value: cs,
+                                    child:
+                                        Text(cs, style: textTheme.bodyMedium)))
+                                .toList(),
+                            onChanged: _isLoadingClasses
+                                ? null
+                                : _onClassSectionSelected,
+                            dropdownColor: kSecondaryColor,
+                          ),
+                        ),
                 ),
               ),
-              style: kBodyTextStyle,
-              dropdownColor: kSecondaryColor,
-            ),
-          ),
-          const SizedBox(width: kDefaultPadding / 2),
-
-          // Subject Dropdown
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedSubject,
-              hint: Text('Subject', style: kHintTextStyle),
-              isExpanded: true,
-              onChanged: (_isLoadingSubjects || _selectedTerm == null)
-                  ? null
-                  : _onSubjectSelected,
-              items: _availableSubjects
-                  .map((sub) => DropdownMenuItem(
-                      value: sub,
-                      child: Text(sub, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10, horizontal: kDefaultPadding),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kDefaultRadius)),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(kDefaultRadius),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(kDefaultRadius),
-                  borderSide: const BorderSide(color: kPrimaryColor),
+              const SizedBox(width: kDefaultPadding / 2),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: kDefaultPadding * 0.75,
+                      vertical: kDefaultPadding * 0.25),
+                  decoration: BoxDecoration(
+                    color: kSecondaryColor,
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                    border: Border.all(
+                        color: kPrimaryColor.withOpacity(0.4), width: 1.5),
+                  ),
+                  child: _isLoadingTerms
+                      ? const Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2)))
+                      : DropdownButtonHideUnderline(
+                          child: DropdownButton<_ExamTerm>(
+                            value: _selectedTerm,
+                            isExpanded: true,
+                            hint: Text('Select Term',
+                                style: textTheme.bodyMedium
+                                    ?.copyWith(color: kLightTextColor)),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                                color: kPrimaryColor),
+                            items: _availableTerms
+                                .map((term) => DropdownMenuItem(
+                                    value: term,
+                                    child: Text(term.name,
+                                        style: textTheme.bodyMedium)))
+                                .toList(),
+                            onChanged: _isLoadingTerms ? null : _onTermSelected,
+                            dropdownColor: kSecondaryColor,
+                          ),
+                        ),
                 ),
               ),
-              style: kBodyTextStyle,
-              dropdownColor: kSecondaryColor,
-            ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: kDefaultPadding / 2),
 
-  Widget _buildInfoBar() {
-    final String classText = _selectedClassSection ?? 'N/A';
-    final String subjectText = _selectedSubject ?? 'N/A';
+          // Second row: Subject and Buttons (Edit / Share)
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: kDefaultPadding * 0.75,
+                      vertical: kDefaultPadding * 0.25),
+                  decoration: BoxDecoration(
+                    color: kSecondaryColor,
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                    border: Border.all(
+                        color: kPrimaryColor.withOpacity(0.4), width: 1.5),
+                  ),
+                  child: _isLoadingSubjects
+                      ? const Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2)))
+                      : DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedSubject,
+                            isExpanded: true,
+                            hint: Text('Select Subject',
+                                style: textTheme.bodyMedium
+                                    ?.copyWith(color: kLightTextColor)),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                                color: kPrimaryColor),
+                            items: _availableSubjects
+                                .map((sub) => DropdownMenuItem(
+                                    value: sub,
+                                    child:
+                                        Text(sub, style: textTheme.bodyMedium)))
+                                .toList(),
+                            onChanged:
+                                (_isLoadingSubjects || _selectedTerm == null)
+                                    ? null
+                                    : _onSubjectSelected,
+                            dropdownColor: kSecondaryColor,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: kDefaultPadding / 2),
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              'Class: $classText, Subject: $subjectText',
-              style: kBodyTextStyle.copyWith(color: kLightTextColor),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: kDefaultPadding),
-          // Edit/Save Button
-          ElevatedButton.icon(
-            onPressed: (_examResultsList.isEmpty || _isLoadingResults)
-                ? null
-                : (_isEditing ? _saveExamResults : _toggleEdit),
-            icon: Icon(_isEditing ? Icons.save_rounded : Icons.edit_rounded,
-                size: 18),
-            label: Text(_isEditing ? 'Save' : 'Edit'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: kDefaultPadding * 0.8,
-                  vertical: kDefaultPadding * 0.5),
-              textStyle: kButtonTextStyle.copyWith(fontSize: 14),
-            ),
-          ),
-          const SizedBox(width: kDefaultPadding / 2),
-          // Share Button
-          ElevatedButton(
-            onPressed:
-                (_examResultsList.isEmpty || _isLoadingResults || _isEditing)
-                    ? null
-                    : _showExportOptions, // Updated call
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kSecondaryColor,
-              foregroundColor: kPrimaryColor,
-              padding: const EdgeInsets.all(kDefaultPadding * 0.6),
-              shape: const CircleBorder(),
-              elevation: 1,
-            ),
-            child: const Icon(Icons.share_rounded, size: 20),
+              // Edit Button
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: (_examResultsList.isEmpty || _isLoadingResults)
+                      ? null
+                      : (_isEditing ? _saveExamResults : _toggleEdit),
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kDefaultRadius),
+                    ),
+                    minimumSize: const Size(50, 50),
+                    padding: EdgeInsets.zero,
+                    backgroundColor: _isEditing ? kSuccessColor : kPrimaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                  ),
+                  child: Icon(
+                      _isEditing ? Icons.save_rounded : Icons.edit_rounded,
+                      size: 24),
+                ),
+              ),
+              const SizedBox(width: kDefaultPadding / 2),
+              // Share Button
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: (_examResultsList.isEmpty ||
+                          _isLoadingResults ||
+                          _isEditing)
+                      ? null
+                      : _showExportOptions,
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kDefaultRadius),
+                    ),
+                    minimumSize: const Size(50, 50),
+                    padding: EdgeInsets.zero,
+                    backgroundColor: kPrimaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                  ),
+                  child: const Icon(Icons.share_rounded, size: 24),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -965,86 +1035,149 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
   }
 
   Widget _buildResultsTable() {
-    if (_isLoadingResults) {
-      return const Center(
-          child: CircularProgressIndicator(color: kPrimaryColor));
-    }
-    if (_errorMessage != null) {
-      return Center(
-          child: Text(_errorMessage!,
-              style: kBodyTextStyle.copyWith(color: kErrorColor)));
-    }
-    if (_selectedClassSection == null ||
-        _selectedSubject == null ||
-        _selectedTerm == null) {
-      return Center(
-          child: Text('Please select Class, Term, and Subject.',
-              style: kHintTextStyle));
-    }
-    if (_examResultsList.isEmpty) {
-      return Center(
-          child: Text('No students found or no results for this selection.',
-              style: kHintTextStyle));
-    }
+    final textTheme = Theme.of(context).textTheme;
 
     return Expanded(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding),
-          child: DataTable(
-            columnSpacing: kDefaultPadding,
-            headingRowColor:
-                WidgetStateProperty.all(kPrimaryColor.withOpacity(0.1)),
-            dataRowMinHeight: 50,
-            dataRowMaxHeight: 60,
-            border: TableBorder.all(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(kDefaultRadius / 2),
+      child: Builder(builder: (context) {
+        if (_isLoadingResults) {
+          return const Center(
+              child: CircularProgressIndicator(color: kPrimaryColor));
+        }
+        if (_errorMessage != null) {
+          return Center(
+              child: Text(_errorMessage!,
+                  style: kBodyTextStyle.copyWith(color: kErrorColor)));
+        }
+
+        // Show specific selection prompts similar to AttendanceSummaryScreen
+        if (_selectedClassSection == null) {
+          return Center(
+              child: Text('Please select a class to view exam results.',
+                  style:
+                      textTheme.bodyMedium?.copyWith(color: kLightTextColor)));
+        }
+        if (_selectedTerm == null) {
+          return Center(
+              child: Text('Please select a term to view exam results.',
+                  style:
+                      textTheme.bodyMedium?.copyWith(color: kLightTextColor)));
+        }
+        if (_selectedSubject == null) {
+          return Center(
+              child: Text('Please select a subject to view exam results.',
+                  style:
+                      textTheme.bodyMedium?.copyWith(color: kLightTextColor)));
+        }
+
+        if (_examResultsList.isEmpty) {
+          final message =
+              'No students found for $_selectedClassSection in $_selectedSubject\nor no exam results for ${_selectedTerm?.name}.';
+          return Center(
+              child: Text(message,
+                  textAlign: TextAlign.center,
+                  style:
+                      textTheme.bodyMedium?.copyWith(color: kLightTextColor)));
+        }
+
+        // Build a banner like AttendanceSummaryScreen
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: kDefaultPadding,
+                    vertical: kDefaultPadding / 1.4),
+                decoration: BoxDecoration(
+                  color: kPrimaryColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(kDefaultRadius),
+                  border: Border.all(
+                      color: kPrimaryColor.withOpacity(0.25), width: 1.0),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.book_rounded, color: kPrimaryColor),
+                    const SizedBox(width: kDefaultPadding / 2),
+                    Expanded(
+                        child: Text(
+                      '${_selectedClassSection ?? 'N/A'}  •  ${_selectedSubject ?? 'N/A'}  •  ${_selectedTerm?.name ?? 'N/A'}',
+                      style: textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    )),
+                  ],
+                ),
+              ),
             ),
-            columns: [
-              DataColumn(
-                  label: Text('Name',
-                      style: kSubheadlineStyle.copyWith(fontSize: 14))),
-              DataColumn(
-                  label: Text('Marks',
-                      style: kSubheadlineStyle.copyWith(fontSize: 14)),
-                  numeric: true),
-            ],
-            rows: _examResultsList.map((result) {
-              return DataRow(
-                cells: [
-                  DataCell(Text(result.studentName, style: kBodyTextStyle)),
-                  DataCell(
-                    _isEditing
-                        ? TextFormField(
-                            controller: result.marksController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            textAlign: TextAlign.center,
-                            style: kBodyTextStyle,
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 8, horizontal: 8),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      kDefaultRadius / 2)),
-                              isDense: true,
-                            ),
-                            onFieldSubmitted: (_) =>
-                                _saveExamResults(), // Optional: Save on enter
-                          )
-                        : Text(result.currentMarks.toString(),
-                            style: kBodyTextStyle, textAlign: TextAlign.center),
-                    showEditIcon: false, // We use the main Edit button
+
+            // Results Table
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: kDefaultPadding),
+                  child: DataTable(
+                    columnSpacing: kDefaultPadding,
+                    headingRowColor:
+                        WidgetStateProperty.all(kPrimaryColor.withOpacity(0.1)),
+                    dataRowMinHeight: 50,
+                    dataRowMaxHeight: 60,
+                    columns: [
+                      DataColumn(
+                          label: Text('Name',
+                              style: kSubheadlineStyle.copyWith(fontSize: 14))),
+                      DataColumn(
+                          label: Text('Marks',
+                              style: kSubheadlineStyle.copyWith(fontSize: 14)),
+                          numeric: true),
+                    ],
+                    rows: _examResultsList.map((result) {
+                      return DataRow(
+                        cells: [
+                          DataCell(
+                              Text(result.studentName, style: kBodyTextStyle)),
+                          DataCell(
+                            _isEditing
+                                ? SizedBox(
+                                    width: 80,
+                                    child: TextFormField(
+                                      controller: result.marksController,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly
+                                      ],
+                                      textAlign: TextAlign.center,
+                                      style: kBodyTextStyle,
+                                      decoration: InputDecoration(
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                vertical: 8, horizontal: 8),
+                                        border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                                kDefaultRadius / 2)),
+                                        isDense: true,
+                                      ),
+                                      onFieldSubmitted: (_) =>
+                                          _saveExamResults(),
+                                    ),
+                                  )
+                                : Text(result.currentMarks.toString(),
+                                    style: kBodyTextStyle,
+                                    textAlign: TextAlign.center),
+                            showEditIcon: false,
+                          ),
+                        ],
+                      );
+                    }).toList(),
                   ),
-                ],
-              );
-            }).toList(),
-          ),
-        ),
-      ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -1084,7 +1217,6 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
       body: Column(
         children: [
           _buildFilterDropdowns(),
-          _buildInfoBar(),
           const Divider(height: 1, thickness: 1),
           _buildResultsTable(),
         ],

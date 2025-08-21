@@ -6,6 +6,8 @@ import 'package:edu_track/app/features/authentication/controllers/auth_controlle
 import 'package:edu_track/app/features/authentication/screens/launching_screen.dart';
 import 'package:edu_track/app/features/profile/bindings/profile_binding.dart'; // Import ProfileBinding
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // Import ProfileScreen
+import 'package:edu_track/app/services/whatsapp_service.dart'; // Import WhatsApp service
+import 'package:edu_track/app/services/whatsapp_queue_service.dart'; // Import WhatsApp queue service
 // Import firebase_options.dart (Generated via FlutterFire CLI)
 import 'firebase_options.dart';
 
@@ -31,6 +33,10 @@ void main() async {
   // Initialize AuthController
   Get.put(AuthController());
 
+  // Initialize WhatsApp services
+  Get.put(WhatsAppQueueService());
+  Get.put(WhatsAppService());
+
   // Run the app
   runApp(const MyApp());
 }
@@ -40,7 +46,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp( // Use GetMaterialApp
+    return GetMaterialApp(
+      // Use GetMaterialApp
       title: 'EduTrack Admin',
       theme: appTheme, // Apply the custom theme
       debugShowCheckedModeBanner: false,

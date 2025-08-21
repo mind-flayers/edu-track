@@ -2,6 +2,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
+import 'package:edu_track/app/services/whatsapp_service.dart';
 // import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart'; // For profile avatar logic
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:http/http.dart' as http;
 import 'package:edu_track/main.dart'; // Import main to access AppRoutes
 
 // Model to hold student data (can be moved to a separate models file later)
@@ -21,6 +21,7 @@ class Student {
   final String section;
   final String parentName;
   final String parentPhone;
+  final String whatsappNumber; // Parent's WhatsApp number
   final String? photoUrl;
   final String sex;
   final String dob;
@@ -35,6 +36,7 @@ class Student {
     required this.section,
     required this.parentName,
     required this.parentPhone,
+    required this.whatsappNumber,
     this.photoUrl,
     required this.sex,
     required this.dob,
@@ -49,7 +51,8 @@ class Student {
     String dobValue;
     if (data['dob'] is Timestamp) {
       // Format Timestamp to String if it is one
-      dobValue = DateFormat('yyyy-MM-dd').format((data['dob'] as Timestamp).toDate());
+      dobValue =
+          DateFormat('yyyy-MM-dd').format((data['dob'] as Timestamp).toDate());
     } else {
       // Otherwise, treat as String or default to 'N/A'
       dobValue = data['dob']?.toString() ?? 'N/A';
@@ -63,10 +66,14 @@ class Student {
       section: data['section'] ?? 'N/A',
       parentName: data['parentName'] ?? 'N/A',
       parentPhone: data['parentPhone'] ?? 'N/A',
+      whatsappNumber: data['whatsappNumber'] ??
+          data['parentPhone'] ??
+          'N/A', // Use whatsappNumber field, fallback to parentPhone
       photoUrl: data['photoUrl'],
       sex: data['sex'] ?? 'N/A', // Assuming 'sex' is consistently String
       dob: dobValue, // Use the processed value
-      subjects: List<String>.from(data['SubjectsChoosed'] ?? []), // Map 'SubjectsChoosed'
+      subjects: List<String>.from(
+          data['Subjects'] ?? []), // Map 'Subjects' (capital S)
       qrCodeData: data['qrCodeData'] ?? '',
     );
   }
@@ -77,7 +84,13 @@ class Student {
 }
 
 // Enum to manage the different states of the screen
-enum ScreenState { initial, scanning, showIndexInput, showStudentDetails, showPaymentInput }
+enum ScreenState {
+  initial,
+  scanning,
+  showIndexInput,
+  showStudentDetails,
+  showPaymentInput
+}
 
 class QRCodeScannerScreen extends StatefulWidget {
   const QRCodeScannerScreen({super.key});
@@ -89,10 +102,10 @@ class QRCodeScannerScreen extends StatefulWidget {
 class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final MobileScannerController _scannerController = MobileScannerController(
-    // facing: CameraFacing.back, // Default is back
-    // detectionSpeed: DetectionSpeed.normal, // Default
-    // formats: [BarcodeFormat.qrCode] // Default is all
-  );
+      // facing: CameraFacing.back, // Default is back
+      // detectionSpeed: DetectionSpeed.normal, // Default
+      // formats: [BarcodeFormat.qrCode] // Default is all
+      );
   final _indexController = TextEditingController();
   final _amountController = TextEditingController();
   final _formKeyIndex = GlobalKey<FormState>();
@@ -104,13 +117,22 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   String? _statusMessage;
   bool _isError = false;
   String? _selectedMonth; // For payment dropdown
-  String? _smsGatewayToken;
   String? _academyName;
 
   // List of months for the dropdown
   final List<String> _months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
   ];
 
   @override
@@ -143,14 +165,13 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
           .get();
       if (doc.exists) {
         final data = doc.data();
-        _smsGatewayToken = data?['smsGatewayToken'];
         _academyName = data?['academyName'];
-        if (_smsGatewayToken == null || _academyName == null) {
-           print("Warning: SMS Gateway Token or Academy Name not found in admin profile.");
-           // Optionally show a non-blocking warning to the user
+        if (_academyName == null) {
+          print("Warning: Academy Name not found in admin profile.");
+          // Optionally show a non-blocking warning to the user
         }
       } else {
-         print("Warning: Admin profile document not found.");
+        print("Warning: Admin profile document not found.");
       }
     } catch (e) {
       print("Error fetching admin details: $e");
@@ -159,7 +180,8 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   }
 
   // --- Status Message Logic ---
-  void _showStatusMessage(String message, {bool isError = false, Duration duration = const Duration(seconds: 3)}) {
+  void _showStatusMessage(String message,
+      {bool isError = false, Duration duration = const Duration(seconds: 3)}) {
     if (!mounted) return;
     setState(() {
       _statusMessage = message;
@@ -175,66 +197,77 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   }
 
   // --- Reusable AppBar Profile Avatar Logic (Adapted from AddTeacherScreen) ---
-   Widget _buildProfileAvatar() {
-     final String? userId = AuthController.instance.user?.uid;
-     if (userId == null) {
-       return IconButton(
-         icon: Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor),
-         tooltip: 'Profile Settings',
-         onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
-       );
-     }
-     return StreamBuilder<DocumentSnapshot>(
-       stream: FirebaseFirestore.instance
-           .collection('admins')
-           .doc(userId)
-           .collection('adminProfile')
-           .doc('profile')
-           .snapshots(),
-       builder: (context, snapshot) {
-         String? photoUrl;
-         Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Default icon
+  Widget _buildProfileAvatar() {
+    final String? userId = AuthController.instance.user?.uid;
+    if (userId == null) {
+      return IconButton(
+        icon: Icon(Icons.account_circle_rounded,
+            size: 30, color: kLightTextColor),
+        tooltip: 'Profile Settings',
+        onPressed: () =>
+            Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
+      );
+    }
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('admins')
+          .doc(userId)
+          .collection('adminProfile')
+          .doc('profile')
+          .snapshots(),
+      builder: (context, snapshot) {
+        String? photoUrl;
+        Widget profileWidget = Icon(Icons.account_circle_rounded,
+            size: 30, color: kLightTextColor); // Default icon
 
-         if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
-           var data = snapshot.data!.data() as Map<String, dynamic>?;
-           if (data != null && data.containsKey('profilePhotoUrl')) {
-             photoUrl = data['profilePhotoUrl'] as String?;
-           }
-         } else if (snapshot.hasError) {
-           print("Error fetching admin profile: ${snapshot.error}");
-         }
+        if (snapshot.connectionState == ConnectionState.active &&
+            snapshot.hasData &&
+            snapshot.data!.exists) {
+          var data = snapshot.data!.data() as Map<String, dynamic>?;
+          if (data != null && data.containsKey('profilePhotoUrl')) {
+            photoUrl = data['profilePhotoUrl'] as String?;
+          }
+        } else if (snapshot.hasError) {
+          print("Error fetching admin profile: ${snapshot.error}");
+        }
 
-         if (photoUrl != null && photoUrl.isNotEmpty) {
-           profileWidget = CircleAvatar(
-             radius: 18,
-             backgroundColor: kLightTextColor.withOpacity(0.5),
-             backgroundImage: CachedNetworkImageProvider(photoUrl), // Use CachedNetworkImageProvider
-             onBackgroundImageError: (exception, stackTrace) {
-               print("Error loading profile image: $exception");
-               // No need for setState here as StreamBuilder handles updates
-             },
-           );
-         }
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          profileWidget = CircleAvatar(
+            radius: 18,
+            backgroundColor: kLightTextColor.withOpacity(0.5),
+            backgroundImage: CachedNetworkImageProvider(
+                photoUrl), // Use CachedNetworkImageProvider
+            onBackgroundImageError: (exception, stackTrace) {
+              print("Error loading profile image: $exception");
+              // No need for setState here as StreamBuilder handles updates
+            },
+          );
+        }
 
-         return Material(
-           color: Colors.transparent,
-           child: InkWell(
-             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-             onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
-             child: Padding(
-               padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
-               child: profileWidget,
-             ),
-           ),
-         );
-       },
-     );
-   }
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(kDefaultRadius * 2),
+            onTap: () =>
+                Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
+              child: profileWidget,
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   // --- Firestore Logic ---
   Future<void> _findStudentByQrCode(String qrCodeData) async {
     if (qrCodeData.isEmpty) return;
-    setState(() { _isLoading = true; _currentScreenState = ScreenState.initial; }); // Show loading on initial screen
+    setState(() {
+      _isLoading = true;
+      _currentScreenState = ScreenState.initial;
+    }); // Show loading on initial screen
 
     try {
       final String? adminUid = AuthController.instance.user?.uid;
@@ -256,14 +289,20 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         _showStatusMessage('Scanned Successfully!', isError: false);
       } else {
         _foundStudent = null;
-        _showStatusMessage('QR Code does not match any student.', isError: true);
-         setState(() { _currentScreenState = ScreenState.initial; }); // Go back to initial on error
+        _showStatusMessage('QR Code does not match any student.',
+            isError: true);
+        setState(() {
+          _currentScreenState = ScreenState.initial;
+        }); // Go back to initial on error
       }
     } catch (e) {
       print("Error finding student by QR code: $e");
-      _showStatusMessage('Error finding student. Please try again.', isError: true);
+      _showStatusMessage('Error finding student. Please try again.',
+          isError: true);
       _foundStudent = null;
-       setState(() { _currentScreenState = ScreenState.initial; }); // Go back to initial on error
+      setState(() {
+        _currentScreenState = ScreenState.initial;
+      }); // Go back to initial on error
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -291,92 +330,163 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         setState(() {
           _currentScreenState = ScreenState.showStudentDetails;
         });
-         _showStatusMessage('Index No Matched!', isError: false);
+        _showStatusMessage('Index No Matched!', isError: false);
       } else {
         _foundStudent = null;
-        _showStatusMessage('Index number does not match any student.', isError: true);
+        _showStatusMessage('Index number does not match any student.',
+            isError: true);
         // Stay on the index input screen on error
-        setState(() { _currentScreenState = ScreenState.showIndexInput; });
+        setState(() {
+          _currentScreenState = ScreenState.showIndexInput;
+        });
       }
     } catch (e) {
       print("Error finding student by index: $e");
-      _showStatusMessage('Error finding student. Please try again.', isError: true);
+      _showStatusMessage('Error finding student. Please try again.',
+          isError: true);
       _foundStudent = null;
-      setState(() { _currentScreenState = ScreenState.showIndexInput; });
+      setState(() {
+        _currentScreenState = ScreenState.showIndexInput;
+      });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _markAttendance() async {
-     if (_foundStudent == null) return;
-     setState(() => _isLoading = true);
+  // Show subject selection dialog before marking attendance
+  Future<void> _showSubjectSelectionDialog() async {
+    if (_foundStudent == null || _foundStudent!.subjects.isEmpty) {
+      _showStatusMessage('No subjects found for this student.', isError: true);
+      return;
+    }
 
-     try {
-       final String? adminUid = AuthController.instance.user?.uid;
-       if (adminUid == null) throw Exception("Admin not logged in.");
-       if (_smsGatewayToken == null || _academyName == null) {
-         throw Exception("SMS configuration missing.");
-       }
+    final selectedSubject = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Select Subject for ${_foundStudent!.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Choose the subject to mark attendance for:'),
+              const SizedBox(height: 16),
+              Container(
+                constraints: BoxConstraints(maxHeight: 300),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: _foundStudent!.subjects
+                        .map((subject) => ListTile(
+                              title: Text(subject),
+                              leading: Icon(Icons.subject_outlined),
+                              onTap: () => Navigator.of(context).pop(subject),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
 
-       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-       final attendanceRef = _firestore
-           .collection('admins')
-           .doc(adminUid)
-           .collection('students')
-           .doc(_foundStudent!.id)
-           .collection('attendance');
+    if (selectedSubject != null) {
+      await _markAttendanceWithSubject(selectedSubject);
+    }
+  }
 
-       // Check if already marked today
-       final existingRecord = await attendanceRef.where('date', isEqualTo: today).limit(1).get();
+  // Updated attendance marking with subject and WhatsApp notification
+  Future<void> _markAttendanceWithSubject(String subject) async {
+    if (_foundStudent == null) return;
+    setState(() => _isLoading = true);
 
-       if (existingRecord.docs.isNotEmpty) {
-          _showStatusMessage('Attendance already marked for today.', isError: true);
-       } else {
-          // Mark attendance in Firestore
-          await attendanceRef.add({
-            'date': today,
-            'status': 'present',
-            'markedBy': adminUid,
-            'markedAt': Timestamp.now(),
-          });
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid == null) throw Exception("Admin not logged in.");
 
-          // Send SMS
-          final message = "Hello Mr/Mrs ${_foundStudent!.parentName}, your child ${_foundStudent!.name} from ${_foundStudent!.className} has been marked PRESENT on $today. - $_academyName | Powered by EduTrack.";
-          final smsSent = await _sendSms(_foundStudent!.parentPhone, message);
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final attendanceRef = _firestore
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .doc(_foundStudent!.id)
+          .collection('attendance');
 
-          if (smsSent) {
-            _showStatusMessage('Marked Successfully & SMS Sent!', isError: false);
-          } else {
-            _showStatusMessage('Marked Successfully, but failed to send SMS.', isError: true); // Error only for SMS failure
-          }
-          // Navigate back to initial screen after success/partial success
-          setState(() {
-            _currentScreenState = ScreenState.initial;
-            _foundStudent = null;
-          });
-       }
+      // Check if already marked for this subject today
+      final existingRecord = await attendanceRef
+          .where('date', isEqualTo: today)
+          .where('subject', isEqualTo: subject)
+          .limit(1)
+          .get();
 
-     } catch (e) {
-       print("Error marking attendance: $e");
-       _showStatusMessage('Failed to mark attendance. $e', isError: true);
-       // Stay on student details screen on error
-     } finally {
-       if (mounted) setState(() => _isLoading = false);
-     }
-   }
+      if (existingRecord.docs.isNotEmpty) {
+        _showStatusMessage('Attendance already marked for $subject today.',
+            isError: true);
+        return;
+      }
+
+      // Mark attendance in Firestore with subject
+      await attendanceRef.add({
+        'date': today,
+        'subject': subject,
+        'status': 'present',
+        'markedBy': adminUid,
+        'markedAt': Timestamp.now(),
+      });
+
+      // Send WhatsApp notification
+      final whatsappSent = await WhatsAppService.sendAttendanceNotification(
+        studentName: _foundStudent!.name,
+        parentName: _foundStudent!.parentName,
+        parentPhone: _foundStudent!
+            .whatsappNumber, // Use whatsappNumber instead of parentPhone
+        subject: subject,
+        className: _foundStudent!.className,
+        schoolName: _academyName ?? 'EduTrack Academy',
+      );
+
+      if (whatsappSent) {
+        _showStatusMessage('Attendance marked & WhatsApp sent! 📱✅',
+            isError: false);
+      } else {
+        _showStatusMessage(
+            'Attendance marked but WhatsApp notification failed.',
+            isError: true);
+      }
+
+      // Navigate back to initial screen after success
+      setState(() {
+        _currentScreenState = ScreenState.initial;
+        _foundStudent = null;
+      });
+    } catch (e) {
+      print("Error marking attendance: $e");
+      _showStatusMessage('Failed to mark attendance: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   Future<void> _markPayment() async {
-    if (_foundStudent == null || _selectedMonth == null || !_formKeyPayment.currentState!.validate()) return;
+    if (_foundStudent == null ||
+        _selectedMonth == null ||
+        !_formKeyPayment.currentState!.validate()) return;
     setState(() => _isLoading = true);
     FocusScope.of(context).unfocus();
 
     try {
       final String? adminUid = AuthController.instance.user?.uid;
       if (adminUid == null) throw Exception("Admin not logged in.");
-       if (_smsGatewayToken == null || _academyName == null) {
-         throw Exception("SMS configuration missing.");
-       }
 
       final amount = double.tryParse(_amountController.text.trim());
       if (amount == null || amount <= 0) {
@@ -403,15 +513,24 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         'markedBy': adminUid,
       });
 
-      // Send SMS
-      final formattedAmount = NumberFormat("#,##0.00").format(amount);
-      final message = "Payment received! ${_foundStudent!.name} from ${_foundStudent!.className} has paid Rs.$formattedAmount for ${_selectedMonth!}/$currentYear. - $_academyName | Powered by EduTrack.";
-      final smsSent = await _sendSms(_foundStudent!.parentPhone, message);
+      // Send WhatsApp notification
+      final whatsappSent = await WhatsAppService.sendPaymentNotification(
+        studentName: _foundStudent!.name,
+        parentName: _foundStudent!.parentName,
+        parentPhone: _foundStudent!
+            .whatsappNumber, // Use whatsappNumber instead of parentPhone
+        amount: amount,
+        month: _selectedMonth!,
+        year: currentYear,
+        schoolName: _academyName ?? 'EduTrack Academy',
+      );
 
-      if (smsSent) {
-        _showStatusMessage('Payment Marked & SMS Sent!', isError: false);
+      if (whatsappSent) {
+        _showStatusMessage('Payment marked & WhatsApp sent! 💰📱✅',
+            isError: false);
       } else {
-        _showStatusMessage('Payment Marked, but failed to send SMS.', isError: true);
+        _showStatusMessage('Payment marked but WhatsApp notification failed.',
+            isError: true);
       }
 
       // Navigate back to initial screen
@@ -421,7 +540,6 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         _selectedMonth = null;
         _amountController.clear();
       });
-
     } catch (e) {
       print("Error marking payment: $e");
       _showStatusMessage('Failed to mark payment. $e', isError: true);
@@ -430,57 +548,6 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  // --- SMS Sending Logic ---
-  Future<bool> _sendSms(String phoneNumber, String message) async {
-    if (_smsGatewayToken == null || _smsGatewayToken!.isEmpty) {
-      print("SMS Gateway Token is missing.");
-      return false;
-    }
-    // IMPORTANT: Replace with your actual Traccar SMS Gateway URL and parameters
-    // This is a placeholder structure. Adjust based on your gateway's API.
-    // --- IMPORTANT ---
-    // Using localhost as both apps are on the same device.
-    // Check the port in the Traccar SMS Gateway app settings (default is often 8082).
-    const String gatewayPort = '8082'; // <-- VERIFY/CHANGE THIS PORT IF NEEDED
-    final url = Uri.parse('http://192.168.248.116:$gatewayPort/');
-    // --- IMPORTANT ---
-
-    final headers = {
-      // Traccar SMS Gateway app usually expects form data
-      'Content-Type': 'application/x-www-form-urlencoded',
-    };
-    // Send data as a Map for form encoding
-    final body = {
-      'phone': phoneNumber, // Parameter name might differ, check app docs/source
-      'message': message,
-      'token': _smsGatewayToken ?? '', // Send token if available
-    };
-
-    // Debug: Print the token being sent
-    print("Attempting to send SMS with token: $_smsGatewayToken");
-
-    try {
-      // Explicitly encode the body for x-www-form-urlencoded
-      final encodedBody = body.entries
-          .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
-          .join('&');
-
-      final response = await http.post(url, headers: headers, body: encodedBody);
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        print('SMS sent successfully to $phoneNumber.');
-        return true;
-      } else {
-        print('Failed to send SMS. Status code: ${response.statusCode}, Body: ${response.body}');
-        return false;
-      }
-    } catch (e) {
-      print('Error sending SMS: $e');
-      return false;
-    }
-  }
-
 
   // --- UI Building ---
   @override
@@ -495,15 +562,18 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
           tooltip: 'Back',
           // Navigate back differently depending on the state
           onPressed: () {
-             if (_currentScreenState == ScreenState.scanning || _currentScreenState == ScreenState.showIndexInput) {
-               setState(() => _currentScreenState = ScreenState.initial);
-             } else if (_currentScreenState == ScreenState.showStudentDetails) {
-                setState(() => _currentScreenState = ScreenState.initial); // Or scanning? Decide behavior
-             } else if (_currentScreenState == ScreenState.showPaymentInput) {
-                setState(() => _currentScreenState = ScreenState.showStudentDetails);
-             } else {
-               Navigator.pop(context); // Default back action
-             }
+            if (_currentScreenState == ScreenState.scanning ||
+                _currentScreenState == ScreenState.showIndexInput) {
+              setState(() => _currentScreenState = ScreenState.initial);
+            } else if (_currentScreenState == ScreenState.showStudentDetails) {
+              setState(() => _currentScreenState =
+                  ScreenState.initial); // Or scanning? Decide behavior
+            } else if (_currentScreenState == ScreenState.showPaymentInput) {
+              setState(
+                  () => _currentScreenState = ScreenState.showStudentDetails);
+            } else {
+              Navigator.pop(context); // Default back action
+            }
           },
         ),
         title: Text('QR Code Scanner', style: textTheme.titleLarge),
@@ -548,15 +618,21 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
             ElevatedButton.icon(
               icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
               label: const Text('Scan QR Code'),
-              onPressed: () => setState(() => _currentScreenState = ScreenState.scanning),
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: kDefaultPadding * 1.2)),
+              onPressed: () =>
+                  setState(() => _currentScreenState = ScreenState.scanning),
+              style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: kDefaultPadding * 1.2)),
             ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.2),
             const SizedBox(height: kDefaultPadding * 1.5),
             ElevatedButton.icon(
               icon: const Icon(Icons.edit_note_rounded, size: 24),
               label: const Text('Mark By ID'),
-              onPressed: () => setState(() => _currentScreenState = ScreenState.showIndexInput),
-               style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: kDefaultPadding * 1.2)),
+              onPressed: () => setState(
+                  () => _currentScreenState = ScreenState.showIndexInput),
+              style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: kDefaultPadding * 1.2)),
             ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
             const Spacer(), // Pushes buttons up a bit if needed
             if (_isLoading) const Center(child: CircularProgressIndicator()),
@@ -571,10 +647,11 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   Widget _buildScannerUI(BuildContext context) {
     return Column(
       children: [
-         Padding(
-           padding: const EdgeInsets.all(kDefaultPadding),
-           child: Text("Position the QR code within the frame", style: kHintTextStyle),
-         ),
+        Padding(
+          padding: const EdgeInsets.all(kDefaultPadding),
+          child: Text("Position the QR code within the frame",
+              style: kHintTextStyle),
+        ),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding),
@@ -596,7 +673,8 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         Padding(
           padding: const EdgeInsets.all(kDefaultPadding),
           child: TextButton(
-            onPressed: () => setState(() => _currentScreenState = ScreenState.initial),
+            onPressed: () =>
+                setState(() => _currentScreenState = ScreenState.initial),
             child: const Text('Cancel Scan'),
           ),
         ),
@@ -622,7 +700,9 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                   hintText: 'e.g., MEC/25/10A/01',
                   prefixIcon: Icon(Icons.badge_outlined),
                 ),
-                validator: (value) => value == null || value.isEmpty ? 'Please enter index number' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter index number'
+                    : null,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
               ).animate().fadeIn(delay: 100.ms),
               const SizedBox(height: kDefaultPadding * 1.5),
@@ -649,9 +729,11 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                             label: const Text('Cancel'),
                             onPressed: () {
                               _indexController.clear();
-                              setState(() => _currentScreenState = ScreenState.initial);
+                              setState(() =>
+                                  _currentScreenState = ScreenState.initial);
                             },
-                            style: OutlinedButton.styleFrom(foregroundColor: kPrimaryColor),
+                            style: OutlinedButton.styleFrom(
+                                foregroundColor: kPrimaryColor),
                           ).animate().fadeIn(delay: 250.ms),
                         ),
                       ],
@@ -690,16 +772,22 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(student.name, style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(student.name,
+                            style: textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: kDefaultPadding / 2),
                         _buildDetailRow('Index No:', student.indexNumber),
-                        _buildDetailRow('Grade:', student.className), // Show full class name
-                        _buildDetailRow('Average Score:', student.averageScore), // Placeholder
-                        _buildDetailRow('Subjects:', student.subjects.join(', ')),
+                        _buildDetailRow('Grade:',
+                            student.className), // Show full class name
+                        _buildDetailRow('Average Score:',
+                            student.averageScore), // Placeholder
+                        _buildDetailRow(
+                            'Subjects:', student.subjects.join(', ')),
                         _buildDetailRow('Sex:', student.sex),
                         _buildDetailRow('DOB:', student.dob),
                         _buildDetailRow('Parent:', student.parentName),
                         _buildDetailRow('Contact:', student.parentPhone),
+                        _buildDetailRow('WhatsApp:', student.whatsappNumber),
                       ],
                     ),
                   ),
@@ -707,28 +795,31 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                   Expanded(
                     flex: 1,
                     child: ClipRRect(
-                       borderRadius: BorderRadius.circular(kDefaultRadius),
-                       child: student.photoUrl != null && student.photoUrl!.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: student.photoUrl!,
-                            height: 150, // Adjust height as needed
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
+                      borderRadius: BorderRadius.circular(kDefaultRadius),
+                      child: student.photoUrl != null &&
+                              student.photoUrl!.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: student.photoUrl!,
+                              height: 150, // Adjust height as needed
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                height: 150,
+                                color: kDisabledColor.withOpacity(0.3),
+                                child: const Center(
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2)),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                  height: 150,
+                                  color: kDisabledColor.withOpacity(0.3),
+                                  child: const Icon(Icons.person_off_outlined,
+                                      color: kLightTextColor, size: 50)),
+                            )
+                          : Container(
                               height: 150,
                               color: kDisabledColor.withOpacity(0.3),
-                              child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                               height: 150,
-                               color: kDisabledColor.withOpacity(0.3),
-                               child: const Icon(Icons.person_off_outlined, color: kLightTextColor, size: 50)
-                            ),
-                          )
-                        : Container(
-                            height: 150,
-                            color: kDisabledColor.withOpacity(0.3),
-                            child: const Icon(Icons.person_outline_rounded, color: kLightTextColor, size: 50)
-                          ),
+                              child: const Icon(Icons.person_outline_rounded,
+                                  color: kLightTextColor, size: 50)),
                     ),
                   ),
                 ],
@@ -740,64 +831,71 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
 
           // Action Buttons Card
           Card(
-             elevation: 3,
-             margin: EdgeInsets.zero,
-             child: Padding(
-               padding: const EdgeInsets.all(kDefaultPadding),
-               child: Column(
-                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                 children: [
-                    Text('Choose an option', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: kDefaultPadding),
-                    _isLoading
+            elevation: 3,
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(kDefaultPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Choose an option',
+                      style: textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: kDefaultPadding),
+                  _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : Row(
                           children: [
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: _markAttendance,
+                                onPressed: _showSubjectSelectionDialog,
                                 child: const Text('Mark Attendance'),
                               ),
                             ),
                             const SizedBox(width: kDefaultPadding),
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: () => setState(() => _currentScreenState = ScreenState.showPaymentInput),
+                                onPressed: () => setState(() =>
+                                    _currentScreenState =
+                                        ScreenState.showPaymentInput),
                                 child: const Text('Mark Payment'),
                               ),
                             ),
                           ],
                         ),
-                    const SizedBox(height: kDefaultPadding),
-                     ElevatedButton(
-                       onPressed: () {
-                         setState(() {
-                           _currentScreenState = ScreenState.initial;
-                           _foundStudent = null; // Clear student data
-                         });
-                       },
-                       style: ElevatedButton.styleFrom(
-                         backgroundColor: kPrimaryColor.withOpacity(0.8), // Slightly different style
-                       ),
-                       child: const Text('Back to Scanner'),
-                     ),
-                 ],
-               ),
-             ),
+                  const SizedBox(height: kDefaultPadding),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _currentScreenState = ScreenState.initial;
+                        _foundStudent = null; // Clear student data
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimaryColor
+                          .withOpacity(0.8), // Slightly different style
+                    ),
+                    child: const Text('Back to Scanner'),
+                  ),
+                ],
+              ),
+            ),
           ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
         ],
       ),
     );
   }
 
-   Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: kDefaultPadding / 4),
       child: RichText(
         text: TextSpan(
           style: kBodyTextStyle.copyWith(color: kLightTextColor, fontSize: 13),
           children: [
-            TextSpan(text: '$label ', style: const TextStyle(fontWeight: FontWeight.w600)),
+            TextSpan(
+                text: '$label ',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             TextSpan(text: value),
           ],
         ),
@@ -807,93 +905,104 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
 
   // --- UI for Payment Input ---
   Widget _buildPaymentInputUI(BuildContext context) {
-     if (_foundStudent == null) {
-       return const Center(child: Text('Error: Student data not found.'));
-     }
-     final textTheme = Theme.of(context).textTheme;
+    if (_foundStudent == null) {
+      return const Center(child: Text('Error: Student data not found.'));
+    }
+    final textTheme = Theme.of(context).textTheme;
 
-     return Padding(
-       padding: const EdgeInsets.all(kDefaultPadding * 1.5),
-       child: Center(
-         child: Card(
-           elevation: 4,
-           child: Padding(
-             padding: const EdgeInsets.all(kDefaultPadding * 1.5),
-             child: Form(
-               key: _formKeyPayment,
-               child: Column(
-                 mainAxisSize: MainAxisSize.min, // Make card wrap content
-                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                 children: [
-                   Text('Mark for Payment', style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
-                   const SizedBox(height: kDefaultPadding * 1.5),
-                   // Month Dropdown
-                   DropdownButtonFormField<String>(
-                     value: _selectedMonth,
-                     hint: const Text('Select Month'),
-                     items: _months.map((String month) {
-                       return DropdownMenuItem<String>(
-                         value: month,
-                         child: Text(month),
-                       );
-                     }).toList(),
-                     onChanged: (newValue) {
-                       setState(() {
-                         _selectedMonth = newValue;
-                       });
-                     },
-                     validator: (value) => value == null ? 'Please select a month' : null,
-                     decoration: const InputDecoration(
-                       prefixIcon: Icon(Icons.calendar_month_outlined),
-                     ),
-                   ).animate().fadeIn(delay: 100.ms),
-                   const SizedBox(height: kDefaultPadding),
-                   // Amount Input
-                   TextFormField(
-                     controller: _amountController,
-                     decoration: const InputDecoration(
-                       labelText: 'Enter the Amount',
-                       prefixIcon: Icon(Icons.currency_rupee_rounded), // Assuming Rupee
-                     ),
-                     keyboardType: TextInputType.numberWithOptions(decimal: true),
-                     validator: (value) {
-                       if (value == null || value.isEmpty) return 'Please enter amount';
-                       if (double.tryParse(value) == null) return 'Invalid amount';
-                       if (double.parse(value) <= 0) return 'Amount must be positive';
-                       return null;
-                     },
-                     autovalidateMode: AutovalidateMode.onUserInteraction,
-                   ).animate().fadeIn(delay: 150.ms),
-                   const SizedBox(height: kDefaultPadding * 1.5),
-                   // Action Buttons
-                   _isLoading
-                       ? const Center(child: CircularProgressIndicator())
-                       : Row(
-                           children: [
-                             Expanded(
-                               child: ElevatedButton(
-                                 onPressed: _markPayment,
-                                 child: const Text('Mark Payment'),
-                               ).animate().fadeIn(delay: 200.ms),
-                             ),
-                             const SizedBox(width: kDefaultPadding),
-                             Expanded(
-                               child: OutlinedButton(
-                                 onPressed: () => setState(() => _currentScreenState = ScreenState.showStudentDetails),
-                                 style: OutlinedButton.styleFrom(foregroundColor: kPrimaryColor),
-                                 child: const Text('Go Back'),
-                               ).animate().fadeIn(delay: 250.ms),
-                             ),
-                           ],
-                         ),
-                 ],
-               ),
-             ),
-           ),
-         ),
-       ),
-     );
-   }
+    return Padding(
+      padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+      child: Center(
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+            child: Form(
+              key: _formKeyPayment,
+              child: Column(
+                mainAxisSize: MainAxisSize.min, // Make card wrap content
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Mark for Payment',
+                      style: textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: kDefaultPadding * 1.5),
+                  // Month Dropdown
+                  DropdownButtonFormField<String>(
+                    value: _selectedMonth,
+                    hint: const Text('Select Month'),
+                    items: _months.map((String month) {
+                      return DropdownMenuItem<String>(
+                        value: month,
+                        child: Text(month),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      setState(() {
+                        _selectedMonth = newValue;
+                      });
+                    },
+                    validator: (value) =>
+                        value == null ? 'Please select a month' : null,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.calendar_month_outlined),
+                    ),
+                  ).animate().fadeIn(delay: 100.ms),
+                  const SizedBox(height: kDefaultPadding),
+                  // Amount Input
+                  TextFormField(
+                    controller: _amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Enter the Amount',
+                      prefixIcon:
+                          Icon(Icons.currency_rupee_rounded), // Assuming Rupee
+                    ),
+                    keyboardType:
+                        TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) {
+                      if (value == null || value.isEmpty)
+                        return 'Please enter amount';
+                      if (double.tryParse(value) == null)
+                        return 'Invalid amount';
+                      if (double.parse(value) <= 0)
+                        return 'Amount must be positive';
+                      return null;
+                    },
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                  ).animate().fadeIn(delay: 150.ms),
+                  const SizedBox(height: kDefaultPadding * 1.5),
+                  // Action Buttons
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _markPayment,
+                                child: const Text('Mark Payment'),
+                              ).animate().fadeIn(delay: 200.ms),
+                            ),
+                            const SizedBox(width: kDefaultPadding),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => setState(() =>
+                                    _currentScreenState =
+                                        ScreenState.showStudentDetails),
+                                style: OutlinedButton.styleFrom(
+                                    foregroundColor: kPrimaryColor),
+                                child: const Text('Go Back'),
+                              ).animate().fadeIn(delay: 250.ms),
+                            ),
+                          ],
+                        ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   // --- Status Message Widget (Similar to AddTeacherScreen) ---
   Widget _buildStatusMessageWidget(BuildContext context) {
@@ -904,26 +1013,36 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
       child: Padding(
         // Add padding only when message is visible
         padding: _statusMessage != null
-            ? const EdgeInsets.only(bottom: kDefaultPadding, left: kDefaultPadding, right: kDefaultPadding)
+            ? const EdgeInsets.only(
+                bottom: kDefaultPadding,
+                left: kDefaultPadding,
+                right: kDefaultPadding)
             : EdgeInsets.zero,
         child: Center(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding * 0.7),
+            padding: const EdgeInsets.symmetric(
+                horizontal: kDefaultPadding, vertical: kDefaultPadding * 0.7),
             decoration: BoxDecoration(
-              color: _isError ? kErrorColor.withOpacity(0.15) : kSuccessColor.withOpacity(0.15),
+              color: _isError
+                  ? kErrorColor.withOpacity(0.15)
+                  : kSuccessColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(kDefaultRadius),
-              border: Border.all(color: _isError ? kErrorColor : kSuccessColor, width: 1),
+              border: Border.all(
+                  color: _isError ? kErrorColor : kSuccessColor, width: 1),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                  _isError
+                      ? Icons.error_outline_rounded
+                      : Icons.check_circle_outline_rounded,
                   color: _isError ? kErrorColor : kSuccessColor,
                   size: 20,
                 ),
                 const SizedBox(width: kDefaultPadding / 2),
-                Flexible( // Allow text to wrap
+                Flexible(
+                  // Allow text to wrap
                   child: Text(
                     _statusMessage ?? '',
                     style: textTheme.bodyMedium?.copyWith(
