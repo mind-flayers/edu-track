@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart'; // Added
+import 'package:edu_track/app/features/profile/controllers/profile_controller.dart'; // Added for academy subjects
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:get/get.dart'; // Import GetX
@@ -19,6 +20,8 @@ import 'package:flutter/rendering.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:share_plus/share_plus.dart'; // Added share_plus
 import 'package:pdf/widgets.dart' as pw; // PDF generation
@@ -134,7 +137,7 @@ class ExamResult {
   }
 }
 
-// Updated Fee data model to support both monthly and daily payments
+// ✅ UPDATED Fee data model to support new status system
 class FeeRecord {
   final String id;
   final String paymentType; // 'monthly' or 'daily'
@@ -143,8 +146,9 @@ class FeeRecord {
   final String? date; // For daily payments (YYYY-MM-DD format)
   final List<String> subjects; // List of subjects for this payment
   final double amount;
-  final bool paid;
+  final String status; // ✅ NEW: 'PAID', 'PENDING' instead of boolean paid
   final Timestamp? paidAt;
+  final Timestamp? pendingAt; // ✅ NEW: When payment was marked as pending
   final String? paymentMethod;
   final String? description;
 
@@ -156,8 +160,9 @@ class FeeRecord {
     this.date,
     required this.subjects,
     required this.amount,
-    required this.paid,
+    required this.status, // ✅ NEW: status instead of paid
     this.paidAt,
+    this.pendingAt, // ✅ NEW: pendingAt field
     this.paymentMethod,
     this.description,
   });
@@ -173,12 +178,19 @@ class FeeRecord {
       date: data['date'],
       subjects: List<String>.from(data['subjects'] ?? []),
       amount: (data['amount'] ?? 0.0).toDouble(),
-      paid: data['paid'] ?? false,
+      status: data['status'] ??
+          (data['paid'] == true
+              ? 'PAID'
+              : 'PENDING'), // ✅ NEW: Backward compatibility
       paidAt: data['paidAt'],
+      pendingAt: data['pendingAt'], // ✅ NEW: pendingAt field
       paymentMethod: data['paymentMethod'],
       description: data['description'],
     );
   }
+
+  // ✅ NEW: Helper getter for backward compatibility
+  bool get paid => status == 'PAID';
 
   String get monthName => DateFormat('MMMM').format(DateTime(year, month));
 
@@ -295,6 +307,15 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
   String? _selectedAttendanceMonth; // For attendance filtering
   String? _selectedAttendanceYear; // For attendance filtering
   String? _selectedAttendanceSubject; // For attendance filtering
+
+  // ✅ NEW: Payment filtering state variables (separated per section)
+
+  // ✅ NEW: Separate filters for Monthly and Daily sections
+  String? _monthlyFilterSubject; // 'All Subjects' or specific subject
+  String? _monthlyFilterStatus; // 'All', 'PAID', 'PENDING'
+  String? _dailyFilterSubject; // 'All Subjects' or specific subject
+  String? _dailyFilterStatus; // 'All', 'PAID', 'PENDING'
+
   bool _isCapturingQr = false; // State variable for QR capture visibility
   String? _statusMessage;
   bool _isErrorStatus = false;
@@ -414,6 +435,13 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             years.isNotEmpty ? years.first : currentYearStr;
         _selectedAttendanceMonth = DateTime.now().month.toString();
         _selectedAttendanceSubject = 'All Subjects';
+
+        // ✅ NEW: Initialize separate Monthly/Daily filters
+        _monthlyFilterSubject = 'All Subjects';
+        _monthlyFilterStatus = 'All';
+        _dailyFilterSubject = 'All Subjects';
+        _dailyFilterStatus = 'All';
+
         // Reload attendance with default selections
         _attendanceFuture =
             _fetchAttendance(_selectedAttendanceYear, _selectedAttendanceMonth);
@@ -1231,7 +1259,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
     );
   }
 
-  // Updated to display both monthly and daily payments
+  // Updated to display both monthly and daily payments with separate filters
   Widget _buildMonthlyFeesSection(Student student, List<FeeRecord> allFees) {
     final years = allFees.map((f) => f.year.toString()).toSet().toList();
     years.sort((a, b) => b.compareTo(a)); // Descending
@@ -1243,21 +1271,52 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
     }
 
     // Filter fees for the selected year
-    final feesForSelectedYear = _selectedFeeYear == null
+    var feesForSelectedYear = _selectedFeeYear == null
         ? <FeeRecord>[]
         : allFees.where((f) => f.year.toString() == _selectedFeeYear).toList();
 
     // Separate monthly and daily payments
-    final monthlyFees =
+    var monthlyFees =
         feesForSelectedYear.where((f) => f.paymentType == 'monthly').toList();
-    final dailyFees =
+    var dailyFees =
         feesForSelectedYear.where((f) => f.paymentType == 'daily').toList();
+
+    // ✅ NEW: Apply Monthly-specific filtering
+    if (_monthlyFilterSubject != null &&
+        _monthlyFilterSubject != 'All Subjects') {
+      monthlyFees = monthlyFees
+          .where((f) => f.subjects.contains(_monthlyFilterSubject))
+          .toList();
+    }
+    if (_monthlyFilterStatus != null && _monthlyFilterStatus != 'All') {
+      monthlyFees =
+          monthlyFees.where((f) => f.status == _monthlyFilterStatus).toList();
+    }
+
+    // ✅ NEW: Apply Daily-specific filtering
+    if (_dailyFilterSubject != null && _dailyFilterSubject != 'All Subjects') {
+      dailyFees = dailyFees
+          .where((f) => f.subjects.contains(_dailyFilterSubject))
+          .toList();
+    }
+    if (_dailyFilterStatus != null && _dailyFilterStatus != 'All') {
+      dailyFees =
+          dailyFees.where((f) => f.status == _dailyFilterStatus).toList();
+    }
 
     // Group monthly fees by month for easy lookup
     final monthlyFeeMap = {for (var fee in monthlyFees) fee.month: fee};
 
-    // Generate all months for the monthly table
+    // Generate list of months to display:
+    // - If no monthly filters applied (subject/status are 'All'), show all 12 months
+    // - Otherwise, only show months that have records matching filters
     final allMonths = List.generate(12, (index) => index + 1);
+    final bool showAllMonths = (_monthlyFilterSubject == null ||
+            _monthlyFilterSubject == 'All Subjects') &&
+        (_monthlyFilterStatus == null || _monthlyFilterStatus == 'All');
+    final List<int> monthsToShow = showAllMonths
+        ? allMonths
+        : (monthlyFees.map((f) => f.month).toSet().toList()..sort());
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -1324,6 +1383,64 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+
+          // ✅ NEW: Monthly-specific filter row
+          Row(
+            children: [
+              // Subject filter
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _monthlyFilterSubject,
+                  hint: const Text("Subject", style: TextStyle(fontSize: 12)),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _monthlyFilterSubject = newValue;
+                    });
+                  },
+                  items: ['All Subjects', ...student.subjectsChoosed]
+                      .map<DropdownMenuItem<String>>((String subject) {
+                    return DropdownMenuItem<String>(
+                      value: subject,
+                      child:
+                          Text(subject, style: const TextStyle(fontSize: 12)),
+                    );
+                  }).toList(),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Status filter
+              SizedBox(
+                width: 140,
+                child: DropdownButtonFormField<String>(
+                  value: _monthlyFilterStatus,
+                  hint: const Text("Status", style: TextStyle(fontSize: 12)),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _monthlyFilterStatus = newValue;
+                    });
+                  },
+                  items: ['All', 'PAID', 'PENDING']
+                      .map<DropdownMenuItem<String>>((String status) {
+                    return DropdownMenuItem<String>(
+                      value: status,
+                      child: Text(status, style: const TextStyle(fontSize: 12)),
+                    );
+                  }).toList(),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           if (_selectedFeeYear != null) ...[
             // Monthly Fees Section
@@ -1354,7 +1471,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                       label: Text('Paid Date',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
-                rows: allMonths.map((month) {
+                rows: monthsToShow.map((month) {
                   final fee = monthlyFeeMap[month];
                   final monthName = DateFormat('MMMM')
                       .format(DateTime(int.parse(_selectedFeeYear!), month));
@@ -1408,6 +1525,67 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                       .textTheme
                       .titleMedium
                       ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+
+              // ✅ NEW: Daily-specific filter row
+              Row(
+                children: [
+                  // Subject filter
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _dailyFilterSubject,
+                      hint:
+                          const Text("Subject", style: TextStyle(fontSize: 12)),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _dailyFilterSubject = newValue;
+                        });
+                      },
+                      items: ['All Subjects', ...student.subjectsChoosed]
+                          .map<DropdownMenuItem<String>>((String subject) {
+                        return DropdownMenuItem<String>(
+                          value: subject,
+                          child: Text(subject,
+                              style: const TextStyle(fontSize: 12)),
+                        );
+                      }).toList(),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Status filter
+                  SizedBox(
+                    width: 140,
+                    child: DropdownButtonFormField<String>(
+                      value: _dailyFilterStatus,
+                      hint:
+                          const Text("Status", style: TextStyle(fontSize: 12)),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _dailyFilterStatus = newValue;
+                        });
+                      },
+                      items: ['All', 'PAID', 'PENDING']
+                          .map<DropdownMenuItem<String>>((String status) {
+                        return DropdownMenuItem<String>(
+                          value: status,
+                          child: Text(status,
+                              style: const TextStyle(fontSize: 12)),
+                        );
+                      }).toList(),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 8),
               // Sort daily fees by date (most recent first)
               ..._buildDailyFeesCards(dailyFees
@@ -3236,6 +3414,23 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
     DateTime? selectedDob = student.dob?.toDate();
     String? selectedSex = student.sex;
 
+    // Subject management variables
+    List<String> selectedSubjects = List<String>.from(student.subjectsChoosed);
+    ProfileController? profileController;
+
+    // Try to get ProfileController, initialize if not found
+    try {
+      profileController = Get.find<ProfileController>();
+    } catch (e) {
+      // ProfileController not initialized yet, put it now
+      profileController = Get.put(ProfileController());
+    }
+
+    // Photo management variables
+    File? selectedImage;
+    final ImagePicker imagePicker = ImagePicker();
+    String? newPhotoUrl;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -3282,14 +3477,17 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                           Expanded(
                             child: _buildFormField(
                               controller: emailController,
-                              label: 'Email Address',
+                              label: 'Email Address (Optional)',
                               icon: Icons.email_outlined,
                               keyboardType: TextInputType.emailAddress,
-                              validator: (value) => value!.isEmpty
-                                  ? 'Email cannot be empty'
-                                  : (!GetUtils.isEmail(value)
-                                      ? 'Invalid email'
-                                      : null),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return null; // Empty is allowed
+                                }
+                                return GetUtils.isEmail(value)
+                                    ? null
+                                    : 'Please enter a valid email address';
+                              },
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -3353,6 +3551,188 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                       ),
 
                       const SizedBox(height: kDefaultPadding),
+
+                      // Photo Management Section
+                      _buildSectionHeader(
+                          'Profile Photo', Icons.photo_camera_rounded),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border:
+                              Border.all(color: kPrimaryColor.withOpacity(0.3)),
+                          borderRadius:
+                              BorderRadius.circular(kDefaultRadius * 0.8),
+                        ),
+                        child: Column(
+                          children: [
+                            if (selectedImage != null)
+                              CircleAvatar(
+                                radius: 40,
+                                backgroundImage: FileImage(selectedImage!),
+                              )
+                            else if (student.photoUrl != null &&
+                                student.photoUrl!.isNotEmpty)
+                              CircleAvatar(
+                                radius: 40,
+                                backgroundImage: CachedNetworkImageProvider(
+                                    student.photoUrl!),
+                              )
+                            else
+                              CircleAvatar(
+                                radius: 40,
+                                backgroundColor: kPrimaryColor.withOpacity(0.1),
+                                child: Icon(Icons.person_rounded,
+                                    size: 40, color: kPrimaryColor),
+                              ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final XFile? image = await imagePicker
+                                        .pickImage(source: ImageSource.camera);
+                                    if (image != null) {
+                                      setDialogState(() {
+                                        selectedImage = File(image.path);
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(Icons.camera_alt_rounded,
+                                      size: 16),
+                                  label: const Text('Camera'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        kPrimaryColor.withOpacity(0.1),
+                                    foregroundColor: kPrimaryColor,
+                                    elevation: 0,
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final XFile? image = await imagePicker
+                                        .pickImage(source: ImageSource.gallery);
+                                    if (image != null) {
+                                      setDialogState(() {
+                                        selectedImage = File(image.path);
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(Icons.photo_library_rounded,
+                                      size: 16),
+                                  label: const Text('Gallery'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        kPrimaryColor.withOpacity(0.1),
+                                    foregroundColor: kPrimaryColor,
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: kDefaultPadding),
+
+                      // Subjects Management Section
+                      _buildSectionHeader(
+                          'Student Subjects', Icons.book_rounded),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border:
+                              Border.all(color: kPrimaryColor.withOpacity(0.3)),
+                          borderRadius:
+                              BorderRadius.circular(kDefaultRadius * 0.8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Selected Subjects:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: kPrimaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (selectedSubjects.isEmpty)
+                              Text(
+                                'No subjects selected',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: selectedSubjects
+                                    .map((subject) => Chip(
+                                          label: Text(subject),
+                                          backgroundColor:
+                                              kPrimaryColor.withOpacity(0.1),
+                                          deleteIcon:
+                                              const Icon(Icons.close, size: 16),
+                                          onDeleted: () {
+                                            setDialogState(() {
+                                              selectedSubjects.remove(subject);
+                                            });
+                                          },
+                                        ))
+                                    .toList(),
+                              ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Available Subjects:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: kPrimaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Obx(() {
+                              final availableSubjects = profileController
+                                      ?.academySubjects
+                                      .where((subject) =>
+                                          !selectedSubjects.contains(subject))
+                                      .toList() ??
+                                  [];
+
+                              if (availableSubjects.isEmpty) {
+                                return Text(
+                                  'All subjects selected',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                );
+                              }
+
+                              return Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: availableSubjects
+                                    .map((subject) => ActionChip(
+                                          label: Text(subject),
+                                          backgroundColor: Colors.grey[100],
+                                          onPressed: () {
+                                            setDialogState(() {
+                                              selectedSubjects.add(subject);
+                                            });
+                                          },
+                                        ))
+                                    .toList(),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: kDefaultPadding),
                     ],
                   ),
                 ),
@@ -3387,35 +3767,87 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                           isError: true);
                       return;
                     }
-                    final Map<String, dynamic> updatedData = {
-                      'name': nameController.text.trim(),
-                      'email': emailController.text.trim(),
-                      'parentName': parentNameController.text.trim(),
-                      'parentPhone': parentPhoneController.text.trim(),
-                      'whatsappNumber': whatsappController.text.trim().isEmpty
-                          ? null
-                          : whatsappController.text.trim(),
-                      'address': addressController.text.trim().isEmpty
-                          ? null
-                          : addressController.text.trim(),
-                      'sex': selectedSex,
-                      'dob': selectedDob != null
-                          ? Timestamp.fromDate(selectedDob)
-                          : null,
-                      'updatedAt': Timestamp.now(),
-                    };
 
                     try {
+                      // Show loading indicator
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => const AlertDialog(
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text("Updating student details..."),
+                            ],
+                          ),
+                        ),
+                      );
+
+                      // Upload photo if selected
+                      if (selectedImage != null) {
+                        try {
+                          CloudinaryPublic cloudinary =
+                              CloudinaryPublic('dqkofl9se', 'edutrack_preset');
+                          CloudinaryResponse response =
+                              await cloudinary.uploadFile(
+                            CloudinaryFile.fromFile(
+                              selectedImage!.path,
+                              folder: 'student_photos',
+                              publicId:
+                                  'student_${student.id}_${DateTime.now().millisecondsSinceEpoch}',
+                            ),
+                          );
+                          newPhotoUrl = response.secureUrl;
+                        } catch (e) {
+                          Navigator.of(context).pop(); // Close loading dialog
+                          _showStatusFlashMessage("Error uploading photo: $e",
+                              isError: true);
+                          return;
+                        }
+                      }
+
+                      final Map<String, dynamic> updatedData = {
+                        'name': nameController.text.trim(),
+                        'email': emailController.text.trim().isEmpty
+                            ? null
+                            : emailController.text.trim(),
+                        'parentName': parentNameController.text.trim(),
+                        'parentPhone': parentPhoneController.text.trim(),
+                        'whatsappNumber': whatsappController.text.trim().isEmpty
+                            ? null
+                            : whatsappController.text.trim(),
+                        'address': addressController.text.trim().isEmpty
+                            ? null
+                            : addressController.text.trim(),
+                        'sex': selectedSex,
+                        'dob': selectedDob != null
+                            ? Timestamp.fromDate(selectedDob)
+                            : null,
+                        'Subjects':
+                            selectedSubjects, // Update subjects using database field name
+                        'updatedAt': Timestamp.now(),
+                      };
+
+                      // Add photo URL if a new photo was uploaded
+                      if (newPhotoUrl != null) {
+                        updatedData['photoUrl'] = newPhotoUrl;
+                      }
+
                       await FirebaseFirestore.instance
                           .collection('admins')
                           .doc(adminUid)
                           .collection('students')
                           .doc(student.id)
                           .update(updatedData);
+
+                      Navigator.of(context).pop(); // Close loading dialog
                       _showStatusFlashMessage(
                           "Student details updated successfully!",
                           isError: false);
-                      Navigator.of(context).pop();
+                      Navigator.of(context).pop(); // Close edit dialog
+
                       // Reload student data
                       setState(() {
                         _studentFuture = FirebaseFirestore.instance
@@ -3427,6 +3859,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                             .then((doc) => Student.fromFirestore(doc));
                       });
                     } catch (e) {
+                      Navigator.of(context)
+                          .pop(); // Close loading dialog if still open
                       _showStatusFlashMessage(
                           "Error updating student details: $e",
                           isError: true);

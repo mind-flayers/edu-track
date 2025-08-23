@@ -25,6 +25,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+  int _cachedPendingCount = 0; // Cache for pending payments count
 
   void _onItemTapped(int index) {
     setState(() {
@@ -448,81 +449,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         },
                       ),
                       // --- Pending Payments Card (Updated for new payment structure) ---
-                      // This calculates pending payments based on both monthly and daily payment types
+                      // ✅ FIXED: Calculate pending payments with proper error handling and admin context
                       StreamBuilder<QuerySnapshot>(
-                        // Stream 1: Get total students
-                        stream: firestore
-                            .collection('admins')
-                            .doc(adminUid)
-                            .collection('students')
-                            .snapshots(),
-                        builder: (context, totalStudentsSnapshot) {
-                          // Stream 2: Get paid fees (both monthly and daily) for the current month
-                          return StreamBuilder<QuerySnapshot>(
-                            stream: firestore
-                                .collectionGroup('fees')
-                                .where('paid', isEqualTo: true) // Get PAID fees
-                                .where('year', isEqualTo: currentYear)
-                                .where('month', isEqualTo: currentMonth)
-                                // Fetch both monthly and daily payments for current month
-                                .snapshots(),
-                            builder: (context, paidFeesSnapshot) {
-                              String pendingCount =
-                                  '...'; // Default loading state
+                        stream: adminUid != null
+                            ? firestore
+                                .collection('admins')
+                                .doc(adminUid)
+                                .collection('students')
+                                .snapshots()
+                            : Stream.empty(),
+                        builder: (context, studentsSnapshot) {
+                          String pendingCount = '...'; // Default loading state
 
-                              if (totalStudentsSnapshot.connectionState ==
-                                      ConnectionState.waiting ||
-                                  paidFeesSnapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                pendingCount =
-                                    '...'; // Still loading if either stream is waiting
-                              } else if (totalStudentsSnapshot.hasError ||
-                                  paidFeesSnapshot.hasError) {
-                                pendingCount = 'Error';
-                                if (totalStudentsSnapshot.hasError)
-                                  print(
-                                      "Error fetching total students for pending calc: ${totalStudentsSnapshot.error}");
-                                if (paidFeesSnapshot.hasError)
-                                  print(
-                                      "Error fetching paid fees for pending calc: ${paidFeesSnapshot.error}");
-                              } else if (totalStudentsSnapshot.hasData &&
-                                  paidFeesSnapshot.hasData) {
-                                final totalStudents =
-                                    totalStudentsSnapshot.data!.docs.length;
-
-                                // Get unique student IDs who have made any payment this month
-                                final paidStudentIds = <String>{};
-                                for (var doc in paidFeesSnapshot.data!.docs) {
-                                  // Extract student ID from document path
-                                  final pathSegments =
-                                      doc.reference.path.split('/');
-                                  if (pathSegments.length >= 4) {
-                                    final studentId = pathSegments[
-                                        3]; // students/[studentId]/fees/[feeId]
-                                    paidStudentIds.add(studentId);
-                                  }
-                                }
-
-                                final pending =
-                                    totalStudents - paidStudentIds.length;
-                                pendingCount = (pending >= 0 ? pending : 0)
-                                    .toString(); // Ensure count isn't negative
-                              } else {
-                                pendingCount =
-                                    'N/A'; // Handle cases where data might be missing unexpectedly
+                          if (studentsSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            pendingCount = '...'; // Loading
+                          } else if (studentsSnapshot.hasError) {
+                            pendingCount = '0';
+                            print(
+                                "Error fetching students for pending fees: ${studentsSnapshot.error}");
+                          } else if (studentsSnapshot.hasData &&
+                              adminUid != null) {
+                            // Count all pending payments across all students
+                            _countPendingPayments(
+                                    studentsSnapshot.data!.docs, adminUid!)
+                                .then((count) {
+                              if (mounted) {
+                                setState(() {
+                                  _cachedPendingCount = count;
+                                });
                               }
+                            });
+                            pendingCount = _cachedPendingCount.toString();
+                          } else {
+                            pendingCount = '0'; // No data
+                          }
 
-                              return _buildSummaryCard(
-                                icon: Icons.request_quote_outlined,
-                                title: "Pending Payments",
-                                value: pendingCount,
-                                color1: kPrimaryColor,
-                                color2: const Color(0xFF9B84FF),
-                                textColor: kSecondaryColor,
-                                onTap: () => Get.toNamed(AppRoutes
-                                    .paymentManagement), // Navigate to payment management
-                              );
-                            },
+                          return _buildSummaryCard(
+                            icon: Icons.request_quote_outlined,
+                            title: "Pending Payments",
+                            value: pendingCount,
+                            color1: kPrimaryColor,
+                            color2: const Color(0xFF9B84FF),
+                            textColor: kSecondaryColor,
+                            onTap: () => Get.toNamed(AppRoutes
+                                .paymentManagement), // Navigate to payment management
                           );
                         },
                       ),
@@ -679,6 +650,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  /// Count pending payments across all students (moved to Dashboard scope)
+  Future<int> _countPendingPayments(
+      List<QueryDocumentSnapshot> studentDocs, String adminUid) async {
+    int totalPendingPayments = 0;
+    final now = DateTime.now();
+    final currentYear = now.year;
+    final currentMonth = now.month;
+
+    try {
+      for (var studentDoc in studentDocs) {
+        // Get fees for this student
+        final feesQuery = await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(adminUid)
+            .collection('students')
+            .doc(studentDoc.id)
+            .collection('fees')
+            .where('year', isEqualTo: currentYear)
+            .get();
+
+        for (var feeDoc in feesQuery.docs) {
+          final feeData = feeDoc.data();
+
+          // Check if this is a pending payment (with backward compatibility)
+          final bool isPending = feeData.containsKey('status')
+              ? feeData['status'] == 'PENDING'
+              : feeData['paid'] == false;
+
+          if (isPending) {
+            final paymentType = feeData['paymentType'] ?? 'monthly';
+
+            if (paymentType == 'monthly') {
+              // Count if current month
+              if (feeData['month'] == currentMonth) {
+                totalPendingPayments++;
+              }
+            } else if (paymentType == 'daily') {
+              // Count if within last 30 days
+              final dateStr = feeData['date'] as String?;
+              if (dateStr != null) {
+                final feeDate = DateTime.parse(dateStr);
+                final daysDiff = now.difference(feeDate).inDays;
+                if (daysDiff <= 30) {
+                  totalPendingPayments++;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error counting pending payments: $e");
+    }
+
+    return totalPendingPayments;
+  }
 } // End of _DashboardScreenState
 
 // --- StatefulWidget for Action Buttons with Hover Animation ---
@@ -735,5 +763,62 @@ class _ActionButtonCardState extends State<ActionButtonCard> {
           begin: const Offset(1, 1),
           end: const Offset(1.05, 1.05)),
     );
+  }
+
+  /// Count pending payments across all students
+  Future<int> _countPendingPayments(
+      List<QueryDocumentSnapshot> studentDocs, String adminUid) async {
+    int totalPendingPayments = 0;
+    final now = DateTime.now();
+    final currentYear = now.year;
+    final currentMonth = now.month;
+
+    try {
+      for (var studentDoc in studentDocs) {
+        // Get fees for this student
+        final feesQuery = await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(adminUid)
+            .collection('students')
+            .doc(studentDoc.id)
+            .collection('fees')
+            .where('year', isEqualTo: currentYear)
+            .get();
+
+        for (var feeDoc in feesQuery.docs) {
+          final feeData = feeDoc.data();
+
+          // Check if this is a pending payment (with backward compatibility)
+          final bool isPending = feeData.containsKey('status')
+              ? feeData['status'] == 'PENDING'
+              : feeData['paid'] == false;
+
+          if (isPending) {
+            final paymentType = feeData['paymentType'] ?? 'monthly';
+
+            if (paymentType == 'monthly') {
+              // Count if current month
+              if (feeData['month'] == currentMonth) {
+                totalPendingPayments++;
+              }
+            } else if (paymentType == 'daily') {
+              // Count if within last 30 days
+              final dateStr = feeData['date'] as String?;
+              if (dateStr != null) {
+                final feeDate = DateTime.parse(dateStr);
+                final daysDiff = now.difference(feeDate).inDays;
+                if (daysDiff <= 30) {
+                  totalPendingPayments++;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error counting pending payments: $e");
+    }
+
+    return totalPendingPayments;
   }
 }

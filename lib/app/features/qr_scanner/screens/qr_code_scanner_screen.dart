@@ -27,6 +27,7 @@ class Student {
   final String dob;
   final List<String> subjects; // Assuming 'SubjectsChoosed' is the field name
   final String qrCodeData;
+  final bool isNonePayee; // ✅ NEW: None payee flag
 
   Student({
     required this.id,
@@ -42,6 +43,7 @@ class Student {
     required this.dob,
     required this.subjects,
     required this.qrCodeData,
+    this.isNonePayee = false, // ✅ Default to false for backward compatibility
   });
 
   factory Student.fromFirestore(DocumentSnapshot doc) {
@@ -75,6 +77,8 @@ class Student {
       subjects: List<String>.from(
           data['Subjects'] ?? []), // Map 'Subjects' (capital S)
       qrCodeData: data['qrCodeData'] ?? '',
+      isNonePayee: data['isNonePayee'] ??
+          false, // ✅ Handle isNonePayee field with backward compatibility
     );
   }
 
@@ -89,9 +93,10 @@ enum ScreenState {
   scanning,
   showIndexInput,
   showStudentDetails,
-  showPaymentTypeSelection,
-  showMonthlyPaymentInput,
-  showDailyPaymentInput
+  showStudentDetailsWithPendingPayments, // ✅ NEW STATE for the updated flow
+  showPaymentTypeSelection, // Keep for backward compatibility
+  showMonthlyPaymentInput, // Keep for backward compatibility
+  showDailyPaymentInput // Keep for backward compatibility
 }
 
 // Enum for payment types
@@ -102,6 +107,78 @@ class QRCodeScannerScreen extends StatefulWidget {
 
   @override
   State<QRCodeScannerScreen> createState() => _QRCodeScannerScreenState();
+}
+
+// ✅ NEW: Model for pending payment items
+class PendingPaymentItem {
+  final String id;
+  final List<String> subjects;
+  final String paymentType;
+  final String period;
+  final double amount;
+  final double pendingAmount;
+  final DateTime dueDate;
+  final String description;
+  final String status;
+
+  PendingPaymentItem({
+    required this.id,
+    required this.subjects,
+    required this.paymentType,
+    required this.period,
+    required this.amount,
+    required this.pendingAmount,
+    required this.dueDate,
+    required this.description,
+    required this.status,
+  });
+
+  factory PendingPaymentItem.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+
+    // Format period based on payment type
+    String period = 'Unknown';
+    final paymentType = data['paymentType'] ?? 'monthly';
+
+    if (paymentType == 'monthly') {
+      final month = data['month'] as int?;
+      final year = data['year'] as int?;
+      if (month != null && year != null) {
+        final date = DateTime(year, month);
+        period = DateFormat('MMMM yyyy').format(date);
+      }
+    } else if (paymentType == 'daily') {
+      final dateStr = data['date'] as String?;
+      if (dateStr != null) {
+        final date = DateTime.parse(dateStr);
+        period = DateFormat('dd/MM/yyyy').format(date);
+      }
+    }
+
+    return PendingPaymentItem(
+      id: doc.id,
+      subjects: List<String>.from(data['subjects'] ?? []),
+      paymentType: paymentType,
+      period: period,
+      amount: (data['amount'] as num?)?.toDouble() ?? 0.0,
+      pendingAmount: (data['pendingAmount'] as num?)?.toDouble() ?? 0.0,
+      dueDate: (data['pendingAt'] as Timestamp?)?.toDate() ??
+          (data['paidAt'] as Timestamp?)?.toDate() ??
+          DateTime.now(),
+      description: data['description'] ?? '',
+      status: data['status'] ??
+          (data['paid'] == true
+              ? 'PAID'
+              : 'PENDING'), // ✅ Backward compatibility
+    );
+  }
+
+  // Helper methods for display formatting
+  String getMonthYearDisplay() => period;
+
+  String getDueDateDisplay() {
+    return DateFormat('dd/MM/yyyy').format(dueDate);
+  }
 }
 
 class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
@@ -123,9 +200,22 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   bool _isError = false;
   String? _selectedMonth; // For monthly payment dropdown
   DateTime? _selectedDate; // For daily payment date picker
-  PaymentType? _selectedPaymentType; // Monthly or Daily
   List<String> _selectedSubjects = []; // For both payment types
   String? _academyName;
+
+  // ✅ NEW: State variables for pending payments functionality
+  List<PendingPaymentItem> _existingPendingPayments = [];
+  String _pendingPaymentsFilter = 'all'; // 'all', 'monthly', 'daily'
+  // ✅ NEW: Subject filter for pending payments ('All' means no subject filter)
+  String _pendingSubjectFilter = 'All';
+  bool _attendanceMarked = false;
+
+  // ✅ NEW: Form controllers for dynamic payment dialogs
+  final _paymentFormKey = GlobalKey<FormState>();
+  final _pendingFormKey = GlobalKey<FormState>();
+  final _descriptionController = TextEditingController();
+  final _pendingReasonController = TextEditingController();
+  String? _selectedPaymentTypeForDialog; // 'monthly' or 'daily' for dialogs
 
   // List of months for the dropdown
   final List<String> _months = [
@@ -154,6 +244,8 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
     _scannerController.dispose();
     _indexController.dispose();
     _amountController.dispose();
+    _descriptionController.dispose(); // ✅ NEW
+    _pendingReasonController.dispose(); // ✅ NEW
     super.dispose();
   }
 
@@ -291,10 +383,15 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
 
       if (querySnapshot.docs.isNotEmpty) {
         _foundStudent = Student.fromFirestore(querySnapshot.docs.first);
+
+        // ✅ CORRECTED: Go to student details view (which now shows pending payments + action buttons)
         setState(() {
           _currentScreenState = ScreenState.showStudentDetails;
         });
         _showStatusMessage('Scanned Successfully!', isError: false);
+
+        // Fetch pending payments for this student
+        await _fetchExistingPendingPayments();
       } else {
         _foundStudent = null;
         _showStatusMessage('QR Code does not match any student.',
@@ -335,10 +432,15 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
 
       if (querySnapshot.docs.isNotEmpty) {
         _foundStudent = Student.fromFirestore(querySnapshot.docs.first);
+
+        // ✅ CORRECTED: Go to student details view
         setState(() {
           _currentScreenState = ScreenState.showStudentDetails;
         });
         _showStatusMessage('Index No Matched!', isError: false);
+
+        // Fetch pending payments for this student
+        await _fetchExistingPendingPayments();
       } else {
         _foundStudent = null;
         _showStatusMessage('Index number does not match any student.',
@@ -472,11 +574,15 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
             isError: true);
       }
 
-      // Navigate back to initial screen after success
+      // ✅ CORRECTED: Stay on student details page after attendance marking
       setState(() {
-        _currentScreenState = ScreenState.initial;
-        _foundStudent = null;
+        _attendanceMarked = true;
+        _currentScreenState =
+            ScreenState.showStudentDetails; // Stay on student details
       });
+
+      // Refresh pending payments for this student
+      await _fetchExistingPendingPayments();
     } catch (e) {
       print("Error marking attendance: $e");
       _showStatusMessage('Failed to mark attendance: $e', isError: true);
@@ -658,9 +764,129 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
   void _resetPaymentState() {
     _selectedMonth = null;
     _selectedDate = null;
-    _selectedPaymentType = null;
     _selectedSubjects.clear();
     _amountController.clear();
+  }
+
+  // ✅ NEW: Fetch existing pending payments for the current student
+  Future<void> _fetchExistingPendingPayments() async {
+    if (_foundStudent == null) return;
+
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid == null) throw Exception("Admin not logged in.");
+
+      // Query existing fee records with PENDING status (with backward compatibility)
+      final feesQuery = await _firestore
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .doc(_foundStudent!.id)
+          .collection('fees')
+          .get();
+
+      final List<PendingPaymentItem> pendingPayments = [];
+
+      for (final doc in feesQuery.docs) {
+        final data = doc.data();
+
+        // Check if this is a pending payment (new status field or old paid field)
+        final bool isPending = data.containsKey('status')
+            ? data['status'] == 'PENDING'
+            : data['paid'] == false; // Backward compatibility
+
+        if (isPending) {
+          pendingPayments.add(PendingPaymentItem.fromFirestore(doc));
+        }
+      }
+
+      setState(() {
+        _existingPendingPayments = pendingPayments;
+        // Ensure subject filter remains valid
+        final availableSubjects = {
+          if (_foundStudent != null) ..._foundStudent!.subjects,
+          ..._existingPendingPayments.expand((e) => e.subjects)
+        }..removeWhere((s) => s.trim().isEmpty);
+        if (_pendingSubjectFilter != 'All' &&
+            !availableSubjects.contains(_pendingSubjectFilter)) {
+          _pendingSubjectFilter = 'All';
+        }
+      });
+
+      // ✅ DEBUG: Print pending payments info
+      print(
+          "DEBUG: Fetched ${pendingPayments.length} pending payments for student ${_foundStudent!.name}");
+      for (var payment in pendingPayments) {
+        print(
+            "  - ${payment.paymentType} payment: ${payment.period} - Rs.${payment.amount}");
+      }
+    } catch (e) {
+      print("Error fetching pending payments: $e");
+      _showStatusMessage('Failed to load pending payments: $e', isError: true);
+    }
+  }
+
+  // ✅ NEW: Filter pending payments by type
+  List<PendingPaymentItem> _getFilteredPendingPayments() {
+    // Step 1: Filter by type if needed
+    Iterable<PendingPaymentItem> items = _existingPendingPayments;
+    if (_pendingPaymentsFilter != 'all') {
+      items = items.where((item) => item.paymentType == _pendingPaymentsFilter);
+    }
+
+    // Step 2: Filter by subject if a specific subject is selected
+    if (_pendingSubjectFilter != 'All') {
+      items =
+          items.where((item) => item.subjects.contains(_pendingSubjectFilter));
+    }
+
+    return items.toList();
+  }
+
+  // ✅ NEW: Calculate total pending amount
+  double _calculateTotalPendingAmount() {
+    final filteredPayments = _getFilteredPendingPayments();
+    return filteredPayments.fold(
+        0.0,
+        (sum, item) =>
+            sum + (item.pendingAmount > 0 ? item.pendingAmount : item.amount));
+  }
+
+  // ✅ NEW: Build subject dropdown items for pending payments filter
+  List<DropdownMenuItem<String>> _buildPendingSubjectDropdownItems() {
+    // Prefer current student's subjects if available; else, aggregate from pending payments
+    final Set<String> subjectSet = {
+      if (_foundStudent != null) ..._foundStudent!.subjects,
+      ..._existingPendingPayments.expand((e) => e.subjects)
+    }..removeWhere((s) => s.trim().isEmpty);
+
+    final List<String> subjects = subjectSet.toList()..sort();
+    return [
+      const DropdownMenuItem<String>(
+        value: 'All',
+        child: Text('All Subjects', style: TextStyle(fontSize: 12)),
+      ),
+      ...subjects.map((s) => DropdownMenuItem<String>(
+            value: s,
+            child: Text(s, style: const TextStyle(fontSize: 12)),
+          ))
+    ];
+  }
+
+  // ✅ NEW: Navigate back to QR scanner
+  void _goBackToScanner() {
+    setState(() {
+      _currentScreenState = ScreenState.initial;
+      _foundStudent = null;
+      _attendanceMarked = false;
+      _existingPendingPayments.clear();
+      _pendingSubjectFilter = 'All';
+      _selectedSubjects.clear();
+      _amountController.clear();
+      _descriptionController.clear();
+      _pendingReasonController.clear();
+      _selectedPaymentTypeForDialog = null;
+    });
   }
 
   // --- UI Building ---
@@ -720,6 +946,8 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         return _buildIndexInputUI(context);
       case ScreenState.showStudentDetails:
         return _buildStudentDetailsUI(context);
+      case ScreenState.showStudentDetailsWithPendingPayments: // ✅ NEW CASE
+        return _buildStudentDetailsWithPendingPaymentsUI(context);
       case ScreenState.showPaymentTypeSelection:
         return _buildPaymentTypeSelectionUI(context);
       case ScreenState.showMonthlyPaymentInput:
@@ -898,6 +1126,28 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                         Text(student.name,
                             style: textTheme.headlineSmall
                                 ?.copyWith(fontWeight: FontWeight.bold)),
+
+                        // ✅ NEW: None payee indicator
+                        if (student.isNonePayee) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'NONE PAYEE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: kDefaultPadding / 2),
                         _buildDetailRow('Index No:', student.indexNumber),
                         _buildDetailRow('Grade:',
@@ -952,6 +1202,316 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
 
           const SizedBox(height: kDefaultPadding * 1.5),
 
+          // ✅ NEW: Pending Payments Card (Always show)
+          Card(
+            elevation: 3,
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(kDefaultPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header with title and filters
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.payment_outlined,
+                              color: Colors.orange, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                              'Pending Payments (${_getFilteredPendingPayments().length})',
+                              style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange)),
+                        ],
+                      ),
+                      // Filters: Type + Subject
+                      Flexible(
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            SizedBox(
+                              height: 35,
+                              child: DropdownButton<String>(
+                                value: _pendingPaymentsFilter,
+                                isDense: true,
+                                underline: Container(),
+                                items: const [
+                                  DropdownMenuItem(
+                                      value: 'all',
+                                      child: Text('All',
+                                          style: TextStyle(fontSize: 12))),
+                                  DropdownMenuItem(
+                                      value: 'monthly',
+                                      child: Text('Monthly',
+                                          style: TextStyle(fontSize: 12))),
+                                  DropdownMenuItem(
+                                      value: 'daily',
+                                      child: Text('Daily',
+                                          style: TextStyle(fontSize: 12))),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    _pendingPaymentsFilter = value ?? 'all';
+                                  });
+                                },
+                              ),
+                            ),
+                            SizedBox(
+                              height: 35,
+                              child: DropdownButton<String>(
+                                value: _pendingSubjectFilter,
+                                isDense: true,
+                                underline: Container(),
+                                items: _buildPendingSubjectDropdownItems(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _pendingSubjectFilter = value ?? 'All';
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: kDefaultPadding / 2),
+
+                  // Total pending amount bar
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Total Pending Amount:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Rs.${_calculateTotalPendingAmount().toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: kDefaultPadding / 2),
+
+                  // Payments table or empty message
+                  _getFilteredPendingPayments().isNotEmpty
+                      ? ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          child: SingleChildScrollView(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                // Use a more mobile-friendly layout for narrow screens
+                                if (constraints.maxWidth < 600) {
+                                  return Column(
+                                    children: _getFilteredPendingPayments()
+                                        .map((payment) => Card(
+                                              margin: const EdgeInsets.only(
+                                                  bottom: 8),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(12),
+                                                child: Row(
+                                                  children: [
+                                                    Expanded(
+                                                      flex: 2,
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                              payment.paymentType
+                                                                      .isNotEmpty
+                                                                  ? '${payment.paymentType[0].toUpperCase()}${payment.paymentType.substring(1)}'
+                                                                  : payment
+                                                                      .paymentType,
+                                                              style: const TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600)),
+                                                          Text(
+                                                              payment
+                                                                  .getMonthYearDisplay(),
+                                                              style: const TextStyle(
+                                                                  fontSize: 11,
+                                                                  color: Colors
+                                                                      .grey)),
+                                                          if (payment.subjects
+                                                              .isNotEmpty)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .only(
+                                                                      top: 2.0),
+                                                              child: Text(
+                                                                'Subjects: ${payment.subjects.join(', ')}',
+                                                                style: const TextStyle(
+                                                                    fontSize:
+                                                                        11,
+                                                                    color: Colors
+                                                                        .grey),
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                              ),
+                                                            ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                          'Rs.${payment.amount.toStringAsFixed(0)}',
+                                                          style:
+                                                              const TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  color: Colors
+                                                                      .orange),
+                                                          textAlign:
+                                                              TextAlign.right),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ))
+                                        .toList(),
+                                  );
+                                } else {
+                                  // Use DataTable for wider screens
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      columnSpacing: 16,
+                                      dataRowHeight: 35,
+                                      headingRowHeight: 35,
+                                      columns: const [
+                                        DataColumn(
+                                            label: Text('Type',
+                                                style:
+                                                    TextStyle(fontSize: 12))),
+                                        DataColumn(
+                                            label: Text('Period',
+                                                style:
+                                                    TextStyle(fontSize: 12))),
+                                        DataColumn(
+                                            label: Text('Subjects',
+                                                style:
+                                                    TextStyle(fontSize: 12))),
+                                        DataColumn(
+                                            label: Text('Amount',
+                                                style:
+                                                    TextStyle(fontSize: 12))),
+                                        DataColumn(
+                                            label: Text('Due Date',
+                                                style:
+                                                    TextStyle(fontSize: 12))),
+                                      ],
+                                      rows: _getFilteredPendingPayments()
+                                          .map((payment) => DataRow(
+                                                cells: [
+                                                  DataCell(Text(
+                                                      payment.paymentType
+                                                              .isNotEmpty
+                                                          ? '${payment.paymentType[0].toUpperCase()}${payment.paymentType.substring(1)}'
+                                                          : payment.paymentType,
+                                                      style: const TextStyle(
+                                                          fontSize: 11))),
+                                                  DataCell(Text(
+                                                      payment
+                                                          .getMonthYearDisplay(),
+                                                      style: const TextStyle(
+                                                          fontSize: 11))),
+                                                  DataCell(SizedBox(
+                                                    width: 180,
+                                                    child: Text(
+                                                      payment.subjects
+                                                              .isNotEmpty
+                                                          ? payment.subjects
+                                                              .join(', ')
+                                                          : '-',
+                                                      style: const TextStyle(
+                                                          fontSize: 11),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  )),
+                                                  DataCell(Text(
+                                                      'Rs.${payment.amount.toStringAsFixed(0)}',
+                                                      style: const TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight
+                                                              .w600))),
+                                                  DataCell(Text(
+                                                      payment
+                                                          .getDueDateDisplay(),
+                                                      style: const TextStyle(
+                                                          fontSize: 11))),
+                                                ],
+                                              ))
+                                          .toList(),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            children: [
+                              Icon(Icons.payment_outlined,
+                                  size: 48, color: Colors.grey.shade400),
+                              const SizedBox(height: 12),
+                              Text(
+                                _pendingPaymentsFilter == 'all'
+                                    ? 'No pending payments found'
+                                    : 'No ${_pendingPaymentsFilter} pending payments found',
+                                style: TextStyle(
+                                    color: Colors.grey.shade600, fontSize: 14),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'You can create new payment records using the buttons below.',
+                                style: TextStyle(
+                                    color: Colors.grey.shade500, fontSize: 12),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                ],
+              ),
+            ),
+          ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.1),
+
+          const SizedBox(height: kDefaultPadding * 1.5),
+
           // Action Buttons Card
           Card(
             elevation: 3,
@@ -978,9 +1538,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                             const SizedBox(width: kDefaultPadding),
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: () => setState(() =>
-                                    _currentScreenState =
-                                        ScreenState.showPaymentTypeSelection),
+                                onPressed: () => _showMarkPaymentDialog(),
                                 child: const Text('Mark Payment'),
                               ),
                             ),
@@ -1064,7 +1622,6 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          _selectedPaymentType = PaymentType.monthly;
                           setState(() => _currentScreenState =
                               ScreenState.showMonthlyPaymentInput);
                         },
@@ -1080,7 +1637,6 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          _selectedPaymentType = PaymentType.daily;
                           setState(() => _currentScreenState =
                               ScreenState.showDailyPaymentInput);
                         },
@@ -1444,6 +2000,978 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         ),
       ),
     );
+  }
+
+  // ✅ NEW: UI for showing student details with pending payments
+  Widget _buildStudentDetailsWithPendingPaymentsUI(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Payment Management'),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: _goBackToScanner,
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ✅ Attendance marked indicator
+            if (_attendanceMarked)
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(12),
+                margin: EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Attendance marked successfully! You can now mark payments.',
+                        style: TextStyle(
+                          color: Colors.green.shade800,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // ✅ Student info card
+            _buildStudentInfoCard(),
+
+            SizedBox(height: 16),
+
+            // ✅ Pending payments section
+            _buildPendingPaymentsSection(),
+
+            SizedBox(height: 24),
+
+            // ✅ Action buttons
+            _buildActionButtons(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Build student info card with none payee indicator
+  Widget _buildStudentInfoCard() {
+    if (_foundStudent == null) return SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Row(
+          children: [
+            // Student photo
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: Colors.grey.shade300,
+              backgroundImage: _foundStudent!.photoUrl != null
+                  ? NetworkImage(_foundStudent!.photoUrl!)
+                  : null,
+              child: _foundStudent!.photoUrl == null
+                  ? Icon(Icons.person, size: 30)
+                  : null,
+            ),
+
+            SizedBox(width: 16),
+
+            // Student details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _foundStudent!.name,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                      'Class: ${_foundStudent!.className}-${_foundStudent!.section}'),
+                  Text('Index: ${_foundStudent!.indexNumber}'),
+
+                  // ✅ None payee indicator
+                  if (_foundStudent!.isNonePayee) ...[
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'NONE PAYEE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Build pending payments section
+  Widget _buildPendingPaymentsSection() {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with filter
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Existing Pending Payments',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                DropdownButton<String>(
+                  value: _pendingPaymentsFilter,
+                  onChanged: (value) {
+                    setState(() {
+                      _pendingPaymentsFilter = value!;
+                    });
+                  },
+                  items: [
+                    DropdownMenuItem(value: 'all', child: Text('All')),
+                    DropdownMenuItem(
+                        value: 'monthly', child: Text('Monthly Pending')),
+                    DropdownMenuItem(
+                        value: 'daily', child: Text('Daily Pending')),
+                  ],
+                ),
+              ],
+            ),
+
+            SizedBox(height: 12),
+
+            // Total pending amount
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total Pending Amount:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'Rs. ${_calculateTotalPendingAmount().toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 16),
+
+            // Pending payments table
+            _buildPendingPaymentsTable(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Build pending payments table
+  Widget _buildPendingPaymentsTable() {
+    final filteredPayments = _getFilteredPendingPayments();
+
+    if (filteredPayments.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(20),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.payment_outlined, size: 48, color: Colors.grey),
+              SizedBox(height: 8),
+              Text(
+                'No pending payments found',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columns: [
+          DataColumn(label: Text('Type')),
+          DataColumn(label: Text('Period')),
+          DataColumn(label: Text('Subjects')),
+          DataColumn(label: Text('Amount')),
+        ],
+        rows: filteredPayments
+            .map((payment) => DataRow(
+                  cells: [
+                    DataCell(
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: payment.paymentType == 'monthly'
+                              ? Colors.blue.shade100
+                              : Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          payment.paymentType.toUpperCase(),
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(payment.period)),
+                    DataCell(
+                      SizedBox(
+                        width: 120,
+                        child: Text(
+                          payment.subjects.join(', '),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        'Rs. ${payment.amount.toStringAsFixed(2)}',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  // ✅ NEW: Build action buttons
+  Widget _buildActionButtons() {
+    return Column(
+      children: [
+        // Main action buttons row
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => _showMarkPaymentDialog(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: Text('Mark Payment'),
+              ),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => _showMarkPendingDialog(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                  side: BorderSide(color: Colors.orange),
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: Text('Mark as Pending'),
+              ),
+            ),
+          ],
+        ),
+
+        SizedBox(height: 16),
+
+        // Go back button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: _goBackToScanner,
+            child: Text('Go Back'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ NEW: Show mark payment dialog (placeholder)
+  void _showMarkPaymentDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return LayoutBuilder(builder: (context, constraints) {
+          bool _validateAndWarn() {
+            final ok = _paymentFormKey.currentState?.validate() ?? false;
+            if (!ok) return false;
+            if (_selectedPaymentTypeForDialog == null) {
+              _showStatusMessage('Please select payment type', isError: true);
+              return false;
+            }
+            if (_selectedPaymentTypeForDialog == 'monthly' &&
+                _selectedMonth == null) {
+              _showStatusMessage('Please select month', isError: true);
+              return false;
+            }
+            if (_selectedPaymentTypeForDialog == 'daily' &&
+                _selectedDate == null) {
+              _showStatusMessage('Please select date', isError: true);
+              return false;
+            }
+            if (_selectedSubjects.isEmpty) {
+              _showStatusMessage('Select at least one subject', isError: true);
+              return false;
+            }
+            return true;
+          }
+
+          return AlertDialog(
+            title: const Text('Mark Payment'),
+            scrollable: true,
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            content: StatefulBuilder(
+              builder: (context, setDialogState) => ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.75,
+                  minWidth: constraints.maxWidth * 0.6,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Form(
+                    key: _paymentFormKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Payment type selection
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => setDialogState(() {
+                                  _selectedPaymentTypeForDialog = 'monthly';
+                                }),
+                                style: _selectedPaymentTypeForDialog ==
+                                        'monthly'
+                                    ? OutlinedButton.styleFrom(
+                                        backgroundColor: Colors.blue.shade100)
+                                    : null,
+                                child: const Text('Monthly Payment'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => setDialogState(() {
+                                  _selectedPaymentTypeForDialog = 'daily';
+                                }),
+                                style: _selectedPaymentTypeForDialog == 'daily'
+                                    ? OutlinedButton.styleFrom(
+                                        backgroundColor: Colors.green.shade100)
+                                    : null,
+                                child: const Text('Daily Payment'),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Dynamic form based on payment type selection
+                        if (_selectedPaymentTypeForDialog == 'monthly') ...[
+                          DropdownButtonFormField<String>(
+                            value: _selectedMonth,
+                            hint: const Text('Select Month'),
+                            items: _months
+                                .map((month) => DropdownMenuItem(
+                                      value: month,
+                                      child: Text(month),
+                                    ))
+                                .toList(),
+                            onChanged: (month) =>
+                                setDialogState(() => _selectedMonth = month),
+                            validator: (value) =>
+                                value == null ? 'Please select month' : null,
+                          ),
+                        ] else if (_selectedPaymentTypeForDialog ==
+                            'daily') ...[
+                          InkWell(
+                            onTap: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime.now()
+                                    .subtract(const Duration(days: 30)),
+                                lastDate: DateTime.now(),
+                              );
+                              if (date != null) {
+                                setDialogState(() => _selectedDate = date);
+                              }
+                            },
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Select Date',
+                                suffixIcon: Icon(Icons.calendar_today),
+                              ),
+                              child: Text(
+                                _selectedDate != null
+                                    ? DateFormat('dd/MM/yyyy')
+                                        .format(_selectedDate!)
+                                    : 'Choose date',
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 16),
+
+                        // Subject Selection (Multi-select)
+                        if (_foundStudent != null) ...[
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Select Subjects:',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: _foundStudent!.subjects
+                                    .map((subject) => FilterChip(
+                                          label: Text(subject),
+                                          selected: _selectedSubjects
+                                              .contains(subject),
+                                          onSelected: (selected) {
+                                            setDialogState(() {
+                                              if (selected) {
+                                                _selectedSubjects.add(subject);
+                                              } else {
+                                                _selectedSubjects
+                                                    .remove(subject);
+                                              }
+                                            });
+                                          },
+                                        ))
+                                    .toList(),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // Amount input
+                        TextFormField(
+                          controller: _amountController,
+                          decoration: const InputDecoration(
+                            labelText: 'Enter Amount',
+                            prefixIcon: Icon(Icons.money),
+                            helperText:
+                                'Enter the fee amount for selected subjects',
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          validator: (value) {
+                            if (value == null || value.isEmpty)
+                              return 'Please enter amount';
+                            final parsed = double.tryParse(value);
+                            if (parsed == null) return 'Invalid amount';
+                            if (parsed <= 0) return 'Amount must be positive';
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Description (optional)
+                        TextFormField(
+                          controller: _descriptionController,
+                          decoration: const InputDecoration(
+                            labelText: 'Description (Optional)',
+                            hintText:
+                                'e.g., Monthly tuition fee, Special class fee',
+                          ),
+                          maxLines: 2,
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Row with primary actions
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  if (!_validateAndWarn()) return;
+                                  _markPaymentAsPaid();
+                                },
+                                child: const Text('Mark Payment'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  if (!_validateAndWarn()) return;
+                                  // Directly mark as PENDING without opening a new dialog
+                                  _markPaymentAsPending();
+                                },
+                                child: const Text('Mark as Pending'),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Full-width cancel button below
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              // Reset dialog state
+                              _selectedPaymentTypeForDialog = null;
+                              _selectedMonth = null;
+                              _selectedDate = null;
+                              _selectedSubjects.clear();
+                              _amountController.clear();
+                              _descriptionController.clear();
+                              Navigator.pop(dialogCtx);
+                            },
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Actions moved into content to control layout (row + full-width cancel)
+          );
+        });
+      },
+    );
+  }
+
+  // ✅ NEW: Show mark pending dialog
+  void _showMarkPendingDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Mark as Pending"),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => Form(
+            key: _pendingFormKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Show existing pending payments for reference
+                if (_existingPendingPayments.isNotEmpty) ...[
+                  Text("Existing Pending Payments:",
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  SizedBox(height: 8),
+                  Container(
+                    height: 150,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: _existingPendingPayments
+                            .map((payment) => ListTile(
+                                  dense: true,
+                                  title: Text(
+                                      "${payment.paymentType.toUpperCase()} - ${payment.period}"),
+                                  subtitle: Text(
+                                      "${payment.subjects.join(', ')} - Rs. ${payment.amount}"),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                  Divider(),
+                ],
+
+                // Option to create new pending payment
+                Text("Create new pending payment:",
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                SizedBox(height: 8),
+
+                // Same form as Mark Payment but for pending status
+                // Payment type selection
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setDialogState(() {
+                          _selectedPaymentTypeForDialog = "monthly";
+                        }),
+                        style: _selectedPaymentTypeForDialog == "monthly"
+                            ? OutlinedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade100)
+                            : null,
+                        child: Text("Monthly"),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setDialogState(() {
+                          _selectedPaymentTypeForDialog = "daily";
+                        }),
+                        style: _selectedPaymentTypeForDialog == "daily"
+                            ? OutlinedButton.styleFrom(
+                                backgroundColor: Colors.green.shade100)
+                            : null,
+                        child: Text("Daily"),
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 12),
+
+                // Period selection
+                if (_selectedPaymentTypeForDialog == "monthly") ...[
+                  DropdownButtonFormField<String>(
+                    value: _selectedMonth,
+                    hint: Text("Select Month"),
+                    items: _months
+                        .map((month) => DropdownMenuItem(
+                              value: month,
+                              child: Text(month),
+                            ))
+                        .toList(),
+                    onChanged: (month) =>
+                        setDialogState(() => _selectedMonth = month),
+                  ),
+                ] else if (_selectedPaymentTypeForDialog == "daily") ...[
+                  InkWell(
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime.now().subtract(Duration(days: 30)),
+                        lastDate: DateTime.now(),
+                      );
+                      if (date != null) {
+                        setDialogState(() => _selectedDate = date);
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: "Select Date",
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(_selectedDate != null
+                          ? DateFormat('dd/MM/yyyy').format(_selectedDate!)
+                          : "Choose date"),
+                    ),
+                  ),
+                ],
+
+                SizedBox(height: 12),
+
+                // Amount input
+                TextFormField(
+                  controller: _amountController,
+                  decoration: InputDecoration(
+                    labelText: "Enter Amount",
+                    prefixIcon: Icon(Icons.currency_rupee),
+                  ),
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                ),
+
+                SizedBox(height: 12),
+
+                // Reason for pending
+                TextFormField(
+                  controller: _pendingReasonController,
+                  decoration: InputDecoration(
+                    labelText: "Reason for Pending Status",
+                    hintText: "e.g., Partial payment received, Family issue",
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // Reset dialog state
+              _selectedPaymentTypeForDialog = null;
+              _selectedMonth = null;
+              _selectedDate = null;
+              _selectedSubjects.clear();
+              _amountController.clear();
+              _pendingReasonController.clear();
+              Navigator.pop(context);
+            },
+            child: Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => _markPaymentAsPending(),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: Text("Mark as PENDING"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Mark payment as PAID with dynamic amount
+  Future<void> _markPaymentAsPaid() async {
+    if (_foundStudent == null ||
+        _selectedPaymentTypeForDialog == null ||
+        !_paymentFormKey.currentState!.validate() ||
+        _selectedSubjects.isEmpty) {
+      _showStatusMessage('Please fill all required fields and select subjects',
+          isError: true);
+      return;
+    }
+
+    Navigator.pop(context); // Close dialog
+    setState(() => _isLoading = true);
+
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid == null) throw Exception("Admin not logged in.");
+
+      final amount = double.parse(_amountController.text.trim());
+      final now = DateTime.now();
+      final feesRef = _firestore
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .doc(_foundStudent!.id)
+          .collection('fees');
+
+      // Create payment record
+      final paymentData = {
+        'paymentType': _selectedPaymentTypeForDialog,
+        'year': _selectedPaymentTypeForDialog == 'monthly'
+            ? now.year
+            : _selectedDate!.year,
+        'subjects': _selectedSubjects,
+        'amount': amount,
+        'status': 'PAID', // ✅ NEW STATUS FIELD
+        'paidAt': Timestamp.now(),
+        'paymentMethod': 'Manual/QR',
+        'markedBy': adminUid,
+        'description': _descriptionController.text.isNotEmpty
+            ? _descriptionController.text
+            : _generateDescription(_selectedPaymentTypeForDialog!,
+                _selectedMonth, _selectedDate, _selectedSubjects),
+      };
+
+      // Add payment type specific fields
+      if (_selectedPaymentTypeForDialog == 'monthly' &&
+          _selectedMonth != null) {
+        final monthIndex = _months.indexOf(_selectedMonth!) + 1;
+        paymentData['month'] = monthIndex;
+      } else if (_selectedPaymentTypeForDialog == 'daily' &&
+          _selectedDate != null) {
+        paymentData['date'] = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      }
+
+      await feesRef.add(paymentData);
+
+      // Send WhatsApp notification using new status system
+      final whatsappSent = await WhatsAppService.sendPaymentStatusNotification(
+        studentName: _foundStudent!.name,
+        parentName: _foundStudent!.parentName,
+        parentPhone: _foundStudent!.whatsappNumber,
+        paymentType: _selectedPaymentTypeForDialog!,
+        status: 'PAID',
+        amount: amount,
+        period: _selectedPaymentTypeForDialog == 'monthly'
+            ? '$_selectedMonth ${now.year}'
+            : DateFormat('dd/MM/yyyy').format(_selectedDate!),
+        subjects: _selectedSubjects,
+        schoolName: _academyName ?? 'EduTrack Academy',
+        isNonePayee: _foundStudent!.isNonePayee,
+      );
+
+      if (whatsappSent) {
+        _showStatusMessage('Payment marked as PAID & WhatsApp sent! 💰📱✅',
+            isError: false);
+      } else {
+        _showStatusMessage(
+            'Payment marked as PAID but WhatsApp notification failed.',
+            isError: true);
+      }
+
+      // Refresh pending payments
+      await _fetchExistingPendingPayments();
+
+      // Clear form
+      _selectedPaymentTypeForDialog = null;
+      _selectedMonth = null;
+      _selectedDate = null;
+      _selectedSubjects.clear();
+      _amountController.clear();
+      _descriptionController.clear();
+    } catch (e) {
+      print("Error marking payment as PAID: $e");
+      _showStatusMessage('Failed to mark payment as PAID: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ✅ NEW: Mark payment as PENDING with dynamic amount
+  Future<void> _markPaymentAsPending() async {
+    if (_foundStudent == null ||
+        _selectedPaymentTypeForDialog == null ||
+        _amountController.text.isEmpty) {
+      _showStatusMessage('Please fill all required fields', isError: true);
+      return;
+    }
+
+    Navigator.pop(context); // Close dialog
+    setState(() => _isLoading = true);
+
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid == null) throw Exception("Admin not logged in.");
+
+      final amount = double.parse(_amountController.text.trim());
+      final now = DateTime.now();
+      final feesRef = _firestore
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .doc(_foundStudent!.id)
+          .collection('fees');
+
+      // Create pending payment record
+      final paymentData = {
+        'paymentType': _selectedPaymentTypeForDialog,
+        'year': _selectedPaymentTypeForDialog == 'monthly'
+            ? now.year
+            : _selectedDate!.year,
+        'subjects': _selectedSubjects.isEmpty
+            ? _foundStudent!.subjects
+            : _selectedSubjects,
+        'amount': amount,
+        'pendingAmount': amount,
+        'status': 'PENDING', // ✅ PENDING STATUS
+        'pendingAt': Timestamp.now(),
+        'paymentMethod': 'Manual/QR',
+        'markedBy': adminUid,
+        'description': _generateDescription(
+            _selectedPaymentTypeForDialog!,
+            _selectedMonth,
+            _selectedDate,
+            _selectedSubjects.isEmpty
+                ? _foundStudent!.subjects
+                : _selectedSubjects),
+        'pendingReason': _pendingReasonController.text.isNotEmpty
+            ? _pendingReasonController.text
+            : 'Marked pending via QR dialog',
+      };
+
+      // Add payment type specific fields
+      if (_selectedPaymentTypeForDialog == 'monthly' &&
+          _selectedMonth != null) {
+        final monthIndex = _months.indexOf(_selectedMonth!) + 1;
+        paymentData['month'] = monthIndex;
+      } else if (_selectedPaymentTypeForDialog == 'daily' &&
+          _selectedDate != null) {
+        paymentData['date'] = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      }
+
+      await feesRef.add(paymentData);
+
+      // Send WhatsApp notification for pending payment
+      final whatsappSent = await WhatsAppService.sendPaymentStatusNotification(
+        studentName: _foundStudent!.name,
+        parentName: _foundStudent!.parentName,
+        parentPhone: _foundStudent!.whatsappNumber,
+        paymentType: _selectedPaymentTypeForDialog!,
+        status: 'PENDING',
+        amount: amount,
+        pendingAmount: amount,
+        period: _selectedPaymentTypeForDialog == 'monthly'
+            ? '$_selectedMonth ${now.year}'
+            : DateFormat('dd/MM/yyyy').format(_selectedDate!),
+        subjects: _selectedSubjects.isEmpty
+            ? _foundStudent!.subjects
+            : _selectedSubjects,
+        schoolName: _academyName ?? 'EduTrack Academy',
+        isNonePayee: _foundStudent!.isNonePayee,
+      );
+
+      if (whatsappSent) {
+        _showStatusMessage('Payment marked as PENDING & WhatsApp sent! ⏳📱✅',
+            isError: false);
+      } else {
+        _showStatusMessage(
+            'Payment marked as PENDING but WhatsApp notification failed.',
+            isError: true);
+      }
+
+      // Refresh pending payments
+      await _fetchExistingPendingPayments();
+
+      // Clear form
+      _selectedPaymentTypeForDialog = null;
+      _selectedMonth = null;
+      _selectedDate = null;
+      _selectedSubjects.clear();
+      _amountController.clear();
+      _pendingReasonController.clear();
+    } catch (e) {
+      print("Error marking payment as PENDING: $e");
+      _showStatusMessage('Failed to mark payment as PENDING: $e',
+          isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ✅ NEW: Generate description for payment
+  String _generateDescription(String paymentType, String? month, DateTime? date,
+      List<String> subjects) {
+    if (paymentType == 'monthly') {
+      return 'Monthly fee for ${subjects.join(", ")} - $month ${DateTime.now().year}';
+    } else {
+      final dateString =
+          date != null ? DateFormat('dd/MM/yyyy').format(date) : 'Unknown date';
+      return 'Daily class fee for ${subjects.join(", ")} - $dateString';
+    }
   }
 }
 

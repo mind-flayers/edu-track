@@ -130,6 +130,67 @@ class WhatsAppService {
         });
   }
 
+  /// ✅ NEW: Send payment status notification (PAID/PENDING/None Payee)
+  static Future<bool> sendPaymentStatusNotification({
+    required String studentName,
+    required String parentName,
+    required String parentPhone,
+    required String paymentType,
+    required String status, // "PAID" or "PENDING"
+    required double amount,
+    double? pendingAmount,
+    required String period,
+    required List<String> subjects,
+    required String schoolName,
+    required bool isNonePayee,
+  }) async {
+    String message;
+
+    if (isNonePayee) {
+      message = _formatNonePayeeNotification(
+        studentName: studentName,
+        parentName: parentName,
+        period: period,
+        subjects: subjects,
+        schoolName: schoolName,
+      );
+    } else if (status == 'PAID') {
+      message = _formatPaidNotification(
+        studentName: studentName,
+        parentName: parentName,
+        paymentType: paymentType,
+        amount: amount,
+        period: period,
+        subjects: subjects,
+        schoolName: schoolName,
+      );
+    } else {
+      // PENDING
+      message = _formatPendingNotification(
+        studentName: studentName,
+        parentName: parentName,
+        paymentType: paymentType,
+        pendingAmount: pendingAmount ?? amount,
+        totalAmount: amount,
+        period: period,
+        subjects: subjects,
+        schoolName: schoolName,
+      );
+    }
+
+    return await _queueMessageViaFirebase(
+        phoneNumber: parentPhone,
+        message: message,
+        type: 'payment_status',
+        metadata: {
+          'studentName': studentName,
+          'status': status,
+          'paymentType': paymentType,
+          'amount': amount,
+          'isNonePayee': isNonePayee,
+        });
+  }
+
   /// Smart Firebase-based message queuing (always works)
   static Future<bool> _queueMessageViaFirebase({
     required String phoneNumber,
@@ -400,6 +461,97 @@ Date:* $formattedDate
 *Paid on:* ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}
 
 Thank you for your payment! 🙏
+
+Best regards,
+*$schoolName*
+_Powered by EduTrack_''';
+  }
+
+  /// ✅ NEW: Format PAID status notification message
+  static String _formatPaidNotification({
+    required String studentName,
+    required String parentName,
+    required String paymentType,
+    required double amount,
+    required String period,
+    required List<String> subjects,
+    required String schoolName,
+  }) {
+    final formattedAmount = amount.toStringAsFixed(2);
+    final receiptNo =
+        'EDU${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+
+    return '''✅ *Payment Received - PAID*
+
+Dear Mr/Mrs $parentName,
+
+Payment successfully received for *$studentName*.
+
+*Type:* ${paymentType.toUpperCase()}
+*Period:* $period
+*Subjects:* ${subjects.join(', ')}
+*Amount:* Rs. $formattedAmount
+*Status:* PAID ✅
+*Receipt #:* ```$receiptNo```
+
+Thank you for your payment! 🙏
+
+Best regards,
+$schoolName
+_Powered by EduTrack_''';
+  }
+
+  /// ✅ NEW: Format PENDING status notification message
+  static String _formatPendingNotification({
+    required String studentName,
+    required String parentName,
+    required String paymentType,
+    required double pendingAmount,
+    required double totalAmount,
+    required String period,
+    required List<String> subjects,
+    required String schoolName,
+  }) {
+    return '''⏳ *Payment Status - PENDING*
+
+Dear Mr/Mrs $parentName,
+
+Payment status updated for *$studentName*.
+
+*Type:* ${paymentType.toUpperCase()}
+*Period:* $period
+*Subjects:* ${subjects.join(', ')}
+*Pending Amount:* Rs. ${pendingAmount.toStringAsFixed(2)}
+*Total Amount:* Rs. ${totalAmount.toStringAsFixed(2)}
+*Status:* PENDING ⏳
+
+Please complete the remaining payment at your earliest convenience.
+
+Best regards,
+$schoolName
+_Powered by EduTrack_''';
+  }
+
+  /// ✅ NEW: Format none payee notification message
+  static String _formatNonePayeeNotification({
+    required String studentName,
+    required String parentName,
+    required String period,
+    required List<String> subjects,
+    required String schoolName,
+  }) {
+    return '''💝 *Free Education Confirmation*
+
+Dear $parentName,
+
+This is to confirm that *$studentName* marked as paid for class today.
+
+*Type:* FREE STUDENT 🆓
+*Period:* $period
+*Subjects:* ${subjects.join(', ')}
+*Status:* PAID ✅
+
+🎓 _We're proud to support your child's education!_
 
 Best regards,
 *$schoolName*

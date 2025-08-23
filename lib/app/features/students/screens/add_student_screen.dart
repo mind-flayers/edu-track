@@ -38,7 +38,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   final _phoneController = TextEditingController();
   final _whatsappController = TextEditingController();
   final _addressController = TextEditingController();
-  final _sectionController = TextEditingController();
+  final _sectionController =
+      TextEditingController(); // legacy (not used after dropdown)
+  final List<String> _sectionOptions = const ['A', 'B', 'C', 'D', 'E', 'F'];
+  String? _selectedSection;
 
   String? _selectedClass;
   String? _selectedSex;
@@ -58,19 +61,25 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   final Set<String> _selectedSubjects = <String>{};
   bool _subjectsLoading = false;
   final List<String> _sexOptions = ['Male', 'Female', 'Other'];
+  // Fee exemption flag
+  bool _isNonePayee = false;
 
   // Cloudinary details (Using unsigned preset)
   final String _cloudinaryCloudName = 'duckxlzaj';
   final String _cloudinaryUploadPreset = 'student_id_photo';
+  // WhatsApp same as parent
+  bool _waSameAsParent = false;
 
   @override
   void initState() {
     super.initState();
     _fetchAvailableClasses();
+    // Preload official subjects so the list appears even before class selection
+    _fetchAvailableSubjectsForClass(null);
   }
 
-  // Fetch available subjects for a given class by combining teachers' subjects
-  // and examTerms subjects under the current admin. Keeps results unique.
+  // Fetch available subjects prioritizing the official academySettings list.
+  // Fallback: combine teachers' subjects and examTerms subjects.
   Future<void> _fetchAvailableSubjectsForClass(String? className) async {
     setState(() {
       _subjectsLoading = true;
@@ -79,7 +88,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     });
 
     final String? adminUid = AuthController.instance.user?.uid;
-    if (adminUid == null || className == null) {
+    if (adminUid == null) {
       if (mounted) {
         setState(() {
           _subjectsLoading = false;
@@ -92,31 +101,52 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       final adminRef =
           FirebaseFirestore.instance.collection('admins').doc(adminUid);
 
-      // 1) From teachers: get subjects for teachers assigned to this class
-      final teacherQuery = await adminRef
-          .collection('teachers')
-          .where('classAssigned', arrayContains: className)
-          .get();
-      final subjectsFromTeachers = teacherQuery.docs
-          .map((d) => (d.data()['subject'] as String?))
-          .whereType<String>()
-          .toSet();
-
-      // 2) From examTerms: collect all subject arrays and include any that match
-      final examTermsSnapshot = await adminRef.collection('examTerms').get();
-      final subjectsFromTerms = <String>{};
-      for (var doc in examTermsSnapshot.docs) {
-        final data = doc.data();
-        if (data.containsKey('subjects') && data['subjects'] is List) {
-          for (var s in List.from(data['subjects'])) {
-            if (s is String && s.isNotEmpty) subjectsFromTerms.add(s);
+      // 0) Preferred: Official subjects list from academySettings/subjects
+      final subjectsDoc =
+          await adminRef.collection('academySettings').doc('subjects').get();
+      final Set<String> official = <String>{};
+      if (subjectsDoc.exists) {
+        final data = subjectsDoc.data() as Map<String, dynamic>;
+        final list = data['subjects'];
+        if (list is List) {
+          for (var s in list) {
+            if (s is String && s.trim().isNotEmpty) official.add(s.trim());
           }
         }
       }
 
-      // Combine and sort
-      final combined = {...subjectsFromTeachers, ...subjectsFromTerms}.toList();
-      combined.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      Set<String> resultSubjects;
+      if (official.isNotEmpty) {
+        resultSubjects = official;
+      } else {
+        // Fallback
+        // Teachers (only if a class is specified)
+        final subjectsFromTeachers = <String>{};
+        if (className != null) {
+          final teacherQuery = await adminRef
+              .collection('teachers')
+              .where('classAssigned', arrayContains: className)
+              .get();
+          subjectsFromTeachers.addAll(teacherQuery.docs
+              .map((d) => (d.data()['subject'] as String?))
+              .whereType<String>());
+        }
+        // Exam terms (independent of class)
+        final examTermsSnapshot = await adminRef.collection('examTerms').get();
+        final subjectsFromTerms = <String>{};
+        for (var doc in examTermsSnapshot.docs) {
+          final data = doc.data();
+          if (data.containsKey('subjects') && data['subjects'] is List) {
+            for (var s in List.from(data['subjects'])) {
+              if (s is String && s.isNotEmpty) subjectsFromTerms.add(s);
+            }
+          }
+        }
+        resultSubjects = {...subjectsFromTeachers, ...subjectsFromTerms};
+      }
+
+      final combined = resultSubjects.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
       if (mounted) {
         setState(() {
@@ -303,8 +333,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       return;
     }
 
-    // If subjects are available for the selected class, require at least one selection
-    if (_availableSubjects.isNotEmpty && _selectedSubjects.isEmpty) {
+    // Require at least one subject when a class is selected (subjects list computed)
+    if ((_selectedClass != null) && _selectedSubjects.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
@@ -344,10 +374,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           .collection('admins')
           .doc(adminUid); // Reference to admin doc
       final currentYear = DateTime.now().year;
-      final studentSection = (_sectionController.text.trim().isEmpty
-              ? 'A'
-              : _sectionController.text.trim())
-          .toUpperCase();
+      final studentSection = (_selectedSection ?? 'A').toUpperCase();
 
       // Find the next row number for index generation within the admin's students
       final classSectionQuery = await adminRef
@@ -380,6 +407,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         'qrCodeData': studentId, // Use unique ID for QR
         'joinedAt': Timestamp.now(),
         'isActive': true, // Default to active
+        'isNonePayee': _isNonePayee,
         // Follow database_structure.md: key is 'Subjects' (capital S)
         'Subjects':
             _selectedSubjects.isNotEmpty ? _selectedSubjects.toList() : [],
@@ -406,12 +434,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           _selectedImage = null;
           _availableSubjects = [];
           _selectedSubjects.clear();
+          _isNonePayee = false;
           _nameController.clear();
           _parentNameController.clear();
           _phoneController.clear();
           _whatsappController.clear();
           _addressController.clear();
           _sectionController.clear();
+          _selectedSection = null;
+          _waSameAsParent = false;
         });
       }
     } catch (e) {
@@ -626,13 +657,14 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 validator: (value) =>
                     value == null ? 'Please select class' : null,
               ),
-              _buildTextField(
-                controller: _sectionController,
+              _buildDropdownField(
+                value: _selectedSection,
                 label: 'Section',
-                hint: 'Enter section (e.g., A, B) - optional',
-                icon: Icons.group_work_outlined,
-                // Section is optional; we'll default to 'A' when saving if empty
-                validator: (value) => null,
+                hint: 'Select Section',
+                items: _sectionOptions,
+                onChanged: (value) => setState(() => _selectedSection = value),
+                validator: (value) =>
+                    value == null ? 'Please select section' : null,
               ),
               _buildDateField(
                 context: context,
@@ -670,10 +702,33 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     ? 'Please enter phone number'
                     : null,
               ),
+              Row(
+                children: [
+                  Checkbox(
+                    value: _waSameAsParent,
+                    onChanged: (val) {
+                      setState(() {
+                        _waSameAsParent = val ?? false;
+                        if (_waSameAsParent) {
+                          _whatsappController.text = _phoneController.text;
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('WhatsApp same as parent phone',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                  )
+                ],
+              ),
               _buildTextField(
                 controller: _whatsappController,
                 label: 'Whatsapp Number',
-                hint: 'Enter parent whatsapp number',
+                hint: 'Enter whatsapp number',
                 icon: Icons.message_outlined,
                 keyboardType: TextInputType.phone,
               ),
@@ -683,6 +738,29 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 hint: 'Enter student address',
                 icon: Icons.location_on_outlined,
                 maxLines: 3,
+              ),
+
+              // None-payee toggle
+              Padding(
+                padding: const EdgeInsets.only(bottom: kDefaultPadding),
+                child: Row(
+                  children: [
+                    Switch(
+                      value: _isNonePayee,
+                      onChanged: (val) => setState(() => _isNonePayee = val),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Exempt from fees (None-payee)',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(height: kDefaultPadding / 2),
