@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminProfile } from '@/types';
 import Link from 'next/link';
-import { uploadToCloudinary } from '@/lib/image-utils';
 
 const DEFAULT_SUBJECTS = [
   'Mathematics',
@@ -98,13 +97,13 @@ export default function AddStudentPage() {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file');
+      setError('Please upload an image file');
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size should be less than 5MB');
+      setError('Image size should be less than 5MB');
       return;
     }
 
@@ -112,12 +111,36 @@ export default function AddStudentPage() {
     setError('');
 
     try {
-      const blob = new Blob([file], { type: file.type });
-      const cloudinaryUrl = await uploadToCloudinary(blob, file.name);
+      // Use Cloudinary client-side upload
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+      if (!cloudName || !uploadPreset) {
+        throw new Error('Cloudinary configuration missing');
+      }
+
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+      formDataUpload.append('upload_preset', uploadPreset);
+      formDataUpload.append('folder', 'profiles/students');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: formDataUpload,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
       
       setFormData({
         ...formData,
-        photoUrl: cloudinaryUrl,
+        photoUrl: data.secure_url,
       });
     } catch (err: any) {
       setError('Failed to upload photo: ' + err.message);
