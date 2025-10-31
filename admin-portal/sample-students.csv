@@ -1,0 +1,5 @@
+name,class,section,subjects,dob,sex,parentName,parentPhone,whatsappNumber,address,photoUrl,isNonePayee
+John Doe,Grade 10,A,"Mathematics,Science,English,ICT",2008-05-15,Male,Mr. John Doe Sr,0771234567,0771234567,123 Main Street Colombo,https://drive.google.com/file/d/YOUR_FILE_ID/view,false
+Jane Smith,Grade 11,B,"English,History,Commerce,Tamil",2007-03-20,Female,Mrs. Mary Smith,0779876543,0779876543,456 Oak Avenue Kandy,,true
+Ahmed Khan,Grade 9,A,"Mathematics,Science,English,ICT,Sinhala",2009-08-10,Male,Mr. Khan,0772345678,0772345678,789 Beach Road Galle,,false
+Priya Fernando,Grade 10,B,"Mathematics,English,Commerce,Science",2008-11-25,Female,Mr. Fernando,0765432109,0765432109,321 Hill Street Nuwara Eliya,,false
