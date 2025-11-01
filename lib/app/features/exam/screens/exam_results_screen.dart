@@ -216,6 +216,307 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
     });
   }
 
+  Future<void> _showCreateTermDialog() async {
+    final nameController = TextEditingController();
+    DateTime? startDate;
+    DateTime? endDate;
+    final List<String> allSubjects = [
+      'Mathematics',
+      'Science',
+      'English',
+      'History',
+      'ICT',
+      'Tamil',
+      'Sinhala',
+      'Commerce'
+    ];
+    final Set<String> selectedSubjects = {};
+    final formKey = GlobalKey<FormState>();
+
+    // Try to fetch subjects from academy settings
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid != null) {
+        final subjectsDoc = await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(adminUid)
+            .collection('academySettings')
+            .doc('subjects')
+            .get();
+        if (subjectsDoc.exists) {
+          final data = subjectsDoc.data();
+          if (data != null && data.containsKey('subjects')) {
+            final List<dynamic> subjectsData =
+                data['subjects'] as List<dynamic>;
+            allSubjects.clear();
+            allSubjects.addAll(subjectsData.map((s) => s.toString()).toList());
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching academy subjects: $e');
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kDefaultRadius),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.event_note, color: kPrimaryColor, size: 24),
+                  const SizedBox(width: kDefaultPadding * 0.5),
+                  const Text('Create Exam Term'),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Term Name
+                      TextFormField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Term Name *',
+                          hintText: 'e.g., First Term - 2025',
+                          prefixIcon: Icon(Icons.edit),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter term name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: kDefaultPadding),
+
+                      // Start Date
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2030),
+                          );
+                          if (picked != null) {
+                            setDialogState(() {
+                              startDate = picked;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Start Date *',
+                            prefixIcon: Icon(Icons.calendar_today),
+                          ),
+                          child: Text(
+                            startDate != null
+                                ? '${startDate!.day}/${startDate!.month}/${startDate!.year}'
+                                : 'Select start date',
+                            style: TextStyle(
+                              color: startDate != null
+                                  ? Colors.black
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: kDefaultPadding),
+
+                      // End Date
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: startDate ?? DateTime.now(),
+                            firstDate: startDate ?? DateTime(2020),
+                            lastDate: DateTime(2030),
+                          );
+                          if (picked != null) {
+                            setDialogState(() {
+                              endDate = picked;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'End Date *',
+                            prefixIcon: Icon(Icons.calendar_today),
+                          ),
+                          child: Text(
+                            endDate != null
+                                ? '${endDate!.day}/${endDate!.month}/${endDate!.year}'
+                                : 'Select end date',
+                            style: TextStyle(
+                              color:
+                                  endDate != null ? Colors.black : Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: kDefaultPadding),
+
+                      // Subjects Selection Header
+                      const Text(
+                        'Select Subjects *',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: kDefaultPadding * 0.5),
+
+                      // Subjects List with Fixed Height
+                      Flexible(
+                        child: Container(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(kDefaultRadius),
+                          ),
+                          child: ListView(
+                            shrinkWrap: true,
+                            children: allSubjects.map((subject) {
+                              return CheckboxListTile(
+                                title: Text(subject),
+                                value: selectedSubjects.contains(subject),
+                                onChanged: (bool? value) {
+                                  setDialogState(() {
+                                    if (value == true) {
+                                      selectedSubjects.add(subject);
+                                    } else {
+                                      selectedSubjects.remove(subject);
+                                    }
+                                  });
+                                },
+                                dense: true,
+                                activeColor: kPrimaryColor,
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: kDefaultPadding * 0.5),
+                      Text(
+                        '${selectedSubjects.length} subjects selected',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: selectedSubjects.isEmpty
+                              ? kErrorColor
+                              : kPrimaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (formKey.currentState!.validate()) {
+                      if (startDate == null) {
+                        _showSnackbar('Please select start date',
+                            isError: true);
+                        return;
+                      }
+                      if (endDate == null) {
+                        _showSnackbar('Please select end date', isError: true);
+                        return;
+                      }
+                      if (startDate!.isAfter(endDate!)) {
+                        _showSnackbar('Start date must be before end date',
+                            isError: true);
+                        return;
+                      }
+                      if (selectedSubjects.isEmpty) {
+                        _showSnackbar('Please select at least one subject',
+                            isError: true);
+                        return;
+                      }
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Create'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == true) {
+      await _createExamTerm(
+        nameController.text.trim(),
+        startDate!,
+        endDate!,
+        selectedSubjects.toList(),
+      );
+    }
+  }
+
+  Future<void> _createExamTerm(
+    String name,
+    DateTime startDate,
+    DateTime endDate,
+    List<String> subjects,
+  ) async {
+    final String? adminUid = AuthController.instance.user?.uid;
+    if (adminUid == null) {
+      _showSnackbar('Error: Could not verify admin.', isError: true);
+      return;
+    }
+
+    setState(() => _isLoadingTerms = true);
+
+    try {
+      final docRef = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(adminUid)
+          .collection('examTerms')
+          .add({
+        'name': name,
+        'startDate': Timestamp.fromDate(startDate),
+        'endDate': Timestamp.fromDate(endDate),
+        'subjects': subjects,
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': adminUid,
+      });
+
+      _showSnackbar('Exam term created successfully!', isError: false);
+
+      // Refresh terms list
+      await _fetchTerms();
+
+      // Auto-select the newly created term
+      final newTerm = _availableTerms.firstWhere(
+        (term) => term.id == docRef.id,
+        orElse: () => _availableTerms.last,
+      );
+      _onTermSelected(newTerm);
+    } catch (e) {
+      print('Error creating exam term: $e');
+      _showSnackbar('Error creating exam term: $e', isError: true);
+    } finally {
+      setState(() => _isLoadingTerms = false);
+    }
+  }
+
   void _onSubjectSelected(String? subject) {
     if (subject == null || subject == _selectedSubject) return;
     setState(() {
@@ -912,24 +1213,44 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2)))
-                      : DropdownButtonHideUnderline(
-                          child: DropdownButton<_ExamTerm>(
-                            value: _selectedTerm,
-                            isExpanded: true,
-                            hint: Text('Select Term',
-                                style: textTheme.bodyMedium
-                                    ?.copyWith(color: kLightTextColor)),
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                                color: kPrimaryColor),
-                            items: _availableTerms
-                                .map((term) => DropdownMenuItem(
-                                    value: term,
-                                    child: Text(term.name,
-                                        style: textTheme.bodyMedium)))
-                                .toList(),
-                            onChanged: _isLoadingTerms ? null : _onTermSelected,
-                            dropdownColor: kSecondaryColor,
-                          ),
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<_ExamTerm>(
+                                  value: _selectedTerm,
+                                  isExpanded: true,
+                                  hint: Text('Select Term',
+                                      style: textTheme.bodyMedium
+                                          ?.copyWith(color: kLightTextColor)),
+                                  icon: const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: kPrimaryColor),
+                                  items: _availableTerms
+                                      .map((term) => DropdownMenuItem(
+                                          value: term,
+                                          child: Text(term.name,
+                                              style: textTheme.bodyMedium)))
+                                      .toList(),
+                                  onChanged:
+                                      _isLoadingTerms ? null : _onTermSelected,
+                                  dropdownColor: kSecondaryColor,
+                                ),
+                              ),
+                            ),
+                            // Create New Term Button
+                            IconButton(
+                              icon: Icon(Icons.add_circle_outline,
+                                  color: kPrimaryColor, size: 20),
+                              tooltip: 'Create New Term',
+                              onPressed: _isLoadingTerms
+                                  ? null
+                                  : _showCreateTermDialog,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 32, minHeight: 32),
+                            ),
+                          ],
                         ),
                 ),
               ),

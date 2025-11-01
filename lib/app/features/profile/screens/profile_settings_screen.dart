@@ -204,61 +204,57 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                         children: [
                           // --- Profile Picture ---
                           // --- Profile Picture ---
-                          Obx(() => Stack(
-                                // Use Obx for profilePhotoUrl
-                                alignment: Alignment.bottomRight,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 60,
-                                    backgroundColor:
-                                        kLightTextColor.withOpacity(0.2),
-                                    backgroundImage: controller
-                                                    .profilePhotoUrl.value !=
-                                                null &&
-                                            controller.profilePhotoUrl.value!
-                                                .isNotEmpty
-                                        ? NetworkImage(
-                                            controller.profilePhotoUrl.value!)
-                                        : null,
-                                    onBackgroundImageError:
-                                        (exception, stackTrace) {
-                                      print(
-                                          "Error loading profile image: $exception");
-                                      // Optionally show placeholder on error
-                                    },
-                                    child: controller.profilePhotoUrl.value ==
-                                                null ||
-                                            controller
-                                                .profilePhotoUrl.value!.isEmpty
-                                        ? Icon(Icons.person_rounded,
-                                            size: 60, color: kLightTextColor)
-                                        : null,
-                                  ),
-                                  if (controller
-                                      .isEditing.value) // Use controller state
-                                    Positioned(
-                                      right: 4,
-                                      bottom: 4,
-                                      child: Material(
-                                        color: kPrimaryColor,
-                                        shape: const CircleBorder(),
-                                        elevation: 2,
-                                        child: InkWell(
-                                          onTap: _pickImage,
-                                          customBorder: const CircleBorder(),
-                                          child: const Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: Icon(Icons.edit,
-                                                color: kSecondaryColor,
-                                                size: 20),
-                                          ),
+                          Obx(() {
+                            final hasPhoto = controller.profilePhotoUrl.value !=
+                                    null &&
+                                controller.profilePhotoUrl.value!.isNotEmpty;
+                            return Stack(
+                              // Use Obx for profilePhotoUrl
+                              alignment: Alignment.bottomRight,
+                              children: [
+                                hasPhoto
+                                    ? CircleAvatar(
+                                        radius: 60,
+                                        backgroundImage: NetworkImage(
+                                            controller.profilePhotoUrl.value!),
+                                        onBackgroundImageError:
+                                            (exception, stackTrace) {
+                                          print(
+                                              "Error loading profile image: $exception");
+                                        },
+                                      )
+                                    : CircleAvatar(
+                                        radius: 60,
+                                        backgroundColor:
+                                            kLightTextColor.withOpacity(0.2),
+                                        child: Icon(Icons.person_rounded,
+                                            size: 60, color: kLightTextColor),
+                                      ),
+                                if (controller
+                                    .isEditing.value) // Use controller state
+                                  Positioned(
+                                    right: 4,
+                                    bottom: 4,
+                                    child: Material(
+                                      color: kPrimaryColor,
+                                      shape: const CircleBorder(),
+                                      elevation: 2,
+                                      child: InkWell(
+                                        onTap: _pickImage,
+                                        customBorder: const CircleBorder(),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(Icons.edit,
+                                              color: kSecondaryColor, size: 20),
                                         ),
                                       ),
-                                    )
-                                        .animate()
-                                        .scale(delay: 100.ms), // Add animation
-                                ],
-                              )),
+                                    ),
+                                  )
+                                      .animate()
+                                      .scale(delay: 100.ms), // Add animation
+                              ],
+                            );
+                          }),
                           const SizedBox(height: kDefaultPadding * 2),
 
                           // --- User Details Section ---
