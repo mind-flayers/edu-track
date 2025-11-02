@@ -28,6 +28,7 @@ class Student {
   final List<String> subjects; // Assuming 'SubjectsChoosed' is the field name
   final String qrCodeData;
   final bool isNonePayee; // ✅ NEW: None payee flag
+  final double? averageScoreValue; // ✅ NEW: Store calculated average score
 
   Student({
     required this.id,
@@ -44,6 +45,7 @@ class Student {
     required this.subjects,
     required this.qrCodeData,
     this.isNonePayee = false, // ✅ Default to false for backward compatibility
+    this.averageScoreValue, // ✅ NEW: Optional calculated average score
   });
 
   factory Student.fromFirestore(DocumentSnapshot doc) {
@@ -79,12 +81,41 @@ class Student {
       qrCodeData: data['qrCodeData'] ?? '',
       isNonePayee: data['isNonePayee'] ??
           false, // ✅ Handle isNonePayee field with backward compatibility
+      averageScoreValue:
+          null, // ✅ Will be calculated after fetching exam results
     );
   }
 
-  // Calculate average score - Placeholder, implement actual logic if needed
-  String get averageScore => '80%'; // Placeholder
+  // ✅ FIXED: Calculate average score based on actual exam results data
+  String get averageScore {
+    if (averageScoreValue == null) {
+      return 'N/A'; // No exam results available
+    }
+    return '${averageScoreValue!.toStringAsFixed(1)}%';
+  }
+
   String get grade => className.split(' ').last; // Extract grade number
+
+  // ✅ NEW: Create a copy of the student with updated average score
+  Student copyWith({double? averageScoreValue}) {
+    return Student(
+      id: id,
+      name: name,
+      indexNumber: indexNumber,
+      className: className,
+      section: section,
+      parentName: parentName,
+      parentPhone: parentPhone,
+      whatsappNumber: whatsappNumber,
+      photoUrl: photoUrl,
+      sex: sex,
+      dob: dob,
+      subjects: subjects,
+      qrCodeData: qrCodeData,
+      isNonePayee: isNonePayee,
+      averageScoreValue: averageScoreValue ?? this.averageScoreValue,
+    );
+  }
 }
 
 // Enum to manage the different states of the screen
@@ -390,6 +421,9 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         });
         _showStatusMessage('Scanned Successfully!', isError: false);
 
+        // ✅ NEW: Fetch exam results and calculate average score
+        await _fetchAndCalculateAverageScore();
+
         // Fetch pending payments for this student
         await _fetchExistingPendingPayments();
       } else {
@@ -438,6 +472,9 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
           _currentScreenState = ScreenState.showStudentDetails;
         });
         _showStatusMessage('Index No Matched!', isError: false);
+
+        // ✅ NEW: Fetch exam results and calculate average score
+        await _fetchAndCalculateAverageScore();
 
         // Fetch pending payments for this student
         await _fetchExistingPendingPayments();
@@ -871,6 +908,63 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
             child: Text(s, style: const TextStyle(fontSize: 12)),
           ))
     ];
+  }
+
+  // ✅ NEW: Fetch and calculate average score from exam results
+  Future<void> _fetchAndCalculateAverageScore() async {
+    if (_foundStudent == null) return;
+
+    try {
+      final String? adminUid = AuthController.instance.user?.uid;
+      if (adminUid == null) {
+        print('Error: Admin not logged in');
+        return;
+      }
+
+      // Fetch all exam results for this student
+      final resultsSnapshot = await _firestore
+          .collection('admins')
+          .doc(adminUid)
+          .collection('students')
+          .doc(_foundStudent!.id)
+          .collection('examResults')
+          .get();
+
+      if (resultsSnapshot.docs.isEmpty) {
+        // No exam results found, keep averageScoreValue as null
+        print('No exam results found for student ${_foundStudent!.name}');
+        return;
+      }
+
+      // Calculate average percentage across all subjects
+      double totalPercentage = 0;
+      int validResultsCount = 0;
+
+      for (var doc in resultsSnapshot.docs) {
+        final data = doc.data();
+        final marks = (data['marks'] ?? 0).toDouble();
+        final maxMarks = (data['maxMarks'] ?? 100).toDouble();
+
+        if (maxMarks > 0) {
+          final percentage = (marks / maxMarks) * 100;
+          totalPercentage += percentage;
+          validResultsCount++;
+        }
+      }
+
+      if (validResultsCount > 0) {
+        final averageScore = totalPercentage / validResultsCount;
+        setState(() {
+          _foundStudent = _foundStudent!.copyWith(
+            averageScoreValue: averageScore,
+          );
+        });
+        print(
+            'Calculated average score for ${_foundStudent!.name}: ${averageScore.toStringAsFixed(1)}%');
+      }
+    } catch (e) {
+      print('Error calculating average score: $e');
+    }
   }
 
   // ✅ NEW: Navigate back to QR scanner

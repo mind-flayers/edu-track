@@ -18,6 +18,8 @@ export function generateIndexNumber(
 
 /**
  * Gets the next available row number for a class/section combination
+ * by finding the maximum existing row number and adding 1.
+ * This ensures index numbers are never reused, even after student deletions.
  */
 export async function getNextRowNumber(
   adminUid: string,
@@ -31,12 +33,48 @@ export async function getNextRowNumber(
     .doc(adminUid)
     .collection('students');
   
-  const snapshot = await studentsRef
-    .where('class', '==', className)
-    .where('section', '==', section)
-    .get();
-  
-  return snapshot.size + 1;
+  try {
+    // Query all students in the same class and section
+    const snapshot = await studentsRef
+      .where('class', '==', className)
+      .where('section', '==', section)
+      .get();
+    
+    if (snapshot.empty) {
+      return 1; // First student in this class/section
+    }
+    
+    // Extract row numbers from existing index numbers
+    let maxRowNumber = 0;
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const indexNumber = data.indexNumber as string | undefined;
+      
+      if (indexNumber && indexNumber.trim()) {
+        // Index format: MEC/25/10A/01
+        // Extract the last part (row number)
+        const parts = indexNumber.split('/');
+        if (parts.length === 4) {
+          const rowNumberStr = parts[3];
+          const rowNumber = parseInt(rowNumberStr, 10);
+          if (!isNaN(rowNumber) && rowNumber > maxRowNumber) {
+            maxRowNumber = rowNumber;
+          }
+        }
+      }
+    });
+    
+    return maxRowNumber + 1;
+  } catch (error) {
+    console.error('Error getting next row number:', error);
+    // Fallback to count-based approach if something goes wrong
+    const snapshot = await studentsRef
+      .where('class', '==', className)
+      .where('section', '==', section)
+      .get();
+    return snapshot.size + 1;
+  }
 }
 
 /**

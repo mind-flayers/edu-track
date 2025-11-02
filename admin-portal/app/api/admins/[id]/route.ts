@@ -5,10 +5,10 @@ import { AdminProfile, ApiResponse } from '@/types';
 // GET /api/admins/[id] - Get single admin
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const adminId = params.id;
+    const { id: adminId } = await params;
     const profileDoc = await adminDb
       .collection('admins')
       .doc(adminId)
@@ -56,10 +56,10 @@ export async function GET(
 // PATCH /api/admins/[id] - Update admin
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const adminId = params.id;
+    const { id: adminId } = await params;
     const body = await request.json();
     const { name, academyName, profilePhotoUrl, smsGatewayToken, whatsappGatewayToken } = body;
     
@@ -106,10 +106,10 @@ export async function PATCH(
 // DELETE /api/admins/[id] - Delete admin
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const adminId = params.id;
+    const { id: adminId } = await params;
     
     // Delete all subcollections (students, teachers, etc.)
     const adminRef = adminDb.collection('admins').doc(adminId);

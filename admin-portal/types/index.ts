@@ -61,6 +61,8 @@ export interface ApiResponse<T = any> {
 export interface ImportResult {
   success: number;
   failed: number;
+  skipped: number;
   errors: Array<{ row: number; error: string; data?: any }>;
   successfulStudents: Student[];
+  skippedDuplicates: Array<{ row: number; name: string; reason: string }>; // Now tracks duplicates that were given new index numbers
 }

@@ -187,16 +187,37 @@ export default function ImportStudentsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Import Results</h2>
             
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <p className="text-sm text-green-800 font-medium">Successful</p>
                 <p className="text-3xl font-bold text-green-900">{result.success}</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 font-medium">Duplicates</p>
+                <p className="text-3xl font-bold text-blue-900">{result.skippedDuplicates?.length || 0}</p>
               </div>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <p className="text-sm text-red-800 font-medium">Failed</p>
                 <p className="text-3xl font-bold text-red-900">{result.failed}</p>
               </div>
             </div>
+
+            {result.skippedDuplicates && result.skippedDuplicates.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Duplicate Students Handled</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  These students already exist in the database. They were imported with new unique index numbers.
+                </p>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {result.skippedDuplicates.map((duplicate, index) => (
+                    <div key={index} className="bg-blue-50 border border-blue-200 rounded p-3">
+                      <p className="text-sm font-medium text-blue-900">Row {duplicate.row}: {duplicate.name}</p>
+                      <p className="text-sm text-blue-700">{duplicate.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {result.errors.length > 0 && (
               <div>

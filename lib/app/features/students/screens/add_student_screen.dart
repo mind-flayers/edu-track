@@ -312,6 +312,59 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     }
   }
 
+  /// Gets the next available row number for a class/section combination
+  /// by finding the maximum existing row number and adding 1.
+  /// This ensures index numbers are never reused, even after student deletions.
+  Future<int> _getNextRowNumber(
+    DocumentReference adminRef,
+    String className,
+    String section,
+  ) async {
+    try {
+      // Query all students in the same class and section
+      final snapshot = await adminRef
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return 1; // First student in this class/section
+      }
+
+      // Extract row numbers from existing index numbers
+      int maxRowNumber = 0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final indexNumber = data['indexNumber'] as String?;
+
+        if (indexNumber != null && indexNumber.isNotEmpty) {
+          // Index format: MEC/25/10A/01
+          // Extract the last part (row number)
+          final parts = indexNumber.split('/');
+          if (parts.length == 4) {
+            final rowNumberStr = parts[3];
+            final rowNumber = int.tryParse(rowNumberStr);
+            if (rowNumber != null && rowNumber > maxRowNumber) {
+              maxRowNumber = rowNumber;
+            }
+          }
+        }
+      }
+
+      return maxRowNumber + 1;
+    } catch (e) {
+      print('Error getting next row number: $e');
+      // Fallback to count-based approach if something goes wrong
+      final snapshot = await adminRef
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .get();
+      return snapshot.docs.length + 1;
+    }
+  }
+
   Future<void> _addStudent() async {
     // Hide keyboard
     FocusScope.of(context).unfocus();
@@ -376,13 +429,13 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       final currentYear = DateTime.now().year;
       final studentSection = (_selectedSection ?? 'A').toUpperCase();
 
-      // Find the next row number for index generation within the admin's students
-      final classSectionQuery = await adminRef
-          .collection('students')
-          .where('class', isEqualTo: _selectedClass!)
-          .where('section', isEqualTo: studentSection)
-          .get();
-      final nextRowNumber = classSectionQuery.docs.length + 1;
+      // Find the next row number by examining existing index numbers
+      // This ensures uniqueness even when students are deleted
+      final nextRowNumber = await _getNextRowNumber(
+        adminRef,
+        _selectedClass!,
+        studentSection,
+      );
 
       final indexNumber = generateIndexNumber(
         year: currentYear,

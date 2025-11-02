@@ -37,8 +37,10 @@ export async function POST(request: NextRequest) {
     const result: ImportResult = {
       success: 0,
       failed: 0,
+      skipped: 0, // Reserved for future use (validation skips, etc.)
       errors: [],
       successfulStudents: [],
+      skippedDuplicates: [], // Tracks duplicates that were assigned new index numbers
     };
     
     const studentsRef = adminDb
@@ -85,14 +87,49 @@ export async function POST(request: NextRequest) {
           dob = new Date();
         }
         
-        // Get next row number for index generation
-        const nextRow = await getNextRowNumber(adminUid, studentClass, section);
-        const indexNumber = generateIndexNumber(
-          new Date().getFullYear(),
-          studentClass,
-          section,
-          nextRow
-        );
+        // Check for duplicate student before creating
+        // Query by name, class, section, and date of birth
+        const duplicateQuery = await studentsRef
+          .where('name', '==', fullName)
+          .where('class', '==', studentClass)
+          .where('section', '==', section)
+          .where('dob', '==', dob)
+          .limit(1)
+          .get();
+        
+        let indexNumber: string;
+        let isDuplicate = false;
+        
+        if (!duplicateQuery.empty) {
+          // Student already exists - generate a unique index number
+          isDuplicate = true;
+          const existingStudent = duplicateQuery.docs[0].data();
+          
+          // Get next available row number to ensure uniqueness
+          const nextRow = await getNextRowNumber(adminUid, studentClass, section);
+          indexNumber = generateIndexNumber(
+            new Date().getFullYear(),
+            studentClass,
+            section,
+            nextRow
+          );
+          
+          result.skippedDuplicates.push({
+            row: rowNumber,
+            name: fullName,
+            reason: `Duplicate detected (original: ${existingStudent.indexNumber}), assigned new index: ${indexNumber}`,
+          });
+          console.log(`Duplicate student at row ${rowNumber}: ${fullName} - Assigning new index: ${indexNumber}`);
+        } else {
+          // New student - generate index number normally
+          const nextRow = await getNextRowNumber(adminUid, studentClass, section);
+          indexNumber = generateIndexNumber(
+            new Date().getFullYear(),
+            studentClass,
+            section,
+            nextRow
+          );
+        }
         
         // Handle photo upload
         let photoUrl = '';
@@ -189,7 +226,7 @@ export async function POST(request: NextRequest) {
     const response: ApiResponse<ImportResult> = {
       success: true,
       data: result,
-      message: `Import completed: ${result.success} succeeded, ${result.failed} failed`,
+      message: `Import completed: ${result.success} succeeded, ${result.failed} failed${result.skippedDuplicates.length > 0 ? `, ${result.skippedDuplicates.length} duplicates assigned new index numbers` : ''}`,
     };
     
     return NextResponse.json(response);
