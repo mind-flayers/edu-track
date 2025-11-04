@@ -312,56 +312,46 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     }
   }
 
-  /// Gets the next available row number for a class/section combination
-  /// by finding the maximum existing row number and adding 1.
+  /// Gets the next available sequential index number globally across all students
+  /// by finding the maximum existing index number and adding 1.
   /// This ensures index numbers are never reused, even after student deletions.
-  Future<int> _getNextRowNumber(
+  /// Format: MEC1001, MEC1002, MEC1003, etc.
+  Future<int> _getNextIndexNumber(
     DocumentReference adminRef,
-    String className,
-    String section,
   ) async {
     try {
-      // Query all students in the same class and section
-      final snapshot = await adminRef
-          .collection('students')
-          .where('class', isEqualTo: className)
-          .where('section', isEqualTo: section)
-          .get();
+      // Query ALL students to find the maximum index number
+      final snapshot = await adminRef.collection('students').get();
 
       if (snapshot.docs.isEmpty) {
-        return 1; // First student in this class/section
+        return 1001; // Start from 1001 as per requirement
       }
 
-      // Extract row numbers from existing index numbers
-      int maxRowNumber = 0;
+      // Extract index numbers from existing students
+      int maxIndexNumber = 1000; // Minimum is 1000, so next will be 1001
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final indexNumber = data['indexNumber'] as String?;
 
         if (indexNumber != null && indexNumber.isNotEmpty) {
-          // Index format: MEC/25/10A/01
-          // Extract the last part (row number)
-          final parts = indexNumber.split('/');
-          if (parts.length == 4) {
-            final rowNumberStr = parts[3];
-            final rowNumber = int.tryParse(rowNumberStr);
-            if (rowNumber != null && rowNumber > maxRowNumber) {
-              maxRowNumber = rowNumber;
+          // Index format: MEC1001, MEC1002, etc.
+          // Extract the numeric part after "MEC"
+          if (indexNumber.startsWith('MEC')) {
+            final numberStr = indexNumber.substring(3);
+            final number = int.tryParse(numberStr);
+            if (number != null && number > maxIndexNumber) {
+              maxIndexNumber = number;
             }
           }
         }
       }
 
-      return maxRowNumber + 1;
+      return maxIndexNumber + 1;
     } catch (e) {
-      print('Error getting next row number: $e');
-      // Fallback to count-based approach if something goes wrong
-      final snapshot = await adminRef
-          .collection('students')
-          .where('class', isEqualTo: className)
-          .where('section', isEqualTo: section)
-          .get();
-      return snapshot.docs.length + 1;
+      print('Error getting next index number: $e');
+      // Fallback: count all students and add to 1000
+      final snapshot = await adminRef.collection('students').get();
+      return 1001 + snapshot.docs.length;
     }
   }
 
@@ -426,22 +416,17 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       final adminRef = firestore
           .collection('admins')
           .doc(adminUid); // Reference to admin doc
-      final currentYear = DateTime.now().year;
       final studentSection = (_selectedSection ?? 'A').toUpperCase();
 
-      // Find the next row number by examining existing index numbers
+      // Find the next sequential index number globally across all students
       // This ensures uniqueness even when students are deleted
-      final nextRowNumber = await _getNextRowNumber(
-        adminRef,
-        _selectedClass!,
-        studentSection,
-      );
+      final nextIndexNumber = await _getNextIndexNumber(adminRef);
 
       final indexNumber = generateIndexNumber(
-        year: currentYear,
+        year: DateTime.now().year,
         className: _selectedClass!,
         section: studentSection,
-        rowNumber: nextRowNumber,
+        rowNumber: nextIndexNumber,
       );
 
       // 3. Prepare data

@@ -1,30 +1,22 @@
 /**
  * Generates student index number following EduTrack pattern
- * Format: MEC/{YY}/{classCode}/{rowNumber}
- * Example: MEC/25/10A/01
+ * Format: MEC{sequential_number}
+ * Example: MEC1001, MEC1002, MEC1003
  */
 export function generateIndexNumber(
-  year: number,
-  className: string,
-  section: string,
-  rowNumber: number
+  sequentialNumber: number
 ): string {
-  const yy = year.toString().slice(-2); // Last 2 digits of year
-  const classCode = className.replace('Grade ', '') + section;
-  const paddedRow = rowNumber.toString().padStart(2, '0');
-  
-  return `MEC/${yy}/${classCode}/${paddedRow}`;
+  return `MEC${sequentialNumber}`;
 }
 
 /**
- * Gets the next available row number for a class/section combination
- * by finding the maximum existing row number and adding 1.
+ * Gets the next available sequential index number globally across all students
+ * by finding the maximum existing index number and adding 1.
  * This ensures index numbers are never reused, even after student deletions.
+ * Format: MEC1001, MEC1002, MEC1003, etc.
  */
-export async function getNextRowNumber(
-  adminUid: string,
-  className: string,
-  section: string
+export async function getNextIndexNumber(
+  adminUid: string
 ): Promise<number> {
   const { adminDb } = await import('./firebase-admin');
   
@@ -34,46 +26,39 @@ export async function getNextRowNumber(
     .collection('students');
   
   try {
-    // Query all students in the same class and section
-    const snapshot = await studentsRef
-      .where('class', '==', className)
-      .where('section', '==', section)
-      .get();
+    // Query ALL students to find the maximum index number
+    const snapshot = await studentsRef.get();
     
     if (snapshot.empty) {
-      return 1; // First student in this class/section
+      return 1001; // Start from 1001 as per requirement
     }
     
-    // Extract row numbers from existing index numbers
-    let maxRowNumber = 0;
+    // Extract index numbers from existing students
+    let maxIndexNumber = 1000; // Minimum is 1000, so next will be 1001
     
     snapshot.forEach((doc) => {
       const data = doc.data();
       const indexNumber = data.indexNumber as string | undefined;
       
       if (indexNumber && indexNumber.trim()) {
-        // Index format: MEC/25/10A/01
-        // Extract the last part (row number)
-        const parts = indexNumber.split('/');
-        if (parts.length === 4) {
-          const rowNumberStr = parts[3];
-          const rowNumber = parseInt(rowNumberStr, 10);
-          if (!isNaN(rowNumber) && rowNumber > maxRowNumber) {
-            maxRowNumber = rowNumber;
+        // Index format: MEC1001, MEC1002, etc.
+        // Extract the numeric part after "MEC"
+        if (indexNumber.startsWith('MEC')) {
+          const numberStr = indexNumber.substring(3);
+          const number = parseInt(numberStr, 10);
+          if (!isNaN(number) && number > maxIndexNumber) {
+            maxIndexNumber = number;
           }
         }
       }
     });
     
-    return maxRowNumber + 1;
+    return maxIndexNumber + 1;
   } catch (error) {
-    console.error('Error getting next row number:', error);
-    // Fallback to count-based approach if something goes wrong
-    const snapshot = await studentsRef
-      .where('class', '==', className)
-      .where('section', '==', section)
-      .get();
-    return snapshot.size + 1;
+    console.error('Error getting next index number:', error);
+    // Fallback: count all students and add to 1000
+    const snapshot = await studentsRef.get();
+    return 1001 + snapshot.size;
   }
 }
 

@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // For kDebugMode
 
@@ -9,26 +8,18 @@ import 'package:flutter/foundation.dart'; // For kDebugMode
 // --- IMPORTANT ---
 
 /// Generates a student index number based on the pattern:
-/// MEC/Last_two_digits_of_the_year/Class+Section/Row_number
-/// 
-/// Example: MEC/25/10A/01
+/// MEC{year_last_two}{class_num}{section}{row}
+///
+/// Example: MEC2510A1, MEC2510A2
 String generateIndexNumber({
   required int year,
   required String className,
   required String section,
   required int rowNumber,
 }) {
-  // Extract last two digits of the year
-  final yearSuffix = (year % 100).toString().padLeft(2, '0');
-  
-  // Remove "Grade " prefix if present and combine class with section
-  final classCode = className.replaceAll('Grade ', '') + section;
-  
-  // Format row number with leading zeros
-  final formattedRowNumber = rowNumber.toString().padLeft(2, '0');
-  
-  // Combine all parts to form the index number
-  return 'MEC/$yearSuffix/$classCode/$formattedRowNumber';
+  // Format: MEC followed by year last two digits, class number, section, row
+  String classNum = className.replaceAll('Grade ', '');
+  return 'MEC${year % 100}$classNum$section$rowNumber';
 }
 
 Future<void> setupFirestoreDatabase() async {
@@ -49,10 +40,13 @@ Future<void> setupFirestoreDatabase() async {
   final adminRef = firestore.collection('admins').doc(adminUid);
   batch.set(adminRef, {
     'name': 'Admin User',
-    'academyName' : 'My Academy',
-    'email': 'mishaf1106@gmail.com', // Replace with your actual admin email if needed
-    'profilePhotoUrl': 'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864635/profiles/students/vm6bgpeg4ccvy58nig6r.jpg',
-    'smsGatewayToken': 'YOUR_INITIAL_SMS_TOKEN', // Replace with actual token later
+    'academyName': 'My Academy',
+    'email':
+        'mishaf1106@gmail.com', // Replace with your actual admin email if needed
+    'profilePhotoUrl':
+        'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864635/profiles/students/vm6bgpeg4ccvy58nig6r.jpg',
+    'smsGatewayToken':
+        'YOUR_INITIAL_SMS_TOKEN', // Replace with actual token later
     'createdAt': now,
     'updatedAt': now,
   });
@@ -75,24 +69,57 @@ Future<void> setupFirestoreDatabase() async {
     'name': 'Term 1 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 1, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 4, 15)),
-    'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
+    'subjects': [
+      'Mathematics',
+      'Science',
+      'English',
+      'History',
+      'Tamil',
+      'Geography',
+      'Art',
+      'PTS',
+      'Art',
+      'Civics'
+    ],
   });
   final term2Ref = examTermsCollection.doc(); // Use nested collection
   batch.set(term2Ref, {
     'name': 'Term 2 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 5, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 8, 15)),
-    'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
+    'subjects': [
+      'Mathematics',
+      'Science',
+      'English',
+      'History',
+      'Tamil',
+      'Geography',
+      'Art',
+      'PTS',
+      'Art',
+      'Civics'
+    ],
   });
   final term3Ref = examTermsCollection.doc(); // Use nested collection
   batch.set(term3Ref, {
     'name': 'Term 3 - 2025',
     'startDate': Timestamp.fromDate(DateTime(2025, 9, 15)),
     'endDate': Timestamp.fromDate(DateTime(2025, 12, 15)),
-    'subjects': ['Mathematics', 'Science', 'English', 'History', 'Tamil', 'Geography', 'Art', 'PTS', 'Art', 'Civics'],
+    'subjects': [
+      'Mathematics',
+      'Science',
+      'English',
+      'History',
+      'Tamil',
+      'Geography',
+      'Art',
+      'PTS',
+      'Art',
+      'Civics'
+    ],
   });
   print("Exam Terms documents prepared (under admin).");
- 
+
   // --- 4. Teachers (Nested under Admin) ---
   final teachersCollection = adminRef.collection('teachers');
   final teacher1Ref = teachersCollection.doc(); // Use nested collection
@@ -110,7 +137,7 @@ Future<void> setupFirestoreDatabase() async {
   batch.set(teacher2Ref, {
     'name': 'Ms. Johnson',
     'email': 'ms.johnson@example.com',
-    'phone': '9876543211',
+    'phoneNumber': '9876543211',
     'whatsappNumber': '9876543210',
     'subject': 'Science',
     'classAssigned': ['Grade 9', 'Grade 10'],
@@ -118,12 +145,13 @@ Future<void> setupFirestoreDatabase() async {
     'isActive': true,
   });
   print("Teachers documents prepared (under admin).");
- 
+
   // --- 5. Students (with subcollections, Nested under Admin) ---
   final studentsCollection = adminRef.collection('students');
   // Student 1
   final student1Id = 'STUDENT_${DateTime.now().millisecondsSinceEpoch}_1';
-  final student1Ref = studentsCollection.doc(student1Id); // Use nested collection
+  final student1Ref =
+      studentsCollection.doc(student1Id); // Use nested collection
   final student1Class = 'Grade 10';
   final student1Section = 'A';
   batch.set(student1Ref, {
@@ -141,11 +169,11 @@ Future<void> setupFirestoreDatabase() async {
     'parentPhone': '1112223330',
     'whatsappNumber': '1112223330',
     'address': '123 Main St, City',
-    'photoUrl': 'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864148/profiles/students/hwwlnj3kup73zfx7unzu.jpg',
+    'photoUrl':
+        'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864148/profiles/students/hwwlnj3kup73zfx7unzu.jpg',
     'qrCodeData': student1Id, // Use doc ID as unique QR data
     'joinedAt': now,
     'isActive': true,
-
   });
   // Student 1 - Attendance
   batch.set(student1Ref.collection('attendance').doc(), {
@@ -193,7 +221,8 @@ Future<void> setupFirestoreDatabase() async {
 
   // Student 2
   final student2Id = 'STUDENT_${DateTime.now().millisecondsSinceEpoch}_2';
-  final student2Ref = studentsCollection.doc(student2Id); // Use nested collection
+  final student2Ref =
+      studentsCollection.doc(student2Id); // Use nested collection
   final student2Class = 'Grade 9';
   final student2Section = 'A';
   batch.set(student2Ref, {
@@ -212,7 +241,8 @@ Future<void> setupFirestoreDatabase() async {
     'parentPhone': '1112223331',
     'whatsappNumber': '1112223330',
     'address': '456 Oak Ave, Town',
-    'photoUrl': 'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864148/profiles/students/hwwlnj3kup73zfx7unzu.jpg',
+    'photoUrl':
+        'https://res.cloudinary.com/duckxlzaj/image/upload/v1744864148/profiles/students/hwwlnj3kup73zfx7unzu.jpg',
     'qrCodeData': student2Id,
     'joinedAt': now,
     'isActive': true,
@@ -239,7 +269,7 @@ Future<void> setupFirestoreDatabase() async {
     'month': 4, // April
     'amount': 450,
     'paid': false,
-    'paidAt': Timestamp.fromDate(DateTime(2025, 3, 10)),
+    'paidAt': null,
     'paymentMethod': 'Cash',
     'markedBy': adminUid,
   });
@@ -252,13 +282,14 @@ Future<void> setupFirestoreDatabase() async {
     'resultDate': now,
     'updatedBy': adminUid,
   });
- 
+
   print("Students documents and subcollections prepared (under admin).");
- 
+
   // --- 6. Attendance Summary (Example for one day, Nested under Admin) ---
   final attendanceSummaryCollection = adminRef.collection('attendanceSummary');
   final summaryDate = '2025-04-13'; // Match attendance date above
-  final summaryRef = attendanceSummaryCollection.doc(summaryDate); // Use nested collection
+  final summaryRef =
+      attendanceSummaryCollection.doc(summaryDate); // Use nested collection
   batch.set(summaryRef, {
     'class': 'Overall', // Or specific class if needed
     'present': 1,
@@ -267,7 +298,7 @@ Future<void> setupFirestoreDatabase() async {
     'markedAt': now,
   });
   print("Attendance Summary document prepared (under admin).");
- 
+
   // --- Commit Batch ---
   try {
     await batch.commit();

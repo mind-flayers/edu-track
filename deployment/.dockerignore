@@ -1,0 +1,17 @@
+# .dockerignore for WhatsApp Bot deployment
+
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env.example
+*.md
+README.md
+.DS_Store
+Thumbs.db
+
+# Keep session data OUT of image (use volumes)
+whatsapp-session/*
+
+# Build artifacts
+*.log

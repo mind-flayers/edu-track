@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { Student, ApiResponse } from '@/types';
-import { generateIndexNumber, getNextRowNumber, validateStudentData } from '@/lib/student-utils';
+import { generateIndexNumber, getNextIndexNumber, validateStudentData } from '@/lib/student-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,19 +31,10 @@ export async function POST(request: NextRequest) {
       .doc(adminUid)
       .collection('students');
     
-    // Get next row number for index generation
-    const nextRow = await getNextRowNumber(
-      adminUid,
-      studentData.class,
-      studentData.section
-    );
+    // Get next sequential index number
+    const nextIndexNumber = await getNextIndexNumber(adminUid);
     
-    const indexNumber = generateIndexNumber(
-      new Date().getFullYear(),
-      studentData.class,
-      studentData.section,
-      nextRow
-    );
+    const indexNumber = generateIndexNumber(nextIndexNumber);
     
     // Create student document
     const studentDocRef = studentsRef.doc();

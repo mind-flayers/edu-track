@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { Student, StudentCSVRow, ApiResponse, ImportResult } from '@/types';
-import { generateIndexNumber, getNextRowNumber, parseDateString, validateStudentData } from '@/lib/student-utils';
+import { generateIndexNumber, getNextIndexNumber, parseDateString, validateStudentData } from '@/lib/student-utils';
 import { transferGoogleDriveToCloudinary } from '@/lib/image-utils';
 import Papa from 'papaparse';
 
@@ -105,14 +105,9 @@ export async function POST(request: NextRequest) {
           isDuplicate = true;
           const existingStudent = duplicateQuery.docs[0].data();
           
-          // Get next available row number to ensure uniqueness
-          const nextRow = await getNextRowNumber(adminUid, studentClass, section);
-          indexNumber = generateIndexNumber(
-            new Date().getFullYear(),
-            studentClass,
-            section,
-            nextRow
-          );
+          // Get next available sequential index number to ensure uniqueness
+          const nextIndexNumber = await getNextIndexNumber(adminUid);
+          indexNumber = generateIndexNumber(nextIndexNumber);
           
           result.skippedDuplicates.push({
             row: rowNumber,
@@ -122,13 +117,8 @@ export async function POST(request: NextRequest) {
           console.log(`Duplicate student at row ${rowNumber}: ${fullName} - Assigning new index: ${indexNumber}`);
         } else {
           // New student - generate index number normally
-          const nextRow = await getNextRowNumber(adminUid, studentClass, section);
-          indexNumber = generateIndexNumber(
-            new Date().getFullYear(),
-            studentClass,
-            section,
-            nextRow
-          );
+          const nextIndexNumber = await getNextIndexNumber(adminUid);
+          indexNumber = generateIndexNumber(nextIndexNumber);
         }
         
         // Handle photo upload
