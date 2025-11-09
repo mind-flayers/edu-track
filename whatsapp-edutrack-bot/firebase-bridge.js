@@ -35,6 +35,9 @@ async function sendToWhatsAppBot(recipientNumber, message) {
     // Format phone number to international format
     let formattedNumber = recipientNumber;
     
+    // Remove + and any spaces/dashes
+    formattedNumber = formattedNumber.replace(/[\s\-\+]/g, '');
+    
     // Convert Sri Lankan local format to international format
     if (formattedNumber.startsWith('0')) {
       formattedNumber = '94' + formattedNumber.substring(1);
@@ -43,11 +46,15 @@ async function sendToWhatsAppBot(recipientNumber, message) {
     else if (formattedNumber.length === 9 && !formattedNumber.startsWith('94')) {
       formattedNumber = '94' + formattedNumber;
     }
+    // If already has 94, ensure no leading zeros
+    else if (formattedNumber.startsWith('94')) {
+      // Already correct format
+    }
     
     console.log(`📱 Sending to: ${recipientNumber} → ${formattedNumber}`);
     
     const response = await axios.post(`${WHATSAPP_BOT_URL}/send-message`, {
-      phone: formattedNumber,  // Changed from 'number' to 'phone' to match server expectation
+      number: formattedNumber,  // Field name matches server-baileys.js expectation
       message: message
     }, {
       timeout: 10000,
@@ -109,6 +116,18 @@ async function processMessage(adminUid, messageDoc) {
   const message = data.message;
   const attempts = data.attempts || data.retryCount || 0;
   const maxAttempts = data.maxAttempts || 3;
+  
+  // Check if bot is ready before attempting to send
+  try {
+    const healthCheck = await axios.get(`${WHATSAPP_BOT_URL}/health`, { timeout: 3000 });
+    if (!healthCheck.data.whatsapp_ready) {
+      console.log(`⚠️ Bot not ready, skipping message ${messageId} (will retry in next cycle)`);
+      return; // Don't increment attempts, just skip this cycle
+    }
+  } catch (error) {
+    console.log(`⚠️ Cannot reach bot, skipping message ${messageId} (will retry in next cycle)`);
+    return; // Don't increment attempts, just skip this cycle
+  }
   
   console.log(`📤 Processing message data:`, {
     messageId,
@@ -193,30 +212,49 @@ async function processPendingMessages(adminUid) {
   }
 }
 
-// Function to get all admin UIDs - simplified version
+// Function to get all admin UIDs dynamically
 async function getAllAdminUids() {
   try {
-    console.log('🔍 Using known admin UID from test...');
+    console.log('🔍 Searching for all admins in database...');
     
-    // We know from the test that this admin UID has pending messages
-    const knownAdminUid = 'jGTyDPHBwRaVVAwN2YtHysDQJP23';
+    // Get all admin documents
+    const adminsSnapshot = await db.collection('admins').listDocuments();
     
-    // Verify this admin has pending messages
-    const pendingMessages = await db
-      .collection('admins')
-      .doc(knownAdminUid)
-      .collection('whatsappQueue')
-      .where('status', '==', 'pending')
-      .limit(1)
-      .get();
-    
-    if (!pendingMessages.empty) {
-      console.log(`✅ Found admin with pending messages: ${knownAdminUid}`);
-      return [knownAdminUid];
-    } else {
-      console.log('📭 No pending messages found for known admin');
+    if (adminsSnapshot.length === 0) {
+      console.log('⚠️ No admin documents found in database');
       return [];
     }
+    
+    console.log(`📋 Found ${adminsSnapshot.length} admin(s) in database`);
+    
+    // Extract admin UIDs
+    const adminUids = adminsSnapshot.map(doc => doc.id);
+    
+    // Check which admins have pending messages
+    const adminsWithPendingMessages = [];
+    
+    for (const adminUid of adminUids) {
+      const pendingMessages = await db
+        .collection('admins')
+        .doc(adminUid)
+        .collection('whatsappQueue')
+        .where('status', '==', 'pending')
+        .limit(1)
+        .get();
+      
+      if (!pendingMessages.empty) {
+        console.log(`✅ Admin ${adminUid} has pending messages`);
+        adminsWithPendingMessages.push(adminUid);
+      }
+    }
+    
+    if (adminsWithPendingMessages.length === 0) {
+      console.log('📭 No pending messages found for any admin');
+      // Return all admins anyway so we can monitor them
+      return adminUids;
+    }
+    
+    return adminUids;
   } catch (error) {
     console.error('❌ Error getting admin UIDs:', error.message);
     return [];
@@ -256,9 +294,19 @@ async function checkBotHealth() {
     });
     
     if (response.status === 200) {
+      const botStatus = response.data;
       console.log('🤖 WhatsApp bot is healthy');
-      console.log(`📊 Bot Status: ${JSON.stringify(response.data, null, 2)}`);
-      return true;
+      console.log(`📊 Bot Status: ${JSON.stringify(botStatus, null, 2)}`);
+      
+      // Check if WhatsApp is actually ready
+      if (botStatus.whatsapp_ready === true) {
+        console.log('✅ WhatsApp Web is connected and ready');
+        return true;
+      } else {
+        console.log('⚠️ Bot is online but WhatsApp Web not ready yet');
+        console.log('💡 Wait for WhatsApp to authenticate and load');
+        return false;
+      }
     } else {
       console.log(`⚠️ Unexpected status code: ${response.status}`);
       return false;
@@ -299,24 +347,81 @@ async function startup() {
   }
   
   if (!isHealthy) {
-    console.log('❌ WhatsApp bot is not available after multiple attempts.');
-    console.log('💡 Make sure WhatsApp bot is running on localhost:3000');
-    console.log('� Try these steps:');
+    console.log('❌ WhatsApp bot is not ready after multiple attempts.');
+    console.log('💡 Make sure WhatsApp bot is running AND WhatsApp Web is authenticated');
+    console.log('📋 Try these steps:');
     console.log('   1. Check if npm start is running in another terminal');
     console.log('   2. Verify bot shows "✅ WhatsApp Client is ready!"');
-    console.log('   3. Test manually: curl http://localhost:3000/health');
-    process.exit(1);
+    console.log('   3. If stuck on "authenticated", wait up to 60 seconds for "ready" event');
+    console.log('   4. Test manually: http://localhost:3000/health');
+    console.log('\n⚠️ CONTINUING ANYWAY - Messages will queue until bot is ready');
+    console.log('🔄 Bridge will keep trying to send messages...\n');
+    // Don't exit - just continue monitoring
+  } else {
+    console.log('✅ WhatsApp bot is ready and connected');
   }
-
-  console.log('✅ WhatsApp bot is ready');
+  
   console.log('🔄 Starting message processing loop...');
+}
+
+// Function to reset failed messages when bot becomes ready
+async function resetFailedMessages() {
+  try {
+    console.log('🔄 Resetting failed messages to pending...');
+    const adminUids = await getAllAdminUids();
+    
+    let totalReset = 0;
+    for (const adminUid of adminUids) {
+      const failedMessages = await db
+        .collection('admins')
+        .doc(adminUid)
+        .collection('whatsappQueue')
+        .where('status', '==', 'failed')
+        .where('attempts', '<', 5) // Only reset if less than 5 total attempts
+        .get();
+      
+      for (const doc of failedMessages.docs) {
+        await doc.ref.update({
+          status: 'pending',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        totalReset++;
+      }
+    }
+    
+    if (totalReset > 0) {
+      console.log(`✅ Reset ${totalReset} failed message(s) to pending`);
+    }
+  } catch (error) {
+    console.error('❌ Error resetting failed messages:', error.message);
+  }
 }
 
 // Main execution
 startup().then(() => {
+  let lastBotStatus = false;
+  
   // Process messages every 10 seconds
   setInterval(async () => {
     try {
+      // Check bot status
+      let currentBotStatus = false;
+      try {
+        const healthCheck = await axios.get(`${WHATSAPP_BOT_URL}/health`, { timeout: 3000 });
+        currentBotStatus = healthCheck.data.whatsapp_ready;
+      } catch (error) {
+        // Bot not reachable
+      }
+      
+      // If bot just became ready, reset failed messages
+      if (currentBotStatus && !lastBotStatus) {
+        console.log('🎉 WhatsApp bot is now ready! Resetting failed messages...');
+        await resetFailedMessages();
+      }
+      
+      lastBotStatus = currentBotStatus;
+      
+      // Process messages
       await processAllMessages();
     } catch (error) {
       console.error('❌ Error in main processing loop:', error.message);

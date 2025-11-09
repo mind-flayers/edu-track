@@ -219,7 +219,7 @@ class WhatsAppService {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
         'metadata': metadata ?? {},
-        'retryCount': 0,
+        'attempts': 0,
       });
 
       print('✅ Message queued successfully! Firebase will handle delivery.');
