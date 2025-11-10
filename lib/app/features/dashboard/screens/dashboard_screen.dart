@@ -24,42 +24,41 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 2;
   int _cachedPendingCount = 0; // Cache for pending payments count
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
-    if (index != 0 && index != 4) {
+    if (index != 2) {
       Future.delayed(150.ms, () {
         if (!mounted) return;
         switch (index) {
-          case 1:
+          case 0:
             Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const StudentListScreen()));
-            setState(() => _selectedIndex = 0);
+            setState(() => _selectedIndex = 2);
             break;
-          case 2:
+          case 1:
             Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const TeacherListScreen()));
-            setState(() => _selectedIndex = 0);
+            setState(() => _selectedIndex = 2);
             break;
           case 3:
             Navigator.push(
                 context,
                 MaterialPageRoute(
                     builder: (_) => const AttendanceSummaryScreen()));
-            setState(() => _selectedIndex = 0);
+            setState(() => _selectedIndex = 2);
+            break;
+          case 4:
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+            setState(() => _selectedIndex = 2);
             break;
         }
       });
-    } else if (index == 4) {
-      print("Logout Tapped");
-      Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const SignInScreen()),
-          (route) => false);
     }
   }
 
@@ -129,18 +128,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final currentMonth = now.month;
 
     final Map<int, IconData> navIcons = {
-      0: Icons.dashboard_rounded,
-      1: Icons.school_rounded,
-      2: Icons.co_present_rounded,
+      0: Icons.school_rounded,
+      1: Icons.co_present_rounded,
+      2: Icons.dashboard_rounded,
       3: Icons.assignment_rounded,
-      4: Icons.logout_rounded
+      4: Icons.assessment_outlined
     };
     final Map<int, String> navLabels = {
-      0: 'Dashboard',
-      1: 'Students',
-      2: 'Teachers',
+      0: 'Students',
+      1: 'Teachers',
+      2: 'Dashboard',
       3: 'Attendance',
-      4: 'Logout'
+      4: 'Exam'
     };
 
     return Scaffold(

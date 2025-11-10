@@ -1,6 +1,7 @@
 import 'dart:io'; // Required for File type
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
+import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:firebase_auth/firebase_auth.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // No longer using Firebase Storage for profile pics
 import 'package:get/get.dart';
@@ -488,6 +489,17 @@ class ProfileController extends GetxController {
     } catch (e) {
       print("Error updating subjects: $e");
       _showStatus("Failed to update subjects.", isError: true);
+    }
+  }
+
+  // --- Sign Out Method ---
+  Future<void> signOut() async {
+    try {
+      await AuthController.instance.signOut();
+      Get.offAllNamed(
+          AppRoutes.launching); // Navigate to launching screen and clear stack
+    } catch (e) {
+      _showStatus('Logout failed: ${e.toString()}', isError: true);
     }
   }
 

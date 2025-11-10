@@ -21,7 +21,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   // Local controllers for text fields - sync with controller state
   final _nameController = TextEditingController();
   final _academyNameController = TextEditingController();
-  final _smsTokenController = TextEditingController();
   final _emailController = TextEditingController(); // For display/change dialog
   final _passwordController =
       TextEditingController(); // For change password dialog
@@ -53,14 +52,9 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       if (_academyNameController.text != value)
         _academyNameController.text = value ?? '';
     });
-    _controller.smsToken.listen((value) {
-      if (_smsTokenController.text != value)
-        _smsTokenController.text = value ?? '';
-    });
     // Initial sync in case controller loaded data before listeners attached
     _nameController.text = _controller.name.value ?? '';
     _academyNameController.text = _controller.academyName.value ?? '';
-    _smsTokenController.text = _controller.smsToken.value ?? '';
     _emailController.text = _controller.email.value ?? ''; // Sync email display
   }
 
@@ -68,7 +62,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   void dispose() {
     _nameController.dispose();
     _academyNameController.dispose();
-    _smsTokenController.dispose();
     _emailController.dispose(); // Still needed for display
     _passwordController.dispose(); // Still needed for dialog
     _newEmailController.dispose();
@@ -84,7 +77,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       !_controller.isEditing.value,
       currentName: _nameController.text,
       currentAcademy: _academyNameController.text,
-      currentSms: _smsTokenController.text,
     );
   }
 
@@ -95,8 +87,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     _controller.updateProfileDetails(
       newName: _nameController.text.trim(),
       newAcademyName: _academyNameController.text.trim(),
-      newSmsToken:
-          _smsTokenController.text.trim(), // Assuming token doesn't need trim
+      newSmsToken: _controller.smsToken.value ?? '',
     );
   }
 
@@ -140,10 +131,9 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           _controller.changeEmail(newEmail, password);
         } else {
           // Show simple snackbar for validation within dialog
-          Get.snackbar('Error',
+          Dialogs.showSnackbar('Error',
               'Please enter a valid new email and your current password.',
-              snackPosition: SnackPosition.BOTTOM,
-              margin: const EdgeInsets.all(kDefaultPadding));
+              isError: true);
         }
       },
     );
@@ -181,15 +171,21 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           return Scaffold(
             appBar: AppBar(
               leading: IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded,
-                    color: kLightTextColor),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
                 tooltip: 'Back',
                 onPressed: () => Get.back(), // Use GetX navigation
               ),
               title: Text('Profile Settings', style: textTheme.titleLarge),
               centerTitle: true,
-              backgroundColor: kBackgroundColor,
-              elevation: 0,
+              actions: [
+                Obx(() => controller.isEditing.value
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit Profile',
+                        onPressed: _toggleEdit,
+                      ).animate().fadeIn(delay: 100.ms)),
+              ],
             ),
             body: Obx(() => controller
                     .isLoading.value // Use Obx for simple boolean checks
@@ -202,161 +198,305 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // --- Profile Picture ---
-                          // --- Profile Picture ---
-                          Obx(() {
-                            final hasPhoto = controller.profilePhotoUrl.value !=
-                                    null &&
-                                controller.profilePhotoUrl.value!.isNotEmpty;
-                            return Stack(
-                              // Use Obx for profilePhotoUrl
-                              alignment: Alignment.bottomRight,
+                          // --- Profile Picture Section with Card ---
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  kPrimaryColor.withOpacity(0.1),
+                                  kPrimaryColor.withOpacity(0.05),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius:
+                                  BorderRadius.circular(kDefaultRadius),
+                              border: Border.all(
+                                color: kPrimaryColor.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            padding:
+                                const EdgeInsets.all(kDefaultPadding * 1.5),
+                            child: Column(
                               children: [
-                                hasPhoto
-                                    ? CircleAvatar(
-                                        radius: 60,
-                                        backgroundImage: NetworkImage(
-                                            controller.profilePhotoUrl.value!),
-                                        onBackgroundImageError:
-                                            (exception, stackTrace) {
-                                          print(
-                                              "Error loading profile image: $exception");
-                                        },
-                                      )
-                                    : CircleAvatar(
-                                        radius: 60,
-                                        backgroundColor:
-                                            kLightTextColor.withOpacity(0.2),
-                                        child: Icon(Icons.person_rounded,
-                                            size: 60, color: kLightTextColor),
-                                      ),
-                                if (controller
-                                    .isEditing.value) // Use controller state
-                                  Positioned(
-                                    right: 4,
-                                    bottom: 4,
-                                    child: Material(
-                                      color: kPrimaryColor,
-                                      shape: const CircleBorder(),
-                                      elevation: 2,
-                                      child: InkWell(
-                                        onTap: _pickImage,
-                                        customBorder: const CircleBorder(),
-                                        child: const Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: Icon(Icons.edit,
-                                              color: kSecondaryColor, size: 20),
+                                Obx(() {
+                                  final hasPhoto =
+                                      controller.profilePhotoUrl.value !=
+                                              null &&
+                                          controller.profilePhotoUrl.value!
+                                              .isNotEmpty;
+                                  return Stack(
+                                    alignment: Alignment.bottomRight,
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: kPrimaryColor
+                                                  .withOpacity(0.3),
+                                              blurRadius: 15,
+                                              offset: const Offset(0, 5),
+                                            ),
+                                          ],
                                         ),
+                                        child: hasPhoto
+                                            ? CircleAvatar(
+                                                radius: 60,
+                                                backgroundColor:
+                                                    kSecondaryColor,
+                                                child: CircleAvatar(
+                                                  radius: 58,
+                                                  backgroundImage: NetworkImage(
+                                                      controller.profilePhotoUrl
+                                                          .value!),
+                                                  onBackgroundImageError:
+                                                      (exception, stackTrace) {
+                                                    print(
+                                                        "Error loading profile image: $exception");
+                                                  },
+                                                ),
+                                              )
+                                            : CircleAvatar(
+                                                radius: 60,
+                                                backgroundColor:
+                                                    kSecondaryColor,
+                                                child: CircleAvatar(
+                                                  radius: 58,
+                                                  backgroundColor: kPrimaryColor
+                                                      .withOpacity(0.1),
+                                                  child: Icon(
+                                                      Icons.person_rounded,
+                                                      size: 60,
+                                                      color: kPrimaryColor),
+                                                ),
+                                              ),
                                       ),
-                                    ),
-                                  )
-                                      .animate()
-                                      .scale(delay: 100.ms), // Add animation
+                                      if (controller.isEditing.value)
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: Material(
+                                            color: kPrimaryColor,
+                                            shape: const CircleBorder(),
+                                            elevation: 4,
+                                            child: InkWell(
+                                              onTap: _pickImage,
+                                              customBorder:
+                                                  const CircleBorder(),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.all(10),
+                                                child: const Icon(
+                                                    Icons.camera_alt,
+                                                    color: kSecondaryColor,
+                                                    size: 20),
+                                              ),
+                                            ),
+                                          ),
+                                        ).animate().scale(
+                                            delay: 100.ms, duration: 300.ms),
+                                    ],
+                                  );
+                                }),
+                                const SizedBox(height: kDefaultPadding),
+                                Obx(() => Text(
+                                      controller.name.value ?? 'User Name',
+                                      style: textTheme.headlineSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: kTextColor,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    )),
+                                const SizedBox(height: kDefaultPadding / 4),
+                                Obx(() => Text(
+                                      controller.email.value ??
+                                          'user@example.com',
+                                      style: textTheme.bodyMedium?.copyWith(
+                                        color: kLightTextColor,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    )),
                               ],
-                            );
-                          }),
+                            ),
+                          )
+                              .animate()
+                              .fadeIn(duration: 400.ms)
+                              .slideY(begin: -0.2, duration: 400.ms),
                           const SizedBox(height: kDefaultPadding * 2),
 
-                          // --- User Details Section ---
-                          // Use Obx to rebuild text fields when isEditing changes
-                          Obx(() => _buildTextField(
-                                controller: _nameController,
-                                label: 'Name',
-                                hint: 'Your Name',
-                                icon: Icons.person_outline_rounded,
-                                readOnly: !controller.isEditing.value,
-                              )),
-                          Obx(() => _buildTextField(
-                                controller: _academyNameController,
-                                label: 'Academy Name',
-                                hint: 'Your Academy Name',
-                                icon: Icons.school_outlined,
-                                readOnly: !controller.isEditing.value,
-                              )),
-                          Obx(() => _buildTextField(
-                                controller: _smsTokenController,
-                                label: 'SMS Gateway Token',
-                                hint: 'Enter SMS Token',
-                                icon: Icons.vpn_key_outlined,
-                                obscureText: !controller.isEditing
-                                    .value, // Obscure when not editing
-                                readOnly: !controller.isEditing.value,
-                              )),
-                          const SizedBox(height: kDefaultPadding),
-
-                          // --- Edit/Save/Cancel Buttons ---
-                          // Use Obx to switch between buttons
-                          Obx(() {
-                            if (!controller.isEditing.value) {
-                              return SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  icon:
-                                      const Icon(Icons.edit_outlined, size: 18),
-                                  label: const Text('Edit Details'),
-                                  onPressed: _toggleEdit,
-                                ),
-                              ).animate().fadeIn(delay: 100.ms);
-                            } else {
-                              return Row(
+                          // --- User Details Section in Card ---
+                          Card(
+                            elevation: 2,
+                            shadowColor: Colors.black.withOpacity(0.1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(kDefaultRadius),
+                            ),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.all(kDefaultPadding * 1.5),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: _saveChanges,
-                                      style: ElevatedButton.styleFrom(
-                                          backgroundColor: kSuccessColor),
-                                      child: const Text('Save'),
-                                    ),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.person_outline,
+                                          color: kPrimaryColor, size: 20),
+                                      const SizedBox(
+                                          width: kDefaultPadding / 2),
+                                      Text(
+                                        'Personal Information',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: kDefaultPadding),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed:
-                                          _toggleEdit, // Cancel calls toggleEdit
-                                      style: ElevatedButton.styleFrom(
-                                          backgroundColor: kErrorColor),
-                                      child: const Text('Cancel'),
-                                    ),
+                                  const SizedBox(height: kDefaultPadding * 1.5),
+                                  Obx(() => _buildTextField(
+                                        controller: _nameController,
+                                        label: 'Name',
+                                        hint: 'Your Name',
+                                        icon: Icons.person_outline_rounded,
+                                        readOnly: !controller.isEditing.value,
+                                      )),
+                                  Obx(() => _buildTextField(
+                                        controller: _academyNameController,
+                                        label: 'Academy Name',
+                                        hint: 'Your Academy Name',
+                                        icon: Icons.school_outlined,
+                                        readOnly: !controller.isEditing.value,
+                                      )),
+                                  // --- Edit/Save/Cancel Buttons ---
+                                  Obx(() {
+                                    if (!controller.isEditing.value) {
+                                      return const SizedBox.shrink();
+                                    } else {
+                                      return Column(
+                                        children: [
+                                          const SizedBox(
+                                              height: kDefaultPadding),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: ElevatedButton.icon(
+                                                  onPressed: _saveChanges,
+                                                  icon: const Icon(Icons.check,
+                                                      size: 18),
+                                                  label: const Text(
+                                                      'Save Changes'),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              kSuccessColor),
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                  width: kDefaultPadding),
+                                              Expanded(
+                                                child: ElevatedButton.icon(
+                                                  onPressed: _toggleEdit,
+                                                  icon: const Icon(Icons.close,
+                                                      size: 18),
+                                                  label: const Text('Cancel'),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              kErrorColor),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ).animate().fadeIn(delay: 100.ms);
+                                    }
+                                  }),
+                                ],
+                              ),
+                            ),
+                          )
+                              .animate()
+                              .fadeIn(delay: 200.ms, duration: 400.ms)
+                              .slideY(begin: 0.1, duration: 400.ms),
+                          const SizedBox(height: kDefaultPadding * 1.5),
+
+                          // --- Security Section in Card ---
+                          Card(
+                            elevation: 2,
+                            shadowColor: Colors.black.withOpacity(0.1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(kDefaultRadius),
+                            ),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.all(kDefaultPadding * 1.5),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.security,
+                                          color: kPrimaryColor, size: 20),
+                                      const SizedBox(
+                                          width: kDefaultPadding / 2),
+                                      Text(
+                                        'Account Security',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: kDefaultPadding * 1.5),
+                                  Obx(() => _buildInfoFieldWithButton(
+                                        label: 'Email',
+                                        value: controller.email.value ??
+                                            'Not available',
+                                        icon: Icons.email_outlined,
+                                        buttonLabel: 'Change',
+                                        onButtonPressed: _changeEmail,
+                                      )),
+                                  _buildInfoFieldWithButton(
+                                    label: 'Password',
+                                    value: '••••••••',
+                                    icon: Icons.lock_outline_rounded,
+                                    buttonLabel: 'Change',
+                                    onButtonPressed: _changePassword,
                                   ),
                                 ],
-                              ).animate().fadeIn(delay: 100.ms);
-                            }
-                          }),
-                          const SizedBox(height: kDefaultPadding * 1.5),
-                          const Divider(),
-                          const SizedBox(height: kDefaultPadding * 1.5),
-
-                          // --- Email Section ---
-                          // Use Obx for email value
-                          Obx(() => _buildInfoFieldWithButton(
-                                label: 'Email',
-                                value:
-                                    controller.email.value ?? 'Not available',
-                                icon: Icons.email_outlined,
-                                buttonLabel: 'Change',
-                                onButtonPressed: _changeEmail,
-                              )),
-
-                          // --- Password Section ---
-                          _buildInfoFieldWithButton(
-                            label: 'Password',
-                            value: '********', // Always show placeholder
-                            icon: Icons.lock_outline_rounded,
-                            buttonLabel: 'Change',
-                            onButtonPressed: _changePassword,
-                          ),
-
-                          const SizedBox(height: kDefaultPadding * 1.5),
-                          const Divider(),
+                              ),
+                            ),
+                          )
+                              .animate()
+                              .fadeIn(delay: 300.ms, duration: 400.ms)
+                              .slideY(begin: 0.1, duration: 400.ms),
                           const SizedBox(height: kDefaultPadding * 1.5),
 
                           // --- Academy Subjects Management Section ---
-                          _buildAcademySubjectsSection(),
+                          Card(
+                            elevation: 2,
+                            shadowColor: Colors.black.withOpacity(0.1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(kDefaultRadius),
+                            ),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.all(kDefaultPadding * 1.5),
+                              child: _buildAcademySubjectsSection(),
+                            ),
+                          )
+                              .animate()
+                              .fadeIn(delay: 400.ms, duration: 400.ms)
+                              .slideY(begin: 0.1, duration: 400.ms),
 
                           const SizedBox(height: kDefaultPadding * 1.5),
 
                           // --- Status Message ---
-                          // Use Obx for status message visibility and content
                           Obx(() {
                             final message = controller.statusMessage.value;
                             final isError = controller.isError.value;
@@ -364,45 +504,75 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                               opacity: message != null ? 1.0 : 0.0,
                               duration: 300.ms,
                               child: message == null
-                                  ? const SizedBox
-                                      .shrink() // Don't take space if null
+                                  ? const SizedBox.shrink()
                                   : Container(
                                       width: double.infinity,
                                       margin: const EdgeInsets.only(
-                                          bottom:
-                                              kDefaultPadding), // Add margin below
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: kDefaultPadding,
-                                          vertical: kDefaultPadding * 0.7),
+                                          bottom: kDefaultPadding),
+                                      padding: const EdgeInsets.all(
+                                          kDefaultPadding * 1.2),
                                       decoration: BoxDecoration(
-                                        color: isError
-                                            ? kErrorColor.withOpacity(0.1)
-                                            : kSuccessColor.withOpacity(0.1),
+                                        gradient: LinearGradient(
+                                          colors: isError
+                                              ? [
+                                                  kErrorColor.withOpacity(0.15),
+                                                  kErrorColor.withOpacity(0.08),
+                                                ]
+                                              : [
+                                                  kSuccessColor
+                                                      .withOpacity(0.15),
+                                                  kSuccessColor
+                                                      .withOpacity(0.08),
+                                                ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
                                         borderRadius: BorderRadius.circular(
                                             kDefaultRadius),
                                         border: Border.all(
+                                          color: isError
+                                              ? kErrorColor.withOpacity(0.3)
+                                              : kSuccessColor.withOpacity(0.3),
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
                                             color: isError
-                                                ? kErrorColor
-                                                : kSuccessColor,
-                                            width: 1),
+                                                ? kErrorColor.withOpacity(0.1)
+                                                : kSuccessColor
+                                                    .withOpacity(0.1),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
                                       ),
                                       child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
                                         children: [
-                                          Icon(
-                                            isError
-                                                ? Icons.error_outline_rounded
-                                                : Icons
-                                                    .check_circle_outline_rounded,
-                                            color: isError
-                                                ? kErrorColor
-                                                : kSuccessColor,
-                                            size: 20,
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: isError
+                                                  ? kErrorColor
+                                                      .withOpacity(0.15)
+                                                  : kSuccessColor
+                                                      .withOpacity(0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              isError
+                                                  ? Icons.error_outline_rounded
+                                                  : Icons
+                                                      .check_circle_outline_rounded,
+                                              color: isError
+                                                  ? kErrorColor
+                                                  : kSuccessColor,
+                                              size: 24,
+                                            ),
                                           ),
                                           const SizedBox(
-                                              width: kDefaultPadding / 2),
-                                          Flexible(
+                                              width: kDefaultPadding),
+                                          Expanded(
                                             child: Text(
                                               message,
                                               style: textTheme.bodyMedium
@@ -410,17 +580,173 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                                                 color: isError
                                                     ? kErrorColor
                                                     : kSuccessColor,
-                                                fontWeight: FontWeight.w500,
+                                                fontWeight: FontWeight.w600,
                                               ),
-                                              textAlign: TextAlign.center,
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
+                                    ).animate().fadeIn(duration: 300.ms).slideY(
+                                        begin: -0.3,
+                                        duration: 300.ms,
+                                      ),
                             );
                           }),
-                          // Removed SizedBox below status, added margin above
+
+                          // --- Logout Button ---
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => Dialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                          kDefaultRadius * 1.5),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(
+                                          kDefaultPadding * 1.5),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(10),
+                                                decoration: BoxDecoration(
+                                                  color: kErrorColor
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Icon(
+                                                    Icons.logout_rounded,
+                                                    color: kErrorColor,
+                                                    size: 24),
+                                              ),
+                                              const SizedBox(
+                                                  width: kDefaultPadding),
+                                              const Expanded(
+                                                child: Text(
+                                                  'Logout',
+                                                  style: TextStyle(
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(
+                                              height: kDefaultPadding * 1.5),
+                                          Container(
+                                            padding: const EdgeInsets.all(
+                                                kDefaultPadding),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  kErrorColor.withOpacity(0.05),
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                      kDefaultRadius),
+                                              border: Border.all(
+                                                  color: kErrorColor
+                                                      .withOpacity(0.2)),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.info_outline,
+                                                    size: 18,
+                                                    color: kErrorColor),
+                                                const SizedBox(
+                                                    width:
+                                                        kDefaultPadding * 0.75),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Are you sure you want to logout?',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: kTextColor,
+                                                          fontSize: 13,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(
+                                              height: kDefaultPadding * 1.5),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                flex: 2,
+                                                child: TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.of(context)
+                                                          .pop(),
+                                                  style: TextButton.styleFrom(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical:
+                                                            kDefaultPadding *
+                                                                0.8),
+                                                  ),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                  width: kDefaultPadding),
+                                              Expanded(
+                                                flex: 2,
+                                                child: ElevatedButton.icon(
+                                                  onPressed: () {
+                                                    Navigator.of(context).pop();
+                                                    _controller.signOut();
+                                                  },
+                                                  icon: const Icon(
+                                                      Icons.logout_rounded,
+                                                      size: 18),
+                                                  label: const Text('Logout'),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        kErrorColor,
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical:
+                                                            kDefaultPadding *
+                                                                0.8),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.logout_rounded, size: 20),
+                              label: const Text('Logout'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kErrorColor,
+                                foregroundColor: kSecondaryColor,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: kDefaultPadding * 0.9,
+                                ),
+                              ),
+                            ),
+                          )
+                              .animate()
+                              .fadeIn(delay: 500.ms, duration: 400.ms)
+                              .slideY(begin: 0.1, duration: 400.ms),
                         ],
                       ),
                     ),
@@ -442,22 +768,27 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     String? Function(String?)? validator,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: kDefaultPadding),
+      padding: const EdgeInsets.only(bottom: kDefaultPadding * 1.2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500)),
+          Padding(
+            padding: const EdgeInsets.only(left: kDefaultPadding / 4),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: kTextColor,
+                  ),
+            ),
+          ),
           const SizedBox(height: kDefaultPadding / 2),
           TextFormField(
             controller: controller,
             readOnly: readOnly,
             obscureText: obscureText,
             keyboardType: keyboardType,
-            style: readOnly // Dim text color when read-only
+            style: readOnly
                 ? Theme.of(context)
                     .textTheme
                     .bodyLarge
@@ -465,18 +796,37 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 : Theme.of(context).textTheme.bodyLarge,
             decoration: InputDecoration(
               hintText: hint,
-              prefixIcon: Icon(icon,
-                  size: 20,
-                  color: readOnly
-                      ? kLightTextColor
-                      : kPrimaryColor), // Adjust icon color
+              prefixIcon: Icon(
+                icon,
+                size: 20,
+                color: readOnly ? kLightTextColor : kPrimaryColor,
+              ),
               filled: true,
               fillColor: readOnly
-                  ? kBackgroundColor.withOpacity(0.3)
-                  : kSecondaryColor, // Adjust fill color
-              // Use theme's input decoration for borders etc.
+                  ? kBackgroundColor.withOpacity(0.5)
+                  : kSecondaryColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(kDefaultRadius),
+                borderSide: BorderSide(
+                  color: readOnly
+                      ? kLightTextColor.withOpacity(0.2)
+                      : kPrimaryColor.withOpacity(0.2),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(kDefaultRadius),
+                borderSide: BorderSide(
+                  color: readOnly
+                      ? kLightTextColor.withOpacity(0.2)
+                      : kLightTextColor.withOpacity(0.1),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(kDefaultRadius),
+                borderSide: const BorderSide(color: kPrimaryColor, width: 2),
+              ),
             ),
-            validator: validator, // Keep validator if needed
+            validator: validator,
             autovalidateMode: AutovalidateMode.onUserInteraction,
           ),
         ],
@@ -492,61 +842,100 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     required VoidCallback onButtonPressed,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: kDefaultPadding),
+      padding: const EdgeInsets.only(bottom: kDefaultPadding * 1.2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500)),
-          const SizedBox(height: kDefaultPadding / 2),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: kDefaultPadding * 0.9,
-                      horizontal: kDefaultPadding),
-                  decoration: BoxDecoration(
-                    color: kBackgroundColor
-                        .withOpacity(0.5), // Greyed out background
-                    borderRadius: BorderRadius.circular(kDefaultRadius),
+          Padding(
+            padding: const EdgeInsets.only(left: kDefaultPadding / 4),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: kTextColor,
                   ),
-                  child: Row(
-                    children: [
-                      Icon(icon, size: 20, color: kLightTextColor),
-                      const SizedBox(width: kDefaultPadding / 2),
-                      Expanded(
-                        // Ensure text doesn't overflow
+            ),
+          ),
+          const SizedBox(height: kDefaultPadding / 2),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(kDefaultRadius),
+              border: Border.all(
+                color: kLightTextColor.withOpacity(0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: kDefaultPadding,
+                      horizontal: kDefaultPadding,
+                    ),
+                    decoration: BoxDecoration(
+                      color: kBackgroundColor.withOpacity(0.5),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(kDefaultRadius - 1),
+                        bottomLeft: Radius.circular(kDefaultRadius - 1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 20, color: kLightTextColor),
+                        const SizedBox(width: kDefaultPadding * 0.75),
+                        Expanded(
+                          child: Text(
+                            value,
+                            style: kBodyTextStyle.copyWith(
+                              color: kTextColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [kPrimaryColor, kPrimaryColor.withOpacity(0.8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(kDefaultRadius - 1),
+                      bottomRight: Radius.circular(kDefaultRadius - 1),
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onButtonPressed,
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(kDefaultRadius - 1),
+                        bottomRight: Radius.circular(kDefaultRadius - 1),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: kDefaultPadding * 1.5,
+                          vertical: kDefaultPadding,
+                        ),
                         child: Text(
-                          value,
+                          buttonLabel,
                           style: kBodyTextStyle.copyWith(
-                              color: kTextColor
-                                  .withOpacity(0.8)), // Slightly dimmer text
-                          overflow: TextOverflow.ellipsis, // Prevent overflow
+                            color: kSecondaryColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: kDefaultPadding / 2),
-              ElevatedButton(
-                onPressed: onButtonPressed,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: kDefaultPadding * 1.2,
-                      vertical: kDefaultPadding * 0.7),
-                  minimumSize: Size.zero, // Allow button to shrink
-                  textStyle: kBodyTextStyle.copyWith(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500), // Smaller button text
-                ),
-                child: Text(buttonLabel),
-              ).animate().fadeIn(delay: 200.ms), // Add animation
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -568,19 +957,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w600),
             ),
-            const Spacer(),
-            ElevatedButton.icon(
-              onPressed: _showManageSubjectsDialog,
-              icon: const Icon(Icons.settings_outlined, size: 18),
-              label: const Text('Manage Subjects'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: kDefaultPadding,
-                    vertical: kDefaultPadding * 0.6),
-                textStyle: kBodyTextStyle.copyWith(
-                    fontSize: 13, fontWeight: FontWeight.w500),
-              ),
-            ),
           ],
         ),
         const SizedBox(height: kDefaultPadding),
@@ -590,89 +966,187 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(kDefaultPadding * 2),
               decoration: BoxDecoration(
-                color: kBackgroundColor.withOpacity(0.3),
+                gradient: LinearGradient(
+                  colors: [
+                    kBackgroundColor.withOpacity(0.5),
+                    kBackgroundColor.withOpacity(0.3),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(kDefaultRadius),
                 border: Border.all(color: kLightTextColor.withOpacity(0.2)),
               ),
               child: Column(
                 children: [
-                  Icon(Icons.subject_outlined,
-                      size: 48, color: kLightTextColor),
+                  Container(
+                    padding: const EdgeInsets.all(kDefaultPadding),
+                    decoration: BoxDecoration(
+                      color: kLightTextColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.subject_outlined,
+                        size: 40, color: kLightTextColor),
+                  ),
                   const SizedBox(height: kDefaultPadding),
                   Text(
                     'No subjects configured yet',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: kLightTextColor),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: kTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                   const SizedBox(height: kDefaultPadding / 2),
                   Text(
-                    'Tap "Manage Subjects" to add subjects',
+                    'Add subjects to organize your academy',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
                         ?.copyWith(color: kLightTextColor),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: kDefaultPadding),
+                  ElevatedButton.icon(
+                    onPressed: _showManageSubjectsDialog,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add First Subject'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: kDefaultPadding * 1.2,
+                        vertical: kDefaultPadding * 0.7,
+                      ),
+                    ),
                   ),
                 ],
               ),
             );
           }
 
-          return Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(kDefaultPadding),
-            decoration: BoxDecoration(
-              color: kPrimaryColor.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(kDefaultRadius),
-              border: Border.all(color: kPrimaryColor.withOpacity(0.2)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          return Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(kDefaultPadding * 1.2),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      kPrimaryColor.withOpacity(0.08),
+                      kPrimaryColor.withOpacity(0.04),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(kDefaultRadius),
+                  border: Border.all(color: kPrimaryColor.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.subject, size: 16, color: kPrimaryColor),
-                    const SizedBox(width: kDefaultPadding * 0.5),
-                    Text(
-                      'Current Subjects (${_controller.academySubjects.length})',
-                      style: kBodyTextStyle.copyWith(
-                        color: kPrimaryColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: kPrimaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.subject,
+                              size: 18, color: kPrimaryColor),
+                        ),
+                        const SizedBox(width: kDefaultPadding * 0.75),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Active Subjects',
+                                style: kBodyTextStyle.copyWith(
+                                  color: kTextColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                '${_controller.academySubjects.length} subject${_controller.academySubjects.length != 1 ? 's' : ''} configured',
+                                style: kBodyTextStyle.copyWith(
+                                  color: kLightTextColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: kDefaultPadding),
+                    Wrap(
+                      spacing: kDefaultPadding * 0.6,
+                      runSpacing: kDefaultPadding * 0.6,
+                      children: _controller.academySubjects.map((subject) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: kDefaultPadding * 0.9,
+                            vertical: kDefaultPadding * 0.5,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                kPrimaryColor.withOpacity(0.15),
+                                kPrimaryColor.withOpacity(0.1),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(kDefaultRadius),
+                            border: Border.all(
+                              color: kPrimaryColor.withOpacity(0.3),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: kPrimaryColor.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle,
+                                  size: 14, color: kPrimaryColor),
+                              const SizedBox(width: kDefaultPadding * 0.4),
+                              Text(
+                                subject,
+                                style: kBodyTextStyle.copyWith(
+                                  color: kPrimaryColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
-                const SizedBox(height: kDefaultPadding * 0.75),
-                Wrap(
-                  spacing: kDefaultPadding * 0.5,
-                  runSpacing: kDefaultPadding * 0.5,
-                  children: _controller.academySubjects.map((subject) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: kDefaultPadding * 0.75,
-                          vertical: kDefaultPadding * 0.4),
-                      decoration: BoxDecoration(
-                        color: kPrimaryColor.withOpacity(0.1),
-                        borderRadius:
-                            BorderRadius.circular(kDefaultRadius * 1.5),
-                        border:
-                            Border.all(color: kPrimaryColor.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        subject,
-                        style: kBodyTextStyle.copyWith(
-                          color: kPrimaryColor,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 12,
-                        ),
-                      ),
-                    );
-                  }).toList(),
+              ),
+              const SizedBox(height: kDefaultPadding),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _showManageSubjectsDialog,
+                  icon: const Icon(Icons.settings_outlined, size: 18),
+                  label: const Text('Manage Subjects'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: kDefaultPadding,
+                      vertical: kDefaultPadding * 0.8,
+                    ),
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         }),
       ],
@@ -682,145 +1156,269 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   void _showManageSubjectsDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // Prevent dismissing by tapping outside
-      builder: (context) => AlertDialog(
+      barrierDismissible: false,
+      builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(kDefaultRadius),
+          borderRadius: BorderRadius.circular(kDefaultRadius * 1.5),
         ),
-        title: Row(
-          children: [
-            Icon(Icons.school_outlined, color: kPrimaryColor, size: 24),
-            const SizedBox(width: kDefaultPadding * 0.5),
-            const Text('Manage Academy Subjects'),
-          ],
-        ),
-        content: SizedBox(
+        elevation: 8,
+        child: Container(
           width: double.maxFinite,
-          height: 400, // Set fixed height for the dialog
+          constraints: const BoxConstraints(maxHeight: 550),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Add Subject Section
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _addSubjectInDialog(),
-                      icon: const Icon(Icons.add_outlined, size: 18),
-                      label: const Text('Add New Subject'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kSuccessColor,
-                        foregroundColor: Colors.white,
+              // Dialog Header with gradient
+              Container(
+                padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      kPrimaryColor,
+                      kPrimaryColor.withOpacity(0.8),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(kDefaultRadius * 1.5),
+                    topRight: Radius.circular(kDefaultRadius * 1.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: kSecondaryColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.school_outlined,
+                        color: kSecondaryColor,
+                        size: 24,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: kDefaultPadding),
-              const Divider(),
-              const SizedBox(height: kDefaultPadding * 0.5),
-
-              // Current Subjects Header
-              Row(
-                children: [
-                  Icon(Icons.list_alt_outlined, size: 18, color: kPrimaryColor),
-                  const SizedBox(width: kDefaultPadding * 0.5),
-                  const Text(
-                    'Current Subjects',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+                    const SizedBox(width: kDefaultPadding),
+                    const Expanded(
+                      child: Text(
+                        'Manage Academy Subjects',
+                        style: TextStyle(
+                          color: kSecondaryColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.close, color: kSecondaryColor),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: kDefaultPadding),
-
-              // Subjects List
+              // Dialog Content
               Expanded(
-                child: Obx(() {
-                  if (_controller.academySubjects.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.subject_outlined,
-                              size: 64, color: kLightTextColor),
-                          const SizedBox(height: kDefaultPadding),
-                          Text(
-                            'No subjects added yet',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.copyWith(color: kLightTextColor),
-                          ),
-                          const SizedBox(height: kDefaultPadding * 0.5),
-                          Text(
-                            'Add your first subject to get started',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: kLightTextColor),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    itemCount: _controller.academySubjects.length,
-                    itemBuilder: (context, index) {
-                      final subject = _controller.academySubjects[index];
-                      return Card(
-                        margin: const EdgeInsets.only(
-                            bottom: kDefaultPadding * 0.5),
-                        elevation: 1,
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: kPrimaryColor.withOpacity(0.1),
-                            child: Icon(Icons.subject,
-                                color: kPrimaryColor, size: 20),
-                          ),
-                          title: Text(
-                            subject,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          subtitle: Text(
-                              'Subject ${index + 1} of ${_controller.academySubjects.length}'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.edit_outlined,
-                                    color: kPrimaryColor, size: 20),
-                                tooltip: 'Edit Subject',
-                                onPressed: () =>
-                                    _editSubjectInDialog(index, subject),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.delete_outline,
-                                    color: kErrorColor, size: 20),
-                                tooltip: 'Remove Subject',
-                                onPressed: () =>
-                                    _removeSubjectInDialog(subject),
-                              ),
-                            ],
+                child: Padding(
+                  padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Add Subject Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _addSubjectInDialog(),
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          label: const Text('Add New Subject'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kSuccessColor,
+                            foregroundColor: kSecondaryColor,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: kDefaultPadding * 0.9,
+                            ),
                           ),
                         ),
-                      );
-                    },
-                  );
-                }),
+                      ),
+                      const SizedBox(height: kDefaultPadding * 1.5),
+                      // Current Subjects Header
+                      Container(
+                        padding: const EdgeInsets.all(kDefaultPadding * 0.8),
+                        decoration: BoxDecoration(
+                          color: kPrimaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(kDefaultRadius),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.list_alt_outlined,
+                                size: 18, color: kPrimaryColor),
+                            const SizedBox(width: kDefaultPadding * 0.5),
+                            const Text(
+                              'Current Subjects',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: kDefaultPadding),
+
+                      // Subjects List
+                      Expanded(
+                        child: Obx(() {
+                          if (_controller.academySubjects.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(
+                                        kDefaultPadding * 2),
+                                    decoration: BoxDecoration(
+                                      color: kLightTextColor.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(Icons.subject_outlined,
+                                        size: 56, color: kLightTextColor),
+                                  ),
+                                  const SizedBox(height: kDefaultPadding * 1.5),
+                                  Text(
+                                    'No subjects added yet',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color: kTextColor,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  const SizedBox(height: kDefaultPadding * 0.5),
+                                  Text(
+                                    'Add your first subject to get started',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: kLightTextColor),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            itemCount: _controller.academySubjects.length,
+                            itemBuilder: (context, index) {
+                              final subject =
+                                  _controller.academySubjects[index];
+                              return Container(
+                                margin: const EdgeInsets.only(
+                                    bottom: kDefaultPadding * 0.75),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      kSecondaryColor,
+                                      kPrimaryColor.withOpacity(0.03),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius:
+                                      BorderRadius.circular(kDefaultRadius),
+                                  border: Border.all(
+                                    color: kPrimaryColor.withOpacity(0.2),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: kDefaultPadding,
+                                    vertical: kDefaultPadding * 0.4,
+                                  ),
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          kPrimaryColor.withOpacity(0.15),
+                                          kPrimaryColor.withOpacity(0.08),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(Icons.subject,
+                                        color: kPrimaryColor, size: 22),
+                                  ),
+                                  title: Text(
+                                    subject,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Subject ${index + 1} of ${_controller.academySubjects.length}',
+                                    style: TextStyle(
+                                      color: kLightTextColor,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () => _editSubjectInDialog(
+                                              index, subject),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            child: Icon(Icons.edit_outlined,
+                                                color: kPrimaryColor, size: 20),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () =>
+                                              _removeSubjectInDialog(subject),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            child: Icon(Icons.delete_outline,
+                                                color: kErrorColor, size: 20),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
@@ -828,47 +1426,124 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   void _addSubjectInDialog() {
     final TextEditingController subjectController = TextEditingController();
 
-    Dialogs.showCustomDialog(
+    showDialog(
       context: context,
-      title: 'Add New Subject',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: subjectController,
-            decoration: const InputDecoration(
-              labelText: 'Subject Name',
-              hintText: 'Enter subject name (e.g., Mathematics)',
-              prefixIcon: Icon(Icons.subject),
-            ),
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kDefaultRadius * 1.5),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: kSuccessColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.add_circle_outline,
+                        color: kSuccessColor, size: 24),
+                  ),
+                  const SizedBox(width: kDefaultPadding),
+                  const Text(
+                    'Add New Subject',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: kDefaultPadding * 1.5),
+              TextField(
+                controller: subjectController,
+                decoration: InputDecoration(
+                  labelText: 'Subject Name',
+                  hintText: 'e.g., Mathematics, Physics, English',
+                  prefixIcon: const Icon(Icons.subject),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                    borderSide:
+                        const BorderSide(color: kPrimaryColor, width: 2),
+                  ),
+                ),
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: kDefaultPadding),
+              Container(
+                padding: const EdgeInsets.all(kDefaultPadding),
+                decoration: BoxDecoration(
+                  color: kPrimaryColor.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(kDefaultRadius),
+                  border: Border.all(color: kPrimaryColor.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: kPrimaryColor),
+                    const SizedBox(width: kDefaultPadding * 0.75),
+                    Expanded(
+                      child: Text(
+                        'This subject will be available for all students and payment records.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: kTextColor,
+                              fontSize: 12,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: kDefaultPadding * 1.5),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: kDefaultPadding),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final subject = subjectController.text.trim();
+                        if (subject.isNotEmpty) {
+                          Navigator.of(context).pop();
+                          _controller.addSubject(subject);
+                        } else {
+                          Get.snackbar(
+                            'Error',
+                            'Please enter a subject name.',
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: kErrorColor.withOpacity(0.9),
+                            colorText: kSecondaryColor,
+                            margin: const EdgeInsets.all(kDefaultPadding),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.check, size: 18),
+                      label: const Text('Add Subject'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kSuccessColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: kDefaultPadding),
-          Text(
-            'This subject will be available for all students and payment records.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: kLightTextColor),
-          ),
-        ],
+        ),
       ),
-      confirmText: 'Add Subject',
-      onConfirm: () {
-        final subject = subjectController.text.trim();
-        if (subject.isNotEmpty) {
-          Navigator.of(context).pop();
-          _controller.addSubject(subject);
-        } else {
-          Get.snackbar(
-            'Error',
-            'Please enter a subject name.',
-            snackPosition: SnackPosition.BOTTOM,
-            margin: const EdgeInsets.all(kDefaultPadding),
-          );
-        }
-      },
     );
   }
 
@@ -876,64 +1551,239 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final TextEditingController subjectController =
         TextEditingController(text: currentSubject);
 
-    Dialogs.showCustomDialog(
+    showDialog(
       context: context,
-      title: 'Edit Subject',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: subjectController,
-            decoration: const InputDecoration(
-              labelText: 'Subject Name',
-              hintText: 'Enter subject name',
-              prefixIcon: Icon(Icons.subject),
-            ),
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kDefaultRadius * 1.5),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: kPrimaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.edit_outlined,
+                        color: kPrimaryColor, size: 24),
+                  ),
+                  const SizedBox(width: kDefaultPadding),
+                  const Text(
+                    'Edit Subject',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: kDefaultPadding * 1.5),
+              TextField(
+                controller: subjectController,
+                decoration: InputDecoration(
+                  labelText: 'Subject Name',
+                  hintText: 'Enter subject name',
+                  prefixIcon: const Icon(Icons.subject),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(kDefaultRadius),
+                    borderSide:
+                        const BorderSide(color: kPrimaryColor, width: 2),
+                  ),
+                ),
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: kDefaultPadding),
+              Container(
+                padding: const EdgeInsets.all(kDefaultPadding),
+                decoration: BoxDecoration(
+                  color: kPrimaryColor.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(kDefaultRadius),
+                  border: Border.all(color: kPrimaryColor.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: kPrimaryColor),
+                    const SizedBox(width: kDefaultPadding * 0.75),
+                    Expanded(
+                      child: Text(
+                        'Changes will apply to future student registrations and payment records.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: kTextColor,
+                              fontSize: 12,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: kDefaultPadding * 1.5),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: kDefaultPadding),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final subject = subjectController.text.trim();
+                        if (subject.isNotEmpty && subject != currentSubject) {
+                          Navigator.of(context).pop();
+                          _controller.editSubject(index, subject);
+                        } else if (subject.isEmpty) {
+                          Get.snackbar(
+                            'Error',
+                            'Please enter a subject name.',
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: kErrorColor.withOpacity(0.9),
+                            colorText: kSecondaryColor,
+                            margin: const EdgeInsets.all(kDefaultPadding),
+                          );
+                        } else {
+                          Navigator.of(context).pop();
+                        }
+                      },
+                      icon: const Icon(Icons.check, size: 18),
+                      label: const Text('Save Changes'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: kDefaultPadding),
-          Text(
-            'Changes will apply to future student registrations and payment records.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: kLightTextColor),
-          ),
-        ],
+        ),
       ),
-      confirmText: 'Save Changes',
-      onConfirm: () {
-        final subject = subjectController.text.trim();
-        if (subject.isNotEmpty && subject != currentSubject) {
-          Navigator.of(context).pop();
-          _controller.editSubject(index, subject);
-        } else if (subject.isEmpty) {
-          Get.snackbar(
-            'Error',
-            'Please enter a subject name.',
-            snackPosition: SnackPosition.BOTTOM,
-            margin: const EdgeInsets.all(kDefaultPadding),
-          );
-        } else {
-          Navigator.of(context).pop(); // No changes made
-        }
-      },
     );
   }
 
   void _removeSubjectInDialog(String subject) {
-    Dialogs.showConfirmationDialog(
+    showDialog(
       context: context,
-      title: 'Remove Subject',
-      message:
-          'Are you sure you want to remove "$subject" from academy subjects?\n\n'
-          'This will not affect existing student records but the subject won\'t be available for new registrations.',
-      confirmText: 'Remove',
-      onConfirm: () {
-        Navigator.of(context).pop();
-        _controller.removeSubject(subject);
-      },
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kDefaultRadius * 1.5),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: kErrorColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.warning_amber_rounded,
+                        color: kErrorColor, size: 24),
+                  ),
+                  const SizedBox(width: kDefaultPadding),
+                  const Expanded(
+                    child: Text(
+                      'Remove Subject',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: kDefaultPadding * 1.5),
+              Container(
+                padding: const EdgeInsets.all(kDefaultPadding),
+                decoration: BoxDecoration(
+                  color: kErrorColor.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(kDefaultRadius),
+                  border: Border.all(color: kErrorColor.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.subject, size: 16, color: kErrorColor),
+                        const SizedBox(width: kDefaultPadding * 0.5),
+                        Expanded(
+                          child: Text(
+                            '"$subject"',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: kErrorColor,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: kDefaultPadding * 0.75),
+                    Text(
+                      'Are you sure you want to remove this subject?\n\n'
+                      'This will not affect existing student records but the subject won\'t be available for new registrations.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: kTextColor,
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: kDefaultPadding * 1.5),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: kDefaultPadding * 0.8),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: kDefaultPadding),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _controller.removeSubject(subject);
+                      },
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Remove'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kErrorColor,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: kDefaultPadding * 0.8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

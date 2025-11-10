@@ -5,6 +5,7 @@ import 'package:edu_track/app/features/students/screens/student_details_screen.d
 import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
 import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
+import 'package:edu_track/app/features/exam/screens/exam_results_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
@@ -286,14 +287,14 @@ class _StudentListScreenState extends State<StudentListScreen> {
       if (!mounted) return;
       switch (index) {
         case 0:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
-          break;
-        case 1:
           break; // Already on Student List Screen
-        case 2:
+        case 1:
           Navigator.pushReplacement(context,
               MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+          break;
+        case 2:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const DashboardScreen()));
           break;
         case 3:
           Navigator.pushReplacement(
@@ -302,12 +303,8 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   builder: (_) => const AttendanceSummaryScreen()));
           break;
         case 4:
-          print("Logout Tapped");
-          AuthController.instance.signOut(); // Assuming signout method exists
-          Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const SignInScreen()),
-              (route) => false);
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
           break;
       }
       // Reset index visually if navigating away and coming back might be needed,
@@ -392,18 +389,18 @@ class _StudentListScreenState extends State<StudentListScreen> {
 
     // Define Bottom Nav Bar items (similar to Dashboard)
     final Map<int, IconData> navIcons = {
-      0: Icons.dashboard_rounded,
-      1: Icons.school_rounded,
-      2: Icons.co_present_rounded,
+      0: Icons.school_rounded,
+      1: Icons.co_present_rounded,
+      2: Icons.dashboard_rounded,
       3: Icons.assignment_rounded,
-      4: Icons.logout_rounded
+      4: Icons.assessment_outlined
     };
     final Map<int, String> navLabels = {
-      0: 'Dashboard',
-      1: 'Students',
-      2: 'Teachers',
+      0: 'Students',
+      1: 'Teachers',
+      2: 'Dashboard',
       3: 'Attendance',
-      4: 'Logout'
+      4: 'Exam'
     };
 
     return Scaffold(

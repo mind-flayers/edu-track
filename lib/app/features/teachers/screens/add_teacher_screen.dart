@@ -34,9 +34,18 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
 
   // TODO: Fetch these dynamically or use a better configuration method
   final List<String> _availableClasses = [
-    'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5',
-    'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10',
-    'Grade 11', 'Grade 12',
+    'Grade 1',
+    'Grade 2',
+    'Grade 3',
+    'Grade 4',
+    'Grade 5',
+    'Grade 6',
+    'Grade 7',
+    'Grade 8',
+    'Grade 9',
+    'Grade 10',
+    'Grade 11',
+    'Grade 12',
   ];
 
   @override
@@ -54,9 +63,11 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     final String? userId = AuthController.instance.user?.uid;
     if (userId == null) {
       return IconButton(
-        icon: Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor),
+        icon: Icon(Icons.account_circle_rounded,
+            size: 30, color: kLightTextColor),
         tooltip: 'Profile Settings',
-        onPressed: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
+        onPressed: () =>
+            Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
       );
     }
     return StreamBuilder<DocumentSnapshot>(
@@ -69,9 +80,12 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         String? photoUrl;
-        Widget profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor); // Default icon
+        Widget profileWidget = Icon(Icons.account_circle_rounded,
+            size: 30, color: kLightTextColor); // Default icon
 
-        if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
+        if (snapshot.connectionState == ConnectionState.active &&
+            snapshot.hasData &&
+            snapshot.data!.exists) {
           var data = snapshot.data!.data() as Map<String, dynamic>?;
           // Use the correct field name from firestore_setup.js
           if (data != null && data.containsKey('profilePhotoUrl')) {
@@ -90,7 +104,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
               print("Error loading profile image: $exception");
               if (mounted) {
                 setState(() {
-                   profileWidget = Icon(Icons.account_circle_rounded, size: 30, color: kLightTextColor);
+                  profileWidget = Icon(Icons.account_circle_rounded,
+                      size: 30, color: kLightTextColor);
                 });
               }
             },
@@ -101,9 +116,11 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(kDefaultRadius * 2),
-            onTap: () => Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
+            onTap: () =>
+                Get.toNamed(AppRoutes.profileSettings), // Use Get.toNamed
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: kDefaultPadding, vertical: kDefaultPadding / 2),
               child: profileWidget,
             ),
           ),
@@ -113,23 +130,42 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
   }
 
   // --- Reusable Bottom Navigation Logic (from TeacherListScreen) ---
-   void _onBottomNavItemTapped(int index) {
+  void _onBottomNavItemTapped(int index) {
     if (_selectedIndex == index) return;
 
     // Set state immediately for visual feedback
-    setState(() { _selectedIndex = index; });
+    setState(() {
+      _selectedIndex = index;
+    });
 
     // Use Future.delayed to allow animation before navigation
     Future.delayed(150.ms, () {
       if (!mounted) return; // Check if the widget is still in the tree
       switch (index) {
-        case 0: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen())); break;
-        case 1: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const StudentListScreen())); break;
-        case 2: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TeacherListScreen())); break; // Go to List Screen
-        case 3: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen())); break;
+        case 0:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const DashboardScreen()));
+          break;
+        case 1:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const StudentListScreen()));
+          break;
+        case 2:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+          break; // Go to List Screen
+        case 3:
+          Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const AttendanceSummaryScreen()));
+          break;
         case 4:
           AuthController.instance.signOut();
-          Navigator.pushAndRemoveUntil( context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false );
+          Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const SignInScreen()),
+              (route) => false);
           break;
       }
     });
@@ -142,15 +178,16 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
 
     if (_formKey.currentState!.validate()) {
       if (_selectedClasses.isEmpty) {
-         setState(() {
-           _statusMessage = 'Please select at least one assigned class.';
-           _isError = true;
-         });
-         // Clear message after a delay
-         Future.delayed(const Duration(seconds: 3), () { // Use Duration constructor
-           if (mounted) setState(() => _statusMessage = null);
-         });
-         return; // Stop submission
+        setState(() {
+          _statusMessage = 'Please select at least one assigned class.';
+          _isError = true;
+        });
+        // Clear message after a delay
+        Future.delayed(const Duration(seconds: 3), () {
+          // Use Duration constructor
+          if (mounted) setState(() => _statusMessage = null);
+        });
+        return; // Stop submission
       }
 
       setState(() {
@@ -160,7 +197,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       });
 
       try {
-        final String? adminUid = AuthController.instance.user?.uid; // Get Admin UID
+        final String? adminUid =
+            AuthController.instance.user?.uid; // Get Admin UID
         if (adminUid == null) {
           throw Exception("Admin user not found. Cannot add teacher.");
         }
@@ -170,7 +208,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           'email': _emailController.text.trim(),
           'phoneNumber': _phoneController.text.trim(),
           'whatsappNumber': _whatsappController.text.trim(),
-          'subject': _subjectsController.text.trim(), // Storing as single string for now
+          'subject': _subjectsController.text
+              .trim(), // Storing as single string for now
           'classAssigned': _selectedClasses,
           'joinedAt': Timestamp.now(),
           'isActive': true,
@@ -197,24 +236,25 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         });
 
         // Optional: Navigate back or show message longer
-        Future.delayed(const Duration(seconds: 2), () { // Use Duration constructor
+        Future.delayed(const Duration(seconds: 2), () {
+          // Use Duration constructor
           if (mounted) {
-             setState(() => _statusMessage = null);
-             // Optionally navigate back
-             // Navigator.pop(context);
+            setState(() => _statusMessage = null);
+            // Optionally navigate back
+            // Navigator.pop(context);
           }
         });
-
       } catch (e) {
         print("Error adding teacher: $e");
         setState(() {
           _statusMessage = 'Failed to add teacher. Please try again.';
           _isError = true;
         });
-         // Clear message after a delay
-         Future.delayed(const Duration(seconds: 3), () { // Use Duration constructor
-           if (mounted) setState(() => _statusMessage = null);
-         });
+        // Clear message after a delay
+        Future.delayed(const Duration(seconds: 3), () {
+          // Use Duration constructor
+          if (mounted) setState(() => _statusMessage = null);
+        });
       } finally {
         if (mounted) {
           setState(() {
@@ -223,14 +263,15 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         }
       }
     } else {
-       setState(() {
-         _statusMessage = 'Please fix the errors in the form.';
-         _isError = true;
-       });
-       // Clear message after a delay
-       Future.delayed(const Duration(seconds: 3), () { // Use Duration constructor
-         if (mounted) setState(() => _statusMessage = null);
-       });
+      setState(() {
+        _statusMessage = 'Please fix the errors in the form.';
+        _isError = true;
+      });
+      // Clear message after a delay
+      Future.delayed(const Duration(seconds: 3), () {
+        // Use Duration constructor
+        if (mounted) setState(() => _statusMessage = null);
+      });
     }
   }
 
@@ -241,18 +282,18 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
 
     // Define Bottom Nav Bar items (same as TeacherListScreen)
     final Map<int, IconData> navIcons = {
-      0: Icons.dashboard_rounded,
-      1: Icons.school_rounded,
-      2: Icons.co_present_rounded, // Icon for Teachers
+      0: Icons.school_rounded,
+      1: Icons.co_present_rounded, // Icon for Teachers
+      2: Icons.dashboard_rounded,
       3: Icons.assignment_rounded,
-      4: Icons.logout_rounded
+      4: Icons.assessment_outlined
     };
     final Map<int, String> navLabels = {
-      0: 'Dashboard',
-      1: 'Students',
-      2: 'Teachers',
+      0: 'Students',
+      1: 'Teachers',
+      2: 'Dashboard',
       3: 'Attendance',
-      4: 'Logout'
+      4: 'Exam'
     };
 
     return Scaffold(
@@ -277,7 +318,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
             children: [
               Text(
                 'Teacher Information Form',
-                style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: textTheme.headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: kDefaultPadding * 1.5),
 
@@ -287,7 +329,9 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                 label: 'Name',
                 hint: 'Teacher Name',
                 icon: Icons.person_outline_rounded,
-                validator: (value) => value == null || value.isEmpty ? 'Please enter teacher name' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter teacher name'
+                    : null,
               ),
               _buildTextField(
                 controller: _emailController,
@@ -296,8 +340,10 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.isEmpty) return 'Please enter email address';
-                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) return 'Please enter a valid email';
+                  if (value == null || value.isEmpty)
+                    return 'Please enter email address';
+                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value))
+                    return 'Please enter a valid email';
                   return null;
                 },
               ),
@@ -307,7 +353,9 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                 hint: 'Enter phone number',
                 icon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
-                 validator: (value) => value == null || value.isEmpty ? 'Please enter phone number' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter phone number'
+                    : null,
               ),
               _buildTextField(
                 controller: _whatsappController,
@@ -315,14 +363,18 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                 hint: 'Enter whatsapp number',
                 icon: Icons.message_outlined, // Using message icon for WhatsApp
                 keyboardType: TextInputType.phone,
-                validator: (value) => value == null || value.isEmpty ? 'Please enter WhatsApp number' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter WhatsApp number'
+                    : null,
               ),
-               _buildTextField(
+              _buildTextField(
                 controller: _subjectsController,
                 label: 'Subjects',
                 hint: 'Subject(s) taught (e.g., Maths, Science)',
                 icon: Icons.book_outlined,
-                validator: (value) => value == null || value.isEmpty ? 'Please enter subject(s)' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter subject(s)'
+                    : null,
               ),
 
               // --- Assigned Classes Dropdown ---
@@ -336,7 +388,9 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                     _selectedClasses = selected ?? [];
                   });
                 },
-                 validator: (value) => _selectedClasses.isEmpty ? 'Please select at least one class' : null,
+                validator: (value) => _selectedClasses.isEmpty
+                    ? 'Please select at least one class'
+                    : null,
               ),
 
               const SizedBox(height: kDefaultPadding * 1.5),
@@ -347,17 +401,25 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                 duration: 300.ms,
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: kDefaultPadding, vertical: kDefaultPadding * 0.6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: kDefaultPadding,
+                        vertical: kDefaultPadding * 0.6),
                     decoration: BoxDecoration(
-                      color: _isError ? kErrorColor.withOpacity(0.1) : kSuccessColor.withOpacity(0.1),
+                      color: _isError
+                          ? kErrorColor.withOpacity(0.1)
+                          : kSuccessColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(kDefaultRadius),
-                      border: Border.all(color: _isError ? kErrorColor : kSuccessColor, width: 1),
+                      border: Border.all(
+                          color: _isError ? kErrorColor : kSuccessColor,
+                          width: 1),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                          _isError
+                              ? Icons.error_outline_rounded
+                              : Icons.check_circle_outline_rounded,
                           color: _isError ? kErrorColor : kSuccessColor,
                           size: 20,
                         ),
@@ -387,7 +449,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                       ),
                     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.5),
 
-              const SizedBox(height: kDefaultPadding * 2), // Extra space at bottom
+              const SizedBox(
+                  height: kDefaultPadding * 2), // Extra space at bottom
             ],
           ),
         ),
@@ -398,7 +461,13 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           return BottomNavigationBarItem(
             icon: Animate(
               target: isSelected ? 1 : 0,
-              effects: [ScaleEffect(begin: const Offset(0.9, 0.9), end: const Offset(1.1, 1.1), duration: 200.ms, curve: Curves.easeOut)],
+              effects: [
+                ScaleEffect(
+                    begin: const Offset(0.9, 0.9),
+                    end: const Offset(1.1, 1.1),
+                    duration: 200.ms,
+                    curve: Curves.easeOut)
+              ],
               child: Icon(navIcons[index]),
             ),
             label: navLabels[index],
@@ -435,7 +504,11 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+          Text(label,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w500)),
           const SizedBox(height: kDefaultPadding / 2),
           TextFormField(
             controller: controller,
@@ -467,75 +540,85 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+          Text(label,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w500)),
           const SizedBox(height: kDefaultPadding / 2),
-          DropdownButtonFormField<List<String>>( // The type needs to match the value
-            value: selectedItems.isEmpty ? null : selectedItems, // Handle empty selection for hint
+          DropdownButtonFormField<List<String>>(
+            // The type needs to match the value
+            value: selectedItems.isEmpty
+                ? null
+                : selectedItems, // Handle empty selection for hint
             isExpanded: true,
             decoration: InputDecoration(
               hintText: hint,
               prefixIcon: Icon(Icons.class_outlined, size: 20),
               // Using theme's input decoration
             ),
-            items: [ // Wrap items in a way to allow multi-select visualization
+            items: [
+              // Wrap items in a way to allow multi-select visualization
               // This standard DropdownButtonFormField doesn't directly support multi-select UI like checkboxes.
               // We'll display the selected items as a comma-separated string.
               // A more complex UI would require a custom dropdown or package.
-               DropdownMenuItem<List<String>>(
-                 value: selectedItems, // Represents the current selection
-                 child: Text(
-                   selectedItems.isEmpty ? hint : selectedItems.join(', '),
-                   style: selectedItems.isEmpty ? kHintTextStyle : kBodyTextStyle,
-                   overflow: TextOverflow.ellipsis,
-                 ),
-               ),
-               // Add dummy items to trigger the dropdown, actual selection happens in onTap/showDialog
+              DropdownMenuItem<List<String>>(
+                value: selectedItems, // Represents the current selection
+                child: Text(
+                  selectedItems.isEmpty ? hint : selectedItems.join(', '),
+                  style:
+                      selectedItems.isEmpty ? kHintTextStyle : kBodyTextStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Add dummy items to trigger the dropdown, actual selection happens in onTap/showDialog
             ],
-             onChanged: (value) {
-               // This onChanged won't be directly used for selection updates
-               // because the selection happens in the dialog.
-             },
-             onTap: () async {
-                // Hide keyboard if open
-                FocusScope.of(context).unfocus();
-                // Show multi-select dialog
-                final List<String>? result = await showDialog<List<String>>(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return MultiSelectDialog(
-                      items: items,
-                      initialSelectedItems: selectedItems,
-                    );
-                  },
-                );
-                if (result != null) {
-                  onChanged(result); // Update state with selection from dialog
-                }
-             },
+            onChanged: (value) {
+              // This onChanged won't be directly used for selection updates
+              // because the selection happens in the dialog.
+            },
+            onTap: () async {
+              // Hide keyboard if open
+              FocusScope.of(context).unfocus();
+              // Show multi-select dialog
+              final List<String>? result = await showDialog<List<String>>(
+                context: context,
+                builder: (BuildContext context) {
+                  return MultiSelectDialog(
+                    items: items,
+                    initialSelectedItems: selectedItems,
+                  );
+                },
+              );
+              if (result != null) {
+                onChanged(result); // Update state with selection from dialog
+              }
+            },
             // Custom validator needed as the value is List<String>
             validator: (value) {
-               if (selectedItems.isEmpty) {
-                 return 'Please select at least one class';
-               }
-               return null; // Validation passed
+              if (selectedItems.isEmpty) {
+                return 'Please select at least one class';
+              }
+              return null; // Validation passed
             },
-             autovalidateMode: AutovalidateMode.onUserInteraction,
-             // Display selected items in the dropdown field itself
-             selectedItemBuilder: (context) {
-                return items.map((_)=> Text(
-                    selectedItems.join(', '),
-                    style: kBodyTextStyle,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  )).toList(); // Needs a list of widgets
-             },
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            // Display selected items in the dropdown field itself
+            selectedItemBuilder: (context) {
+              return items
+                  .map((_) => Text(
+                        selectedItems.join(', '),
+                        style: kBodyTextStyle,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ))
+                  .toList(); // Needs a list of widgets
+            },
           ),
         ],
       ),
     );
   }
 }
-
 
 // --- Helper Dialog for Multi-Select ---
 

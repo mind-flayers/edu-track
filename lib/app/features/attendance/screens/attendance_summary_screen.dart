@@ -4,6 +4,7 @@ import 'package:edu_track/app/features/authentication/controllers/auth_controlle
 import 'package:edu_track/app/features/students/screens/student_list_screen.dart';
 import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
+import 'package:edu_track/app/features/exam/screens/exam_results_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
@@ -503,24 +504,21 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       switch (index) {
         case 0:
           Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
+              MaterialPageRoute(builder: (_) => const StudentListScreen()));
           break;
         case 1:
           Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const StudentListScreen()));
+              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
           break;
         case 2:
           Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+              MaterialPageRoute(builder: (_) => const DashboardScreen()));
           break;
         case 3:
           break; // Already on Attendance Summary Screen
         case 4:
-          AuthController.instance.signOut();
-          Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const SignInScreen()),
-              (route) => false);
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
           break;
       }
     });
@@ -954,18 +952,18 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     // final colorScheme = Theme.of(context).colorScheme;
 
     final Map<int, IconData> navIcons = {
-      0: Icons.dashboard_rounded,
-      1: Icons.school_rounded,
-      2: Icons.co_present_rounded,
+      0: Icons.school_rounded,
+      1: Icons.co_present_rounded,
+      2: Icons.dashboard_rounded,
       3: Icons.assignment_rounded,
-      4: Icons.logout_rounded
+      4: Icons.assessment_outlined
     };
     final Map<int, String> navLabels = {
-      0: 'Dashboard',
-      1: 'Students',
-      2: 'Teachers',
+      0: 'Students',
+      1: 'Teachers',
+      2: 'Dashboard',
       3: 'Attendance',
-      4: 'Logout'
+      4: 'Exam'
     };
 
     return Scaffold(
