@@ -2,6 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
 import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
+import 'package:edu_track/app/features/students/screens/student_list_screen.dart';
+import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
+import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
@@ -53,7 +57,7 @@ class ExamResultsScreen extends StatefulWidget {
 }
 
 class _ExamResultsScreenState extends State<ExamResultsScreen> {
-  // int _selectedIndex = 3; // Assuming Exam Results uses the 4th nav item (index 3) like Attendance
+  int _selectedIndex = 4; // Exam Results is at index 4
   String? _selectedClassSection;
   String? _selectedSubject;
   _ExamTerm? _selectedTerm;
@@ -117,20 +121,23 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           .collection('students')
           .get();
       final classSections = snapshot.docs
-          .map((doc) {
-            final data = doc.data();
-            final className = data['class'] as String?;
-            final section = data['section'] as String?;
-            if (className != null && section != null) {
-              return '$className - $section';
-            }
-            return null;
-          })
-          .where((cs) => cs != null)
+          .map((doc) => doc.data()['class'] as String?)
+          .where((className) => className != null && className.isNotEmpty)
           .cast<String>()
           .toSet() // Use Set for uniqueness
           .toList();
-      classSections.sort(); // Sort alphabetically
+      classSections.sort((a, b) {
+        // Extract grade number from "Grade X - Section" format
+        final aMatch = RegExp(r'Grade (\d+)').firstMatch(a);
+        final bMatch = RegExp(r'Grade (\d+)').firstMatch(b);
+        if (aMatch != null && bMatch != null) {
+          final aNum = int.parse(aMatch.group(1)!);
+          final bNum = int.parse(bMatch.group(1)!);
+          if (aNum != bNum) return aNum.compareTo(bNum);
+        }
+        // If grades are same or parsing failed, sort by full string
+        return a.compareTo(b);
+      });
       setState(() {
         _availableClassSections = classSections;
         _isLoadingClasses = false;
@@ -557,19 +564,10 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
       _isEditing = false; // Ensure edit mode is off when fetching new data
     });
 
-    final parts = _selectedClassSection!.split(' - ');
-    if (parts.length != 2) {
-      setState(() {
-        _errorMessage = "Invalid class format selected.";
-        _isLoadingResults = false;
-      });
-      return;
-    }
-    final className = parts[0];
-    final section = parts[1];
+    final className = _selectedClassSection!;
 
     print(
-        "Fetching Exam Results for Class: $className, Section: $section, Subject: $_selectedSubject, Term: ${_selectedTerm!.name}");
+        "Fetching Exam Results for Class: $className, Subject: $_selectedSubject, Term: ${_selectedTerm!.name}");
 
     final String? adminUid = AuthController.instance.user?.uid;
     if (adminUid == null) {
@@ -589,8 +587,6 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           .doc(adminUid)
           .collection('students')
           .where('class', isEqualTo: className)
-          .where('section', isEqualTo: section)
-          // .where('subjectsChoosed', arrayContains: _selectedSubject) // Filter removed, will filter in app
           .orderBy('name')
           .get();
 
@@ -1542,7 +1538,96 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           _buildResultsTable(),
         ],
       ),
-      // Bottom Navigation Bar Removed
+      bottomNavigationBar: _buildBottomNavigationBar(),
     );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    final Map<int, IconData> navIcons = {
+      0: Icons.school_rounded,
+      1: Icons.co_present_rounded,
+      2: Icons.dashboard_rounded,
+      3: Icons.assignment_rounded,
+      4: Icons.assessment_outlined
+    };
+    final Map<int, String> navLabels = {
+      0: 'Students',
+      1: 'Teachers',
+      2: 'Dashboard',
+      3: 'Attendance',
+      4: 'Exam'
+    };
+
+    return BottomNavigationBar(
+      items: List.generate(navIcons.length, (index) {
+        bool isSelected = _selectedIndex == index;
+        return BottomNavigationBarItem(
+          icon: Animate(
+            target: isSelected ? 1 : 0,
+            effects: [
+              ScaleEffect(
+                  begin: const Offset(0.9, 0.9),
+                  end: const Offset(1.1, 1.1),
+                  duration: 200.ms,
+                  curve: Curves.easeOut)
+            ],
+            child: Icon(navIcons[index]),
+          ),
+          label: navLabels[index],
+        );
+      }),
+      currentIndex: _selectedIndex,
+      selectedItemColor: kPrimaryColor,
+      unselectedItemColor: kLightTextColor,
+      onTap: _onBottomNavItemTapped,
+      type: BottomNavigationBarType.fixed,
+      showUnselectedLabels: true,
+      showSelectedLabels: true,
+      selectedFontSize: 12.0,
+      unselectedFontSize: 11.0,
+      elevation: 10.0,
+      backgroundColor: Colors.white,
+    );
+  }
+
+  void _onBottomNavItemTapped(int index) {
+    if (_selectedIndex == index) return;
+
+    // Prevent navigation if in editing mode
+    if (_isEditing) {
+      _showSnackbar("Please save or cancel edits before navigating.",
+          isError: true, isInfo: true);
+      return;
+    }
+
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    Future.delayed(150.ms, () {
+      if (!mounted) return;
+      switch (index) {
+        case 0:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const StudentListScreen()));
+          break;
+        case 1:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+          break;
+        case 2:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const DashboardScreen()));
+          break;
+        case 3:
+          Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const AttendanceSummaryScreen()));
+          break;
+        case 4:
+          break; // Already on Exam Results Screen
+      }
+    });
   }
 }

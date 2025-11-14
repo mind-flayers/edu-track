@@ -4,287 +4,341 @@
   <img src="assets/images/app_logo_high.png" alt="EduTrack Logo" width="200"/>
   
   [![Flutter](https://img.shields.io/badge/Flutter-3.6.0-blue.svg)](https://flutter.dev/)
+  [![Next.js](https://img.shields.io/badge/Next.js-16.0-black.svg)](https://nextjs.org/)
   [![Firebase](https://img.shields.io/badge/Firebase-Enabled-orange.svg)](https://firebase.google.com/)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 </div>
 
 ## 📖 What is EduTrack?
 
-EduTrack is a comprehensive **Tuition/Academy Management System** built with Flutter and Firebase, designed specifically for educational institutions to streamline their administrative processes. This mobile application serves as a centralized platform for managing students, teachers, attendance, exam results, and fee payments.
+EduTrack is a comprehensive **Academy Management Ecosystem** for educational institutions. Three integrated components:
+
+1. **Flutter Mobile App** - Primary academy management interface (Android, iOS, Web, Desktop)
+2. **Next.js Admin Portal** - Web dashboard for super admin to manage multiple academies
+3. **WhatsApp Bot** - Automated notification service for parents
+
+Manage students, teachers, attendance, exams, fees, and parent communication - all in one platform.
+
+## 🏗️ System Architecture
+
+```
+Flutter App + Next.js Portal + WhatsApp Bot
+              ↓
+        Firebase Backend
+     (Firestore, Auth, Functions)
+              ↓
+      External Services
+   (Cloudinary, WhatsApp Web)
+```
 
 ### 🎯 Key Features
 
-- **👥 Student Management**: Complete student profiles with photo, contact details, and academic information
-- **👨‍🏫 Teacher Management**: Teacher profiles with subject assignments and class allocations
-- **📊 Attendance Tracking**: Real-time attendance marking with QR code scanning
-- **�� Exam Results**: Comprehensive exam result management with term-wise tracking
-- **💰 Fee Management**: Track fee payments and pending amounts
-- **📱 QR Code Integration**: Quick attendance marking through QR code scanning
-- **📈 Analytics Dashboard**: Visual insights with charts and statistics
-- **📄 Report Generation**: Export data to Excel and PDF formats
-- **🔐 Secure Authentication**: Firebase-based authentication system
-- **☁️ Cloud Storage**: Cloudinary integration for image management
+**Flutter App**: Student/Teacher management • QR-based attendance • Exam results • Fee tracking (monthly/daily) • Analytics dashboard • Excel/PDF export • WhatsApp notifications
+
+**Admin Portal**: Multi-academy management • CSV bulk import • Cloudinary integration • Admin account creation
+
+**WhatsApp Bot**: Automated parent notifications • Message queue • Delivery tracking • Auto-retry • Free Oracle Cloud hosting
 
 ## 🤔 Why EduTrack?
 
-### Problems It Solves:
-- **Manual Record Keeping**: Eliminates paper-based student and teacher records
-- **Attendance Management**: Automates attendance tracking with QR codes
-- **Data Accessibility**: Provides instant access to student/teacher information
-- **Fee Tracking**: Simplifies fee collection and payment tracking
-- **Report Generation**: Automated generation of academic reports
-- **Communication Gap**: Bridges communication between administration and stakeholders
+**Solves**: Manual record keeping • Attendance tracking • Fee management • Report generation • Parent communication
 
-### Benefits:
-- ⚡ **Efficiency**: Reduces administrative workload by 70%
-- 📊 **Accuracy**: Minimizes human errors in data entry
-- 🔍 **Transparency**: Real-time access to academic data
-- 💾 **Data Security**: Cloud-based secure data storage
-- 📱 **Mobility**: Access from anywhere, anytime
-- 💰 **Cost-Effective**: Reduces paper and manual labor costs
+**Benefits**: 70% less admin work • Cloud security • Real-time data access • Multi-platform • Cost-effective
 
-## 👥 Who Needs EduTrack?
-
-### Primary Users:
-- **🏫 Educational Institutions**: Schools, colleges, coaching centers
-- **👨‍💼 School Administrators**: Principals, admin staff
-- **📚 Academy Owners**: Private coaching institutes
-- **🎓 Training Centers**: Professional training institutes
-
-### Target Audience:
-- Small to medium-sized educational institutions
-- Institutions looking to digitize their operations
-- Organizations wanting to improve administrative efficiency
-- Schools seeking modern attendance and fee management solutions
+**For**: Schools • Coaching centers • Training institutes • Academy owners looking to digitize operations
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-Before you begin, ensure you have the following installed:
-- [Flutter SDK](https://flutter.dev/docs/get-started/install) (3.6.0 or higher)
-- [Dart SDK](https://dart.dev/get-dart) (3.6.0 or higher)
-- [Android Studio](https://developer.android.com/studio) or [VS Code](https://code.visualstudio.com/)
-- [Git](https://git-scm.com/)
+- Flutter SDK 3.6.0+ • Android Studio or VS Code • Git • Node.js 18+ (for portal/bot)
 
 ### 📥 How to Clone and Run This Repository
 
 #### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/edu_track.git
+git clone https://github.com/mind-flayers/edu-track.git
 cd edu_track
 ```
 
-#### 2. Install Dependencies
+---
+
+## 🚀 Component Setup Guides
+
+### 1️⃣ Flutter Mobile App Setup
+
+#### Prerequisites
+- Flutter SDK 3.6.0+ ([Install Flutter](https://flutter.dev/docs/get-started/install))
+- Android Studio or VS Code with Flutter extensions
+- Git
+
 ```bash
-flutter pub get
+flutter pub get && flutter doctor
+
+# Use existing Firebase project or create your own at console.firebase.google.com
+# Enable: Authentication, Firestore, Storage
+
+# Seed test data (optional)
+cd db && npm install
+node populate_database.js YOUR_ADMIN_UID
+
+# Run app
+flutter run                    # Default device
+flutter run -d chrome          # Web
+flutter run --release          # Release mode
+
+# Build for production
+flutter build apk --release    # Android
+flutter build web --release    # Web
 ```
 
-#### 3. Firebase Setup
-1. Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
-2. Enable the following services:
-   - Authentication (Email/Password)
-   - Cloud Firestore
-   - Storage
-3. Download and place configuration files:
-   - `google-services.json` in `android/app/`
-   - `GoogleService-Info.plist` in `ios/Runner/`
+See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) for complete instructions.
 
-#### 4. Configure Firebase CLI (Optional)
+---
+
+### 2️⃣ Next.js Admin Portal Setup
+
 ```bash
-npm install -g firebase-tools
-firebase login
-firebase init
+cd admin-portal && npm install
+
+# Create .env.local with:
+# - SUPER_ADMIN_EMAIL (your email)
+# - Firebase Admin SDK credentials (from Firebase Console → Service Accounts)
+# - Cloudinary credentials
+
+npm run dev  # Access at localhost:3000
 ```
 
-#### 5. Run the Application
+**Features**: Create academy accounts • Bulk CSV import • Google Drive photo sync
+
+See [`admin-portal/README.md`](admin-portal/README.md) for details.
+
+---
+
+### 3️⃣ WhatsApp Bot Setup
+
 ```bash
-# For Android
-flutter run
+cd whatsapp-edutrack-bot && npm install
 
-# For iOS
-flutter run -d ios
+# Add service-account-key.json from Firebase Console
 
-# For Web
-flutter run -d chrome
-
-# For specific device
-flutter devices
-flutter run -d [device-id]
+npm start       # Terminal 1: Start bot, scan QR code
+npm run bridge  # Terminal 2: Start Firebase queue processor
 ```
 
-#### 6. Build for Production
+**Flow**: Flutter app → Firestore queue → Firebase bridge → WhatsApp bot → Parent's WhatsApp
+
+**Deploy**: Free 24/7 hosting on Oracle Cloud. See [`ORACLE_CLOUD_DEPLOYMENT_GUIDE.md`](whatsapp-edutrack-bot/ORACLE_CLOUD_DEPLOYMENT_GUIDE.md)
+
+See [`whatsapp-edutrack-bot/README.md`](whatsapp-edutrack-bot/README.md) for details.
+
+---
+
+### 4️⃣ Firebase Functions Setup (Optional)
+
 ```bash
-# Android APK
-flutter build apk --release
+cd functions
+npm install
 
-# Android App Bundle
-flutter build appbundle --release
+# Deploy functions
+firebase deploy --only functions
 
-# iOS
-flutter build ios --release
-
-# Web
-flutter build web --release
+# Test locally
+npm run serve
 ```
 
-## 📱 App Architecture
+## 📁 Repository Structure
 
-### 🏗️ Project Structure
 ```
-lib/
-├── app/
-│   ├── features/
-│   │   ├── authentication/     # Login, signup, password reset
-│   │   ├── dashboard/          # Main dashboard
-│   │   ├── students/           # Student management
-│   │   ├── teachers/           # Teacher management
-│   │   ├── attendance/         # Attendance tracking
-│   │   ├── exam/              # Exam results
-│   │   ├── profile/           # User profile
-│   │   └── qr_scanner/        # QR code functionality
-│   ├── utils/                 # Constants, themes, helpers
-│   └── widgets/               # Reusable widgets
-├── firebase_options.dart      # Firebase configuration
-└── main.dart                  # App entry point
+lib/                    # Flutter app (authentication, dashboard, students, teachers, etc.)
+admin-portal/           # Next.js super admin portal
+whatsapp-edutrack-bot/  # WhatsApp notification bot (Baileys)
+functions/              # Firebase Cloud Functions
+db/                     # Database scripts and documentation
+docs/                   # Deployment and setup guides
 ```
 
-### 🛠️ Tech Stack
-- **Frontend**: Flutter (Dart)
-- **Backend**: Firebase (Firestore, Auth, Storage)
-- **State Management**: GetX
-- **Image Storage**: Cloudinary
-- **Charts**: FL Chart
-- **QR Codes**: QR Flutter, Mobile Scanner
-- **File Operations**: Excel, PDF generation
+## 🛠️ Tech Stack
+
+**Flutter App**: Flutter 3.6.0 • GetX • Firebase • Cloudinary • FL Chart • QR Flutter • Excel/PDF export
+
+**Admin Portal**: Next.js 16 • React 19 • Tailwind CSS • Firebase Admin SDK • PapaParse
+
+**WhatsApp Bot**: Node.js 18 • Baileys • Express • PM2 • Firebase Admin SDK
+
+**Backend**: Firebase (Firestore, Auth, Functions, Storage)
 
 ## 📊 Database Structure
 
-### Firestore Collections:
-```
-admins/
-├── {adminId}/
-│   ├── adminProfile/
-│   ├── students/
-│   │   └── {studentId}/
-│   │       ├── attendance/
-│   │       ├── fees/
-│   │       └── examResults/
-│   ├── teachers/
-│   ├── examTerms/
-│   └── attendanceSummary/
-```
+**Multi-tenant Firestore**: All data scoped under `admins/{adminUid}/`
 
-## 🎥 Demo Video
+**Collections**: adminProfile • academySettings • students (with attendance, fees, examResults) • teachers • examTerms • attendanceSummary • whatsappQueue
 
-> **Coming Soon!** 
-> 
-> We're preparing a comprehensive demo video showcasing all features of EduTrack. Stay tuned!
+**Key Features**: Data isolation per academy • PAID/PENDING payment status • Presence-only attendance • Academy-specific subjects • Fee exemption flag • WhatsApp message queue
 
-## 📸 Screenshots
+See [`db/database_structure.md`](db/database_structure.md) for complete schema.
 
-### Dashboard
-<div align="center">
-  <img src="screenshots/dashboard.png" alt="Dashboard" width="300"/>
-  <p><em>Main dashboard with overview statistics</em></p>
-</div>
+---
 
-### Student Management
-<div align="center">
-  <img src="screenshots/student_list.png" alt="Student List" width="300"/>
-  <p><em>Student list with search functionality</em></p>
-</div>
+## 📸 Screenshots & Demo
 
-### QR Code Scanner
-<div align="center">
-  <img src="screenshots/qr_scanner.png" alt="QR Scanner" width="300"/>
-  <p><em>QR code scanner for attendance</em></p>
-</div>
+**Demo video coming soon!** App is fully functional with: Dashboard • Student/Teacher management • QR attendance • Exam results • Fee tracking • Admin portal • WhatsApp integration
 
-### Attendance Tracking
-<div align="center">
-  <img src="screenshots/attendance.png" alt="Attendance" width="300"/>
-  <p><em>Attendance summary with analytics</em></p>
-</div>
+---
 
-> **Note**: Screenshots will be added soon. The app is fully functional and ready for testing.
+## 🌐 Deployment
 
-## 🌐 Where You Can Try EduTrack
+**Platforms**: ✅ Android • iOS (Mac required) • Web • Windows • macOS
 
-### 🔗 Live Demo
-- **Web App**: [https://edutrack-demo.web.app](https://edutrack-demo.web.app) *(Coming Soon)*
-- **Android APK**: [Download Latest Release](https://github.com/yourusername/edu_track/releases) *(Coming Soon)*
+**Hosting**:
+- Flutter App → Google Play, App Store, or direct APK
+- Admin Portal → Vercel, Netlify, Firebase Hosting
+- WhatsApp Bot → Oracle Cloud Free Tier ($0/month)
 
+See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) for complete instructions.
 
-### 📱 Platform Availability
-- ✅ **Android** (API 21+)
-- ✅ **iOS** (iOS 12+)
-- ✅ **Web** (Chrome, Firefox, Safari)
-- ✅ **Windows** (Windows 10+)
-- ✅ **macOS** (macOS 10.14+)
-- ✅ **Linux** (Ubuntu 18.04+)
+---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please follow these steps:
+Contributions welcome! Fork → Create feature branch → Commit → Push → Open PR
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+**Guidelines**: Follow [Effective Dart](https://dart.dev/guides/language/effective-dart/style) • Use GetX patterns • Test on multiple platforms • Update docs
 
-### 📋 Development Guidelines
-- Follow [Flutter style guide](https://dart.dev/guides/language/effective-dart/style)
-- Write meaningful commit messages
-- Add tests for new features
-- Update documentation as needed
+**Commit format**: `feat:` `fix:` `docs:` `refactor:` `test:` `chore:`
+
+**Priority areas**: Bug fixes • iOS testing • Screenshots • Documentation • i18n • Accessibility
+
+See [`.github/copilot-instructions.md`](.github/copilot-instructions.md) for development guide.
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support & Help
+---
 
-### 📞 Contact Information
-- **Email**: mishaf1106@gmail.com
-- **GitHub Issues**: [Create an Issue](https://github.com/mindflayers/edu_track/issues)
-- **Documentation**: [Wiki](https://github.com/yourusername/edu_track/wiki)
+## 📚 Documentation
 
-### 🐛 Bug Reports
-If you encounter any bugs, please create an issue with:
-- Device information
-- Steps to reproduce
-- Expected vs actual behavior
-- Screenshots (if applicable)
+**Components**: [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) • [`admin-portal/README.md`](admin-portal/README.md) • [`whatsapp-edutrack-bot/README.md`](whatsapp-edutrack-bot/README.md) • [`db/database_structure.md`](db/database_structure.md)
 
-### 💡 Feature Requests
-We're always looking to improve! Submit feature requests through GitHub Issues with the "enhancement" label.
+**Deployment**: [`ORACLE_CLOUD_DEPLOYMENT_GUIDE.md`](whatsapp-edutrack-bot/ORACLE_CLOUD_DEPLOYMENT_GUIDE.md) • [`QUICK_START_ORACLE.md`](whatsapp-edutrack-bot/QUICK_START_ORACLE.md)
+
+**Security**: [`admin-portal/SECURITY.md`](admin-portal/SECURITY.md)
+
+---
+
+## 🆘 Support
+
+**Contact**: Mishaf Hasan • mishaf1106@gmail.com
+
+**Issues**: [GitHub Issues](https://github.com/mind-flayers/edu-track/issues) - Include component, platform, steps to reproduce
+
+**Help**: Check docs → Search existing issues → Create new issue → Email support
+
+---
 
 ## 🔮 Roadmap
 
-### Upcoming Features:
-- [ ] **Student Portal**: Dedicated app for students
-- [ ] **Push Notifications**: Real-time notifications for important updates
-- [ ] **Multi-language Support**: Support for regional languages
-- [ ] **Timetable Management**: Class scheduling and timetable management
-- [ ] **Financial Reports**: Advanced financial analytics and reporting
+**v1.0.0 (Current)**: Flutter app • Admin portal • WhatsApp bot • QR attendance • Payment tracking • Exam management • Multi-tenant architecture
 
-### Version History:
-- **v1.0.0** - Initial release with core features
-- **v1.1.0** - Enhanced UI and bug fixes *(Coming Soon)*
-- **v2.0.0** - Student portal and notifications *(Planned)*
+**Planned**: Push notifications • Student/Parent apps • SMS integration • Timetable • Offline mode • Multi-language • Library management • Assignment tracking • Financial reports
+
+**Future**: AI predictions • LMS integration • Virtual classroom • Biometric attendance
+
+---
+
+## ❓ FAQ
+
+**Q: Do I need all three components?**  
+Flutter app is minimum. Add portal for bulk imports. Add bot for WhatsApp notifications.
+
+**Q: Is it free?**  
+Yes! MIT license. Firebase/Cloudinary have free tiers. Bot runs free on Oracle Cloud.
+
+**Q: Platforms supported?**  
+Android, iOS (Mac needed), Web, Windows, macOS
+
+**Q: Multi-tenant how?**  
+All data scoped under `admins/{adminUid}` - complete isolation per academy.
+
+**Q: WhatsApp bot cost?**  
+$0/month on Oracle Cloud Free Tier (24/7)
+
+**Q: Customize branding?**  
+Yes - update `lib/app/utils/constants.dart` and assets/images/
+
+**Troubleshooting**: Check component-specific READMEs • Search [GitHub Issues](https://github.com/mind-flayers/edu-track/issues) • Email: mishaf1106@gmail.com
+
+---
+
+## 🔒 Security
+
+**Firebase**: Configure Firestore rules • All operations require authentication • API keys are safe for client-side
+
+**Secrets**: Never commit `.env.local`, `service-account-key.json`, or `google-services.json`
+
+**Bot**: Use Helmet/CORS • Secure QR authentication • Follow Oracle Cloud security practices
+
+See [`admin-portal/SECURITY.md`](admin-portal/SECURITY.md) for details.
+
+---
 
 ## 🙏 Acknowledgments
 
-- **Flutter Team** for the amazing framework
-- **Firebase Team** for the robust backend services
-- **GetX Community** for the excellent state management solution
-- **Open Source Contributors** who made this project possible
+**Technologies**: Flutter • Firebase • GetX • Next.js • Baileys • Cloudinary • Oracle Cloud
+
+**Libraries**: FL Chart • Mobile Scanner • QR Flutter • Excel • PDF • Express • PM2 • Tailwind CSS • And many more
+
+**Community**: Stack Overflow • GitHub contributors • Reddit r/FlutterDev
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+**Key Points**:
+- ✅ Free to use for personal and commercial projects
+- ✅ Can modify and distribute
+- ✅ Must include original license and copyright notice
+- ❌ No warranty provided
+
+---
+
+## 👨‍💻 About the Developer
+
+**Mishaf Hasan** - Full Stack Developer
+
+Specializing in:
+- Flutter mobile app development
+- Firebase backend architecture
+- Next.js web applications
+- WhatsApp bot automation
+- Educational technology solutions
+
+**Contact**: mishaf1106@gmail.com
+
+---
+
+## 🌟 Show Your Support
+
+If you find EduTrack helpful, please consider:
+- ⭐ **Star this repository** on GitHub
+- 🍴 **Fork** and contribute improvements
+- 🐛 **Report bugs** to help us improve
+- 💡 **Suggest features** you'd like to see
+- 📢 **Share** with others who might benefit
+- 💬 **Provide feedback** on your experience
 
 ---
 
 <div align="center">
-  <p>Made with ❤️ by the Mishaf Hasan</p>
-  <p>⭐ Star this repository if you found it helpful!</p>
+  <h3>Made with ❤️ for Educational Institutions</h3>
+  <p>Empowering academies with modern technology</p>
+  <p>
+    <a href="https://github.com/mind-flayers/edu-track">⭐ Star on GitHub</a> •
+    <a href="https://github.com/mind-flayers/edu-track/issues">🐛 Report Bug</a> •
+    <a href="https://github.com/mind-flayers/edu-track/issues">💡 Request Feature</a>
+  </p>
+  <p><sub>© 2025 Mishaf Hasan. All rights reserved.</sub></p>
 </div>

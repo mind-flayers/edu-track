@@ -1142,7 +1142,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                 controller: _indexController,
                 decoration: const InputDecoration(
                   labelText: 'Enter Index Number',
-                  hintText: 'e.g., MEC/25/10A/01',
+                  hintText: 'e.g., MEC1001',
                   prefixIcon: Icon(Icons.badge_outlined),
                 ),
                 validator: (value) => value == null || value.isEmpty

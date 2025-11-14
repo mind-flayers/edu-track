@@ -113,7 +113,11 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
           .cast<String>()
           .toSet()
           .toList();
-      classes.sort();
+      classes.sort((a, b) {
+        final aNum = int.tryParse(a.replaceAll('Grade ', '')) ?? 0;
+        final bNum = int.tryParse(b.replaceAll('Grade ', '')) ?? 0;
+        return aNum.compareTo(bNum);
+      });
       setState(() {
         _availableClasses = classes;
         _isLoadingClasses = false;
@@ -1161,8 +1165,9 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                     Expanded(
                       flex: 1,
                       child: ElevatedButton(
-                        onPressed:
-                            _isEditMode ? _saveAllChanges : _toggleEditMode,
+                        onPressed: (_attendanceList.isEmpty || _isLoadingData)
+                            ? null
+                            : (_isEditMode ? _saveAllChanges : _toggleEditMode),
                         style: ElevatedButton.styleFrom(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(kDefaultRadius),
@@ -1190,7 +1195,11 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                     Expanded(
                       flex: 1,
                       child: ElevatedButton(
-                        onPressed: _showAttendanceExportOptions,
+                        onPressed: (_attendanceList.isEmpty ||
+                                _isLoadingData ||
+                                _isEditMode)
+                            ? null
+                            : _showAttendanceExportOptions,
                         style: ElevatedButton.styleFrom(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(kDefaultRadius),

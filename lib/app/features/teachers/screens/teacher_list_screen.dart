@@ -21,7 +21,7 @@ class TeacherListScreen extends StatefulWidget {
 class _TeacherListScreenState extends State<TeacherListScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  int _selectedIndex = 2; // Teachers tab is selected
+  int _selectedIndex = 1; // Teachers tab is selected
 
   @override
   void initState() {

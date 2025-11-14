@@ -25,7 +25,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
   String _searchQuery = '';
   String? _selectedClass;
   List<String> _availableClasses = [];
-  int _selectedIndex = 1; // Students tab is selected
+  int _selectedIndex = 0; // Students tab is selected
 
   // Selection mode state
   bool _isSelectionMode = false;
