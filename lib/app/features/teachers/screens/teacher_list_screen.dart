@@ -51,14 +51,14 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
       switch (index) {
         case 0:
           Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
-          break;
-        case 1:
-          Navigator.pushReplacement(context,
               MaterialPageRoute(builder: (_) => const StudentListScreen()));
           break;
-        case 2:
+        case 1:
           break; // Already on Teacher List Screen
+        case 2:
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const DashboardScreen()));
+          break;
         case 3:
           Navigator.pushReplacement(
               context,
