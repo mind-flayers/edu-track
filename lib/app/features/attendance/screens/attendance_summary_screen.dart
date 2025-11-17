@@ -499,33 +499,27 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   void _onBottomNavItemTapped(int index) {
     if (_selectedIndex == index) return;
 
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    Future.delayed(150.ms, () {
-      if (!mounted) return;
-      switch (index) {
-        case 0:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const StudentListScreen()));
-          break;
-        case 1:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
-          break;
-        case 2:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
-          break;
-        case 3:
-          break; // Already on Attendance Summary Screen
-        case 4:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
-          break;
-      }
-    });
+    // Navigate immediately with animation
+    switch (index) {
+      case 0:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        break;
+      case 1:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+        break;
+      case 2:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()));
+        break;
+      case 3:
+        break; // Already on Attendance Summary Screen
+      case 4:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+        break;
+    }
   }
 
   Widget _buildProfileAvatar() {

@@ -278,38 +278,27 @@ class _StudentListScreenState extends State<StudentListScreen> {
     // Don't rebuild if the same tab is tapped
     if (_selectedIndex == index) return;
 
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    // Navigate after a short delay to allow animation
-    Future.delayed(150.ms, () {
-      if (!mounted) return;
-      switch (index) {
-        case 0:
-          break; // Already on Student List Screen
-        case 1:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
-          break;
-        case 2:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
-          break;
-        case 3:
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const AttendanceSummaryScreen()));
-          break;
-        case 4:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
-          break;
-      }
-      // Reset index visually if navigating away and coming back might be needed,
-      // but pushReplacement handles the state reset better here.
-    });
+    // Navigate immediately with animation
+    switch (index) {
+      case 0:
+        break; // Already on Student List Screen
+      case 1:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+        break;
+      case 2:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()));
+        break;
+      case 3:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+        break;
+      case 4:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+        break;
+    }
   }
 
   Widget _buildProfileAvatar() {

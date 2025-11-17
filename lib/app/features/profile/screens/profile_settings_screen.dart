@@ -29,17 +29,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   final _currentPasswordForEmailChangeController =
       TextEditingController(); // For change email dialog
 
-  // Remove local state variables managed by the controller
-  // bool _isEditing = false;
-  // bool _isLoading = false;
-  // String? _statusMessage;
-  // bool _isError = false;
-  // String _currentName = '';
-  // String _currentAcademyName = '';
-  // String _currentSmsToken = '';
-  // String? _currentProfilePhotoUrl;
-  // String? _currentEmail;
-
   // --- Listeners to sync TextControllers with Controller State ---
   @override
   void initState() {
@@ -187,567 +176,133 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                       ).animate().fadeIn(delay: 100.ms)),
               ],
             ),
-            body: Obx(() => controller
-                    .isLoading.value // Use Obx for simple boolean checks
+            body: Obx(() => controller.isLoading.value
                 ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                    onRefresh:
-                        controller.fetchProfileData, // Call controller method
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(kDefaultPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // --- Profile Picture Section with Card ---
-                          Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  kPrimaryColor.withOpacity(0.1),
-                                  kPrimaryColor.withOpacity(0.05),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius:
-                                  BorderRadius.circular(kDefaultRadius),
-                              border: Border.all(
-                                color: kPrimaryColor.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            padding:
-                                const EdgeInsets.all(kDefaultPadding * 1.5),
-                            child: Column(
-                              children: [
-                                Obx(() {
-                                  final hasPhoto =
-                                      controller.profilePhotoUrl.value !=
-                                              null &&
-                                          controller.profilePhotoUrl.value!
-                                              .isNotEmpty;
-                                  return Stack(
-                                    alignment: Alignment.bottomRight,
-                                    children: [
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: kPrimaryColor
-                                                  .withOpacity(0.3),
-                                              blurRadius: 15,
-                                              offset: const Offset(0, 5),
-                                            ),
-                                          ],
-                                        ),
-                                        child: hasPhoto
-                                            ? CircleAvatar(
-                                                radius: 60,
-                                                backgroundColor:
-                                                    kSecondaryColor,
-                                                child: CircleAvatar(
-                                                  radius: 58,
-                                                  backgroundImage: NetworkImage(
-                                                      controller.profilePhotoUrl
-                                                          .value!),
-                                                  onBackgroundImageError:
-                                                      (exception, stackTrace) {
-                                                    print(
-                                                        "Error loading profile image: $exception");
-                                                  },
+                : Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFF9F7FF), Color(0xFFF6FAFF)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                    child: RefreshIndicator(
+                      onRefresh: controller.fetchProfileData,
+                      child: LayoutBuilder(
+                        builder: (context, outerConstraints) {
+                          final horizontalInset =
+                              outerConstraints.maxWidth > 900
+                                  ? kDefaultPadding * 1.5
+                                  : kDefaultPadding;
+                          return SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 1100),
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: horizontalInset,
+                                    vertical: kDefaultPadding * 1.5,
+                                  ),
+                                  child: LayoutBuilder(
+                                    builder: (context, contentConstraints) {
+                                      final bool allowTwoColumns =
+                                          contentConstraints.maxWidth > 720;
+                                      final double spacing =
+                                          kDefaultPadding * 1.4;
+                                      final double sectionWidth =
+                                          allowTwoColumns
+                                              ? (contentConstraints.maxWidth -
+                                                      spacing) /
+                                                  2
+                                              : contentConstraints.maxWidth;
+
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          SizedBox(
+                                            height: allowTwoColumns
+                                                ? kDefaultPadding
+                                                : kDefaultPadding * 0.6,
+                                          ),
+                                          Wrap(
+                                            spacing: spacing,
+                                            runSpacing: spacing,
+                                            children: [
+                                              SizedBox(
+                                                width:
+                                                    contentConstraints.maxWidth,
+                                                child: _buildProfileHeroCard(
+                                                    controller, textTheme),
+                                              )
+                                                  .animate()
+                                                  .fadeIn(duration: 400.ms)
+                                                  .slideY(
+                                                      begin: -0.2,
+                                                      duration: 400.ms),
+                                              SizedBox(
+                                                width: sectionWidth,
+                                                child: _buildPersonalInfoCard(
+                                                    controller, textTheme),
+                                              )
+                                                  .animate()
+                                                  .fadeIn(
+                                                      delay: 200.ms,
+                                                      duration: 400.ms)
+                                                  .slideY(
+                                                      begin: 0.1,
+                                                      duration: 400.ms),
+                                              SizedBox(
+                                                width: sectionWidth,
+                                                child: _buildSecurityCard(
+                                                    controller, textTheme),
+                                              )
+                                                  .animate()
+                                                  .fadeIn(
+                                                      delay: 300.ms,
+                                                      duration: 400.ms)
+                                                  .slideY(
+                                                      begin: 0.1,
+                                                      duration: 400.ms),
+                                              SizedBox(
+                                                width: sectionWidth,
+                                                child: _buildSectionCard(
+                                                  child:
+                                                      _buildAcademySubjectsSection(),
                                                 ),
                                               )
-                                            : CircleAvatar(
-                                                radius: 60,
-                                                backgroundColor:
-                                                    kSecondaryColor,
-                                                child: CircleAvatar(
-                                                  radius: 58,
-                                                  backgroundColor: kPrimaryColor
-                                                      .withOpacity(0.1),
-                                                  child: Icon(
-                                                      Icons.person_rounded,
-                                                      size: 60,
-                                                      color: kPrimaryColor),
-                                                ),
-                                              ),
-                                      ),
-                                      if (controller.isEditing.value)
-                                        Positioned(
-                                          right: 0,
-                                          bottom: 0,
-                                          child: Material(
-                                            color: kPrimaryColor,
-                                            shape: const CircleBorder(),
-                                            elevation: 4,
-                                            child: InkWell(
-                                              onTap: _pickImage,
-                                              customBorder:
-                                                  const CircleBorder(),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.all(10),
-                                                child: const Icon(
-                                                    Icons.camera_alt,
-                                                    color: kSecondaryColor,
-                                                    size: 20),
-                                              ),
-                                            ),
+                                                  .animate()
+                                                  .fadeIn(
+                                                      delay: 400.ms,
+                                                      duration: 400.ms)
+                                                  .slideY(
+                                                      begin: 0.1,
+                                                      duration: 400.ms),
+                                            ],
                                           ),
-                                        ).animate().scale(
-                                            delay: 100.ms, duration: 300.ms),
-                                    ],
-                                  );
-                                }),
-                                const SizedBox(height: kDefaultPadding),
-                                Obx(() => Text(
-                                      controller.name.value ?? 'User Name',
-                                      style: textTheme.headlineSmall?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: kTextColor,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    )),
-                                const SizedBox(height: kDefaultPadding / 4),
-                                Obx(() => Text(
-                                      controller.email.value ??
-                                          'user@example.com',
-                                      style: textTheme.bodyMedium?.copyWith(
-                                        color: kLightTextColor,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    )),
-                              ],
-                            ),
-                          )
-                              .animate()
-                              .fadeIn(duration: 400.ms)
-                              .slideY(begin: -0.2, duration: 400.ms),
-                          const SizedBox(height: kDefaultPadding * 2),
-
-                          // --- User Details Section in Card ---
-                          Card(
-                            elevation: 2,
-                            shadowColor: Colors.black.withOpacity(0.1),
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(kDefaultRadius),
-                            ),
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.all(kDefaultPadding * 1.5),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.person_outline,
-                                          color: kPrimaryColor, size: 20),
-                                      const SizedBox(
-                                          width: kDefaultPadding / 2),
-                                      Text(
-                                        'Personal Information',
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: kDefaultPadding * 1.5),
-                                  Obx(() => _buildTextField(
-                                        controller: _nameController,
-                                        label: 'Name',
-                                        hint: 'Your Name',
-                                        icon: Icons.person_outline_rounded,
-                                        readOnly: !controller.isEditing.value,
-                                      )),
-                                  Obx(() => _buildTextField(
-                                        controller: _academyNameController,
-                                        label: 'Academy Name',
-                                        hint: 'Your Academy Name',
-                                        icon: Icons.school_outlined,
-                                        readOnly: !controller.isEditing.value,
-                                      )),
-                                  // --- Edit/Save/Cancel Buttons ---
-                                  Obx(() {
-                                    if (!controller.isEditing.value) {
-                                      return const SizedBox.shrink();
-                                    } else {
-                                      return Column(
-                                        children: [
+                                          const SizedBox(
+                                              height: kDefaultPadding * 1.5),
+                                          _buildStatusBanner(textTheme),
                                           const SizedBox(
                                               height: kDefaultPadding),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: ElevatedButton.icon(
-                                                  onPressed: _saveChanges,
-                                                  icon: const Icon(Icons.check,
-                                                      size: 18),
-                                                  label: const Text(
-                                                      'Save Changes'),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                          backgroundColor:
-                                                              kSuccessColor),
-                                                ),
-                                              ),
-                                              const SizedBox(
-                                                  width: kDefaultPadding),
-                                              Expanded(
-                                                child: ElevatedButton.icon(
-                                                  onPressed: _toggleEdit,
-                                                  icon: const Icon(Icons.close,
-                                                      size: 18),
-                                                  label: const Text('Cancel'),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                          backgroundColor:
-                                                              kErrorColor),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                          _buildLogoutButton(context)
+                                              .animate()
+                                              .fadeIn(
+                                                  delay: 500.ms,
+                                                  duration: 400.ms)
+                                              .slideY(
+                                                  begin: 0.1, duration: 400.ms),
                                         ],
-                                      ).animate().fadeIn(delay: 100.ms);
-                                    }
-                                  }),
-                                ],
-                              ),
-                            ),
-                          )
-                              .animate()
-                              .fadeIn(delay: 200.ms, duration: 400.ms)
-                              .slideY(begin: 0.1, duration: 400.ms),
-                          const SizedBox(height: kDefaultPadding * 1.5),
-
-                          // --- Security Section in Card ---
-                          Card(
-                            elevation: 2,
-                            shadowColor: Colors.black.withOpacity(0.1),
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(kDefaultRadius),
-                            ),
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.all(kDefaultPadding * 1.5),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.security,
-                                          color: kPrimaryColor, size: 20),
-                                      const SizedBox(
-                                          width: kDefaultPadding / 2),
-                                      Text(
-                                        'Account Security',
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
+                                      );
+                                    },
                                   ),
-                                  const SizedBox(height: kDefaultPadding * 1.5),
-                                  Obx(() => _buildInfoFieldWithButton(
-                                        label: 'Email',
-                                        value: controller.email.value ??
-                                            'Not available',
-                                        icon: Icons.email_outlined,
-                                        buttonLabel: 'Change',
-                                        onButtonPressed: _changeEmail,
-                                      )),
-                                  _buildInfoFieldWithButton(
-                                    label: 'Password',
-                                    value: '••••••••',
-                                    icon: Icons.lock_outline_rounded,
-                                    buttonLabel: 'Change',
-                                    onButtonPressed: _changePassword,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                              .animate()
-                              .fadeIn(delay: 300.ms, duration: 400.ms)
-                              .slideY(begin: 0.1, duration: 400.ms),
-                          const SizedBox(height: kDefaultPadding * 1.5),
-
-                          // --- Academy Subjects Management Section ---
-                          Card(
-                            elevation: 2,
-                            shadowColor: Colors.black.withOpacity(0.1),
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(kDefaultRadius),
-                            ),
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.all(kDefaultPadding * 1.5),
-                              child: _buildAcademySubjectsSection(),
-                            ),
-                          )
-                              .animate()
-                              .fadeIn(delay: 400.ms, duration: 400.ms)
-                              .slideY(begin: 0.1, duration: 400.ms),
-
-                          const SizedBox(height: kDefaultPadding * 1.5),
-
-                          // --- Status Message ---
-                          Obx(() {
-                            final message = controller.statusMessage.value;
-                            final isError = controller.isError.value;
-                            return AnimatedOpacity(
-                              opacity: message != null ? 1.0 : 0.0,
-                              duration: 300.ms,
-                              child: message == null
-                                  ? const SizedBox.shrink()
-                                  : Container(
-                                      width: double.infinity,
-                                      margin: const EdgeInsets.only(
-                                          bottom: kDefaultPadding),
-                                      padding: const EdgeInsets.all(
-                                          kDefaultPadding * 1.2),
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: isError
-                                              ? [
-                                                  kErrorColor.withOpacity(0.15),
-                                                  kErrorColor.withOpacity(0.08),
-                                                ]
-                                              : [
-                                                  kSuccessColor
-                                                      .withOpacity(0.15),
-                                                  kSuccessColor
-                                                      .withOpacity(0.08),
-                                                ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(
-                                            kDefaultRadius),
-                                        border: Border.all(
-                                          color: isError
-                                              ? kErrorColor.withOpacity(0.3)
-                                              : kSuccessColor.withOpacity(0.3),
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: isError
-                                                ? kErrorColor.withOpacity(0.1)
-                                                : kSuccessColor
-                                                    .withOpacity(0.1),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 3),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: isError
-                                                  ? kErrorColor
-                                                      .withOpacity(0.15)
-                                                  : kSuccessColor
-                                                      .withOpacity(0.15),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(
-                                              isError
-                                                  ? Icons.error_outline_rounded
-                                                  : Icons
-                                                      .check_circle_outline_rounded,
-                                              color: isError
-                                                  ? kErrorColor
-                                                  : kSuccessColor,
-                                              size: 24,
-                                            ),
-                                          ),
-                                          const SizedBox(
-                                              width: kDefaultPadding),
-                                          Expanded(
-                                            child: Text(
-                                              message,
-                                              style: textTheme.bodyMedium
-                                                  ?.copyWith(
-                                                color: isError
-                                                    ? kErrorColor
-                                                    : kSuccessColor,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ).animate().fadeIn(duration: 300.ms).slideY(
-                                        begin: -0.3,
-                                        duration: 300.ms,
-                                      ),
-                            );
-                          }),
-
-                          // --- Logout Button ---
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => Dialog(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          kDefaultRadius * 1.5),
-                                    ),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(
-                                          kDefaultPadding * 1.5),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.all(10),
-                                                decoration: BoxDecoration(
-                                                  color: kErrorColor
-                                                      .withOpacity(0.1),
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                child: Icon(
-                                                    Icons.logout_rounded,
-                                                    color: kErrorColor,
-                                                    size: 24),
-                                              ),
-                                              const SizedBox(
-                                                  width: kDefaultPadding),
-                                              const Expanded(
-                                                child: Text(
-                                                  'Logout',
-                                                  style: TextStyle(
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(
-                                              height: kDefaultPadding * 1.5),
-                                          Container(
-                                            padding: const EdgeInsets.all(
-                                                kDefaultPadding),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  kErrorColor.withOpacity(0.05),
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      kDefaultRadius),
-                                              border: Border.all(
-                                                  color: kErrorColor
-                                                      .withOpacity(0.2)),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.info_outline,
-                                                    size: 18,
-                                                    color: kErrorColor),
-                                                const SizedBox(
-                                                    width:
-                                                        kDefaultPadding * 0.75),
-                                                Expanded(
-                                                  child: Text(
-                                                    'Are you sure you want to logout?',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          color: kTextColor,
-                                                          fontSize: 13,
-                                                        ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(
-                                              height: kDefaultPadding * 1.5),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                flex: 2,
-                                                child: TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.of(context)
-                                                          .pop(),
-                                                  style: TextButton.styleFrom(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        vertical:
-                                                            kDefaultPadding *
-                                                                0.8),
-                                                  ),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                              ),
-                                              const SizedBox(
-                                                  width: kDefaultPadding),
-                                              Expanded(
-                                                flex: 2,
-                                                child: ElevatedButton.icon(
-                                                  onPressed: () {
-                                                    Navigator.of(context).pop();
-                                                    _controller.signOut();
-                                                  },
-                                                  icon: const Icon(
-                                                      Icons.logout_rounded,
-                                                      size: 18),
-                                                  label: const Text('Logout'),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        kErrorColor,
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        vertical:
-                                                            kDefaultPadding *
-                                                                0.8),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.logout_rounded, size: 20),
-                              label: const Text('Logout'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: kErrorColor,
-                                foregroundColor: kSecondaryColor,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: kDefaultPadding * 0.9,
                                 ),
                               ),
                             ),
-                          )
-                              .animate()
-                              .fadeIn(delay: 500.ms, duration: 400.ms)
-                              .slideY(begin: 0.1, duration: 400.ms),
-                        ],
+                          );
+                        },
                       ),
                     ),
                   )),
@@ -755,7 +310,551 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         }); // Close GetBuilder
   }
 
-  // --- Helper Widgets (Keep as they are, but ensure context is available) ---
+  // --- Helper Widgets (composition helpers) ---
+
+  Widget _buildProfileHeroCard(
+      ProfileController controller, TextTheme textTheme) {
+    return _buildSectionCard(
+      padding: const EdgeInsets.all(kDefaultPadding * 1.6),
+      gradient: const LinearGradient(
+        colors: [Color(0xFFFFFFFF), Color(0xFFF1EEFF)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      child: Column(
+        children: [
+          Obx(() {
+            final hasPhoto = controller.profilePhotoUrl.value != null &&
+                controller.profilePhotoUrl.value!.isNotEmpty;
+            return Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: kPrimaryColor.withOpacity(0.25),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: hasPhoto
+                      ? CircleAvatar(
+                          radius: 60,
+                          backgroundColor: kSecondaryColor,
+                          child: CircleAvatar(
+                            radius: 58,
+                            backgroundImage:
+                                NetworkImage(controller.profilePhotoUrl.value!),
+                            onBackgroundImageError: (exception, stackTrace) {
+                              print('Error loading profile image: $exception');
+                            },
+                          ),
+                        )
+                      : CircleAvatar(
+                          radius: 60,
+                          backgroundColor: kSecondaryColor,
+                          child: CircleAvatar(
+                            radius: 58,
+                            backgroundColor: kPrimaryColor.withOpacity(0.08),
+                            child: Icon(Icons.person_rounded,
+                                size: 60, color: kPrimaryColor),
+                          ),
+                        ),
+                ),
+                if (controller.isEditing.value)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Material(
+                      color: kPrimaryColor,
+                      shape: const CircleBorder(),
+                      elevation: 4,
+                      child: InkWell(
+                        onTap: _pickImage,
+                        customBorder: const CircleBorder(),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          child: const Icon(Icons.camera_alt,
+                              color: kSecondaryColor, size: 20),
+                        ),
+                      ),
+                    ),
+                  ).animate().scale(delay: 100.ms, duration: 300.ms),
+              ],
+            );
+          }),
+          const SizedBox(height: kDefaultPadding),
+          Obx(() => Text(
+                controller.name.value ?? 'User Name',
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: kTextColor,
+                ),
+                textAlign: TextAlign.center,
+              )),
+          const SizedBox(height: kDefaultPadding / 4),
+          Obx(() => Text(
+                controller.email.value ?? 'user@example.com',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: kLightTextColor,
+                ),
+                textAlign: TextAlign.center,
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalInfoCard(
+      ProfileController controller, TextTheme textTheme) {
+    return _buildSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.person_outline, color: kPrimaryColor, size: 20),
+              const SizedBox(width: kDefaultPadding / 2),
+              Text(
+                'Personal Information',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: kDefaultPadding * 1.5),
+          Obx(() => _buildTextField(
+                controller: _nameController,
+                label: 'Name',
+                hint: 'Your Name',
+                icon: Icons.person_outline_rounded,
+                readOnly: !controller.isEditing.value,
+              )),
+          Obx(() => _buildTextField(
+                controller: _academyNameController,
+                label: 'Academy Name',
+                hint: 'Your Academy Name',
+                icon: Icons.school_outlined,
+                readOnly: !controller.isEditing.value,
+              )),
+          Obx(() {
+            if (!controller.isEditing.value) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              children: [
+                const SizedBox(height: kDefaultPadding),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _saveChanges,
+                        icon: const Icon(Icons.check, size: 18),
+                        label: const Text('Save Changes'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kSuccessColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: kDefaultPadding),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _toggleEdit,
+                        icon: const Icon(Icons.close, size: 18),
+                        label: const Text('Cancel'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kErrorColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ).animate().fadeIn(delay: 100.ms);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecurityCard(ProfileController controller, TextTheme textTheme) {
+    return _buildSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.security, color: kPrimaryColor, size: 20),
+              const SizedBox(width: kDefaultPadding / 2),
+              Text(
+                'Account Security',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: kDefaultPadding * 1.5),
+          Obx(() => _buildInfoFieldWithButton(
+                label: 'Email',
+                value: controller.email.value ?? 'Not available',
+                icon: Icons.email_outlined,
+                buttonLabel: 'Change',
+                onButtonPressed: _changeEmail,
+              )),
+          _buildInfoFieldWithButton(
+            label: 'Password',
+            value: '••••••••',
+            icon: Icons.lock_outline_rounded,
+            buttonLabel: 'Change',
+            onButtonPressed: _changePassword,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBanner(TextTheme textTheme) {
+    return Obx(() {
+      final message = _controller.statusMessage.value;
+      final isError = _controller.isError.value;
+      if (message == null) {
+        return const SizedBox.shrink();
+      }
+      return AnimatedOpacity(
+        opacity: 1.0,
+        duration: 300.ms,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(kDefaultPadding * 1.2),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isError
+                  ? [
+                      kErrorColor.withOpacity(0.15),
+                      kErrorColor.withOpacity(0.08),
+                    ]
+                  : [
+                      kSuccessColor.withOpacity(0.15),
+                      kSuccessColor.withOpacity(0.08),
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(kDefaultRadius),
+            border: Border.all(
+              color: isError
+                  ? kErrorColor.withOpacity(0.3)
+                  : kSuccessColor.withOpacity(0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isError
+                    ? kErrorColor.withOpacity(0.1)
+                    : kSuccessColor.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isError
+                      ? kErrorColor.withOpacity(0.15)
+                      : kSuccessColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isError
+                      ? Icons.error_outline_rounded
+                      : Icons.check_circle_outline_rounded,
+                  color: isError ? kErrorColor : kSuccessColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: kDefaultPadding),
+              Expanded(
+                child: Text(
+                  message,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: isError ? kErrorColor : kSuccessColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ).animate().fadeIn(duration: 300.ms).slideY(
+            begin: -0.3,
+            duration: 300.ms,
+          );
+    });
+  }
+
+  Widget _buildLogoutButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kDefaultRadius * 1.5),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(kDefaultPadding * 1.5),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: kErrorColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.logout_rounded,
+                              color: kErrorColor, size: 24),
+                        ),
+                        const SizedBox(width: kDefaultPadding),
+                        const Expanded(
+                          child: Text(
+                            'Logout',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: kDefaultPadding * 1.5),
+                    Container(
+                      padding: const EdgeInsets.all(kDefaultPadding),
+                      decoration: BoxDecoration(
+                        color: kErrorColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(kDefaultRadius),
+                        border: Border.all(color: kErrorColor.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              size: 18, color: kErrorColor),
+                          const SizedBox(width: kDefaultPadding * 0.75),
+                          Expanded(
+                            child: Text(
+                              'Are you sure you want to logout?',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: kTextColor,
+                                    fontSize: 13,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: kDefaultPadding * 1.5),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: kDefaultPadding * 0.8),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: kDefaultPadding),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _controller.signOut();
+                            },
+                            icon: const Icon(Icons.logout_rounded, size: 18),
+                            label: const Text('Logout'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kErrorColor,
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: kDefaultPadding * 0.8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+        icon: const Icon(Icons.logout_rounded, size: 20),
+        label: const Text('Logout'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: kErrorColor,
+          side: BorderSide(color: kErrorColor.withOpacity(0.5)),
+          padding: const EdgeInsets.symmetric(
+            vertical: kDefaultPadding * 0.9,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoHighlights(TextTheme textTheme) {
+    return Obx(() {
+      final List<Widget> chips = [];
+      final academyName = _controller.academyName.value?.trim();
+      if (academyName != null && academyName.isNotEmpty) {
+        chips.add(_buildHighlightChip(
+          icon: Icons.apartment_rounded,
+          label: 'Academy',
+          value: academyName,
+          textTheme: textTheme,
+        ));
+      }
+
+      final subjectsCount = _controller.academySubjects.length;
+      chips.add(_buildHighlightChip(
+        icon: Icons.subject_outlined,
+        label: 'Active Subjects',
+        value: subjectsCount == 1
+            ? '1 subject configured'
+            : '$subjectsCount subjects configured',
+        textTheme: textTheme,
+      ));
+
+      final email = _controller.email.value;
+      if (email != null && email.isNotEmpty) {
+        chips.add(_buildHighlightChip(
+          icon: Icons.alternate_email,
+          label: 'Primary Email',
+          value: email,
+          textTheme: textTheme,
+        ));
+      }
+
+      if (chips.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return Wrap(
+        spacing: kDefaultPadding,
+        runSpacing: kDefaultPadding * 0.8,
+        children: chips,
+      );
+    });
+  }
+
+  Widget _buildHighlightChip({
+    required IconData icon,
+    required String label,
+    required String value,
+    required TextTheme textTheme,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 160),
+      padding: const EdgeInsets.symmetric(
+        horizontal: kDefaultPadding,
+        vertical: kDefaultPadding * 0.9,
+      ),
+      decoration: BoxDecoration(
+        color: kSecondaryColor,
+        borderRadius: BorderRadius.circular(kDefaultRadius * 1.1),
+        border: Border.all(color: kPrimaryColor.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: kPrimaryColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: kPrimaryColor, size: 18),
+          ),
+          const SizedBox(width: kDefaultPadding * 0.8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: kLightTextColor,
+                    letterSpacing: 0.4,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: kTextColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    Gradient? gradient,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        color: gradient == null ? kSecondaryColor : null,
+        borderRadius: BorderRadius.circular(kDefaultRadius * 1.1),
+        border: Border.all(color: kPrimaryColor.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: padding ?? const EdgeInsets.all(kDefaultPadding * 1.5),
+        child: child,
+      ),
+    );
+  }
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -1152,6 +1251,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       ],
     );
   }
+
+  // --- Dialogs (No changes, they are already very well-styled) ---
 
   void _showManageSubjectsDialog() {
     showDialog(

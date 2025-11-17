@@ -4,6 +4,7 @@ import 'package:edu_track/app/features/students/screens/student_list_screen.dart
 import 'package:edu_track/app/features/teachers/screens/add_teacher_screen.dart';
 import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
 import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
+import 'package:edu_track/app/features/exam/screens/exam_results_screen.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
@@ -42,38 +43,27 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
   void _onBottomNavItemTapped(int index) {
     if (_selectedIndex == index) return;
 
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    Future.delayed(150.ms, () {
-      if (!mounted) return;
-      switch (index) {
-        case 0:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const StudentListScreen()));
-          break;
-        case 1:
-          break; // Already on Teacher List Screen
-        case 2:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
-          break;
-        case 3:
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const AttendanceSummaryScreen()));
-          break;
-        case 4:
-          AuthController.instance.signOut();
-          Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const SignInScreen()),
-              (route) => false);
-          break;
-      }
-    });
+    // Navigate immediately with animation
+    switch (index) {
+      case 0:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        break;
+      case 1:
+        break; // Already on Teacher List Screen
+      case 2:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()));
+        break;
+      case 3:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+        break;
+      case 4:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+        break;
+    }
   }
 
   // Reusable Profile Avatar logic from StudentListScreen

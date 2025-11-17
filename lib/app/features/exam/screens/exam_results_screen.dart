@@ -1600,34 +1600,26 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
       return;
     }
 
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    Future.delayed(150.ms, () {
-      if (!mounted) return;
-      switch (index) {
-        case 0:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const StudentListScreen()));
-          break;
-        case 1:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
-          break;
-        case 2:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
-          break;
-        case 3:
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const AttendanceSummaryScreen()));
-          break;
-        case 4:
-          break; // Already on Exam Results Screen
-      }
-    });
+    // Navigate immediately with animation
+    switch (index) {
+      case 0:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        break;
+      case 1:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+        break;
+      case 2:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()));
+        break;
+      case 3:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+        break;
+      case 4:
+        break; // Already on Exam Results Screen
+    }
   }
 }

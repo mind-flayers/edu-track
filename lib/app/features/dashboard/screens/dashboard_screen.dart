@@ -28,37 +28,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _cachedPendingCount = 0; // Cache for pending payments count
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    if (index != 2) {
-      Future.delayed(150.ms, () {
-        if (!mounted) return;
-        switch (index) {
-          case 0:
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const StudentListScreen()));
-            setState(() => _selectedIndex = 2);
-            break;
-          case 1:
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TeacherListScreen()));
-            setState(() => _selectedIndex = 2);
-            break;
-          case 3:
-            Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const AttendanceSummaryScreen()));
-            setState(() => _selectedIndex = 2);
-            break;
-          case 4:
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
-            setState(() => _selectedIndex = 2);
-            break;
-        }
-      });
+    if (_selectedIndex == index) return;
+
+    // Navigate immediately with animation
+    switch (index) {
+      case 0:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        break;
+      case 1:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+        break;
+      case 2:
+        break; // Already on Dashboard
+      case 3:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+        break;
+      case 4:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+        break;
     }
   }
 
