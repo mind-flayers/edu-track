@@ -54,7 +54,7 @@ class _SignInScreenState extends State<SignInScreen> {
   void _launchEmail() async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
-      path: 'mishafhasan@gmail.com',
+      path: 'edutrack.business@gmail.com',
       query:
           'subject=Open New account in EduTrack App Support&body=Hello, I need assistance with open a new account in EduTrack app. Please contact me.',
     );

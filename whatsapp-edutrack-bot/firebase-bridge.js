@@ -1,25 +1,3 @@
-const admin = require('firebase-admin');
-const axios = require('axios');
-
-// Initialize Firebase Admin with service account key
-try {
-  const serviceAccount = require('./service-account-key.json');
-  
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: 'edutrack-73a2e'
-  });
-  
-  console.log('✅ Firebase Admin SDK initialized successfully');
-} catch (error) {
-  console.error('❌ Failed to initialize Firebase Admin SDK:', error.message);
-  console.log('💡 Make sure service-account-key.json exists and is valid');
-  process.exit(1);
-}
-
-const db = admin.firestore();
-
-// Configuration
 const WHATSAPP_BOT_URL = 'http://localhost:3000'; // Your WhatsApp bot server
 const BATCH_SIZE = 10;
 const RETRY_DELAY = 5000; // 5 seconds
@@ -34,10 +12,10 @@ async function sendToWhatsAppBot(recipientNumber, message) {
   try {
     // Format phone number to international format
     let formattedNumber = recipientNumber;
-    
+
     // Remove + and any spaces/dashes
     formattedNumber = formattedNumber.replace(/[\s\-\+]/g, '');
-    
+
     // Convert Sri Lankan local format to international format
     if (formattedNumber.startsWith('0')) {
       formattedNumber = '94' + formattedNumber.substring(1);
@@ -50,9 +28,9 @@ async function sendToWhatsAppBot(recipientNumber, message) {
     else if (formattedNumber.startsWith('94')) {
       // Already correct format
     }
-    
+
     console.log(`📱 Sending to: ${recipientNumber} → ${formattedNumber}`);
-    
+
     const response = await axios.post(`${WHATSAPP_BOT_URL}/send-message`, {
       number: formattedNumber,  // Field name matches server-baileys.js expectation
       message: message
@@ -110,13 +88,13 @@ async function updateMessageStatus(adminUid, messageId, status, error = null, at
 async function processMessage(adminUid, messageDoc) {
   const messageId = messageDoc.id;
   const data = messageDoc.data();
-  
+
   // Handle different field names from your Flutter app
   const recipientNumber = data.recipientNumber || data.phone;
   const message = data.message;
   const attempts = data.attempts || data.retryCount || 0;
   const maxAttempts = data.maxAttempts || 3;
-  
+
   // Check if bot is ready before attempting to send
   try {
     const healthCheck = await axios.get(`${WHATSAPP_BOT_URL}/health`, { timeout: 3000 });
@@ -128,7 +106,7 @@ async function processMessage(adminUid, messageDoc) {
     console.log(`⚠️ Cannot reach bot, skipping message ${messageId} (will retry in next cycle)`);
     return; // Don't increment attempts, just skip this cycle
   }
-  
+
   console.log(`📤 Processing message data:`, {
     messageId,
     adminUid,
@@ -162,7 +140,7 @@ async function processMessage(adminUid, messageDoc) {
     await updateMessageStatus(adminUid, messageId, 'completed', null, attempts + 1);
   } else {
     const newAttempts = attempts + 1;
-    
+
     if (newAttempts >= maxAttempts) {
       // Mark as failed after max retries
       console.log(`❌ Message ${messageId} failed permanently after ${newAttempts} attempts`);
@@ -179,7 +157,7 @@ async function processMessage(adminUid, messageDoc) {
 async function processPendingMessages(adminUid) {
   try {
     console.log(`🔍 Checking for pending messages for admin: ${adminUid}`);
-    
+
     const pendingMessagesQuery = db
       .collection('admins')
       .doc(adminUid)
@@ -188,7 +166,7 @@ async function processPendingMessages(adminUid) {
       .limit(BATCH_SIZE);
 
     console.log(`📋 Querying: admins/${adminUid}/whatsappQueue (status=pending, limit=${BATCH_SIZE})`);
-    
+
     const pendingMessages = await pendingMessagesQuery.get();
 
     if (pendingMessages.empty) {
@@ -201,7 +179,7 @@ async function processPendingMessages(adminUid) {
     // Process messages sequentially to avoid overwhelming the WhatsApp bot
     for (const messageDoc of pendingMessages.docs) {
       await processMessage(adminUid, messageDoc);
-      
+
       // Small delay between messages
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
@@ -216,23 +194,23 @@ async function processPendingMessages(adminUid) {
 async function getAllAdminUids() {
   try {
     console.log('🔍 Searching for all admins in database...');
-    
+
     // Get all admin documents
     const adminsSnapshot = await db.collection('admins').listDocuments();
-    
+
     if (adminsSnapshot.length === 0) {
       console.log('⚠️ No admin documents found in database');
       return [];
     }
-    
+
     console.log(`📋 Found ${adminsSnapshot.length} admin(s) in database`);
-    
+
     // Extract admin UIDs
     const adminUids = adminsSnapshot.map(doc => doc.id);
-    
+
     // Check which admins have pending messages
     const adminsWithPendingMessages = [];
-    
+
     for (const adminUid of adminUids) {
       const pendingMessages = await db
         .collection('admins')
@@ -241,19 +219,19 @@ async function getAllAdminUids() {
         .where('status', '==', 'pending')
         .limit(1)
         .get();
-      
+
       if (!pendingMessages.empty) {
         console.log(`✅ Admin ${adminUid} has pending messages`);
         adminsWithPendingMessages.push(adminUid);
       }
     }
-    
+
     if (adminsWithPendingMessages.length === 0) {
       console.log('📭 No pending messages found for any admin');
       // Return all admins anyway so we can monitor them
       return adminUids;
     }
-    
+
     return adminUids;
   } catch (error) {
     console.error('❌ Error getting admin UIDs:', error.message);
@@ -264,7 +242,7 @@ async function getAllAdminUids() {
 // Main processing loop
 async function processAllMessages() {
   const adminUids = await getAllAdminUids();
-  
+
   if (adminUids.length === 0) {
     console.log('⚠️ No admins found in database');
     return;
@@ -281,7 +259,7 @@ async function processAllMessages() {
 async function checkBotHealth() {
   try {
     console.log('🔍 Attempting to connect to WhatsApp bot...');
-    const response = await axios.get(`${WHATSAPP_BOT_URL}/health`, { 
+    const response = await axios.get(`${WHATSAPP_BOT_URL}/health`, {
       timeout: 10000,
       headers: {
         'Connection': 'keep-alive',
@@ -292,12 +270,12 @@ async function checkBotHealth() {
         return status >= 200 && status < 300;
       }
     });
-    
+
     if (response.status === 200) {
       const botStatus = response.data;
       console.log('🤖 WhatsApp bot is healthy');
       console.log(`📊 Bot Status: ${JSON.stringify(botStatus, null, 2)}`);
-      
+
       // Check if WhatsApp is actually ready
       if (botStatus.whatsapp_ready === true) {
         console.log('✅ WhatsApp Web is connected and ready');
@@ -327,25 +305,25 @@ async function checkBotHealth() {
 // Startup function
 async function startup() {
   console.log('🔍 Checking WhatsApp bot connection...');
-  
+
   // Try multiple times with delays
   let isHealthy = false;
   const maxAttempts = 3;
-  
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`🔄 Connection attempt ${attempt}/${maxAttempts}...`);
     isHealthy = await checkBotHealth();
-    
+
     if (isHealthy) {
       break;
     }
-    
+
     if (attempt < maxAttempts) {
       console.log('⏳ Waiting 3 seconds before retry...');
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
-  
+
   if (!isHealthy) {
     console.log('❌ WhatsApp bot is not ready after multiple attempts.');
     console.log('💡 Make sure WhatsApp bot is running AND WhatsApp Web is authenticated');
@@ -360,7 +338,7 @@ async function startup() {
   } else {
     console.log('✅ WhatsApp bot is ready and connected');
   }
-  
+
   console.log('🔄 Starting message processing loop...');
 }
 
@@ -369,7 +347,7 @@ async function resetFailedMessages() {
   try {
     console.log('🔄 Resetting failed messages to pending...');
     const adminUids = await getAllAdminUids();
-    
+
     let totalReset = 0;
     for (const adminUid of adminUids) {
       const failedMessages = await db
@@ -379,7 +357,7 @@ async function resetFailedMessages() {
         .where('status', '==', 'failed')
         .where('attempts', '<', 5) // Only reset if less than 5 total attempts
         .get();
-      
+
       for (const doc of failedMessages.docs) {
         await doc.ref.update({
           status: 'pending',
@@ -388,7 +366,7 @@ async function resetFailedMessages() {
         totalReset++;
       }
     }
-    
+
     if (totalReset > 0) {
       console.log(`✅ Reset ${totalReset} failed message(s) to pending`);
     }
@@ -400,7 +378,7 @@ async function resetFailedMessages() {
 // Main execution
 startup().then(() => {
   let lastBotStatus = false;
-  
+
   // Process messages every 10 seconds
   setInterval(async () => {
     try {
@@ -412,15 +390,15 @@ startup().then(() => {
       } catch (error) {
         // Bot not reachable
       }
-      
+
       // If bot just became ready, reset failed messages
       if (currentBotStatus && !lastBotStatus) {
         console.log('🎉 WhatsApp bot is now ready! Resetting failed messages...');
         await resetFailedMessages();
       }
-      
+
       lastBotStatus = currentBotStatus;
-      
+
       // Process messages
       await processAllMessages();
     } catch (error) {

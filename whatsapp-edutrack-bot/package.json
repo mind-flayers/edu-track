@@ -1,13 +1,13 @@
 {
   "name": "whatsapp-edutrack-bot",
   "version": "1.0.0",
-  "main": "server-baileys.js",
+  "main": "start.js",
   "scripts": {
-    "start": "node server-baileys.js",
-    "start:old": "node server-windows.js",
+    "start": "node start.js",
+    "bot": "node server-baileys.js",
     "bridge": "node firebase-bridge.js",
     "test": "node test-connection.js",
-    "dev": "node server-baileys.js"
+    "dev": "node start.js"
   },
   "keywords": [],
   "author": "",

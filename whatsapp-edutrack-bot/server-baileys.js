@@ -4,6 +4,31 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
+const admin = require('firebase-admin');
+const FirebaseStorageSync = require('./firebase-storage-sync');
+
+// Initialize Firebase Admin (if not already initialized)
+if (!admin.apps.length) {
+  try {
+    let serviceAccount;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+      serviceAccount = require('./service-account-key.json');
+    }
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'edutrack-73a2e.appspot.com'
+    });
+    console.log('✅ Firebase Admin initialized for storage sync');
+  } catch (error) {
+    console.error('⚠️ Firebase Admin init warning:', error.message);
+  }
+}
+
+// Initialize storage sync
+const storageSync = new FirebaseStorageSync(process.env.FIREBASE_STORAGE_BUCKET || 'edutrack-73a2e.appspot.com');
 
 // Express app setup
 const app = express();
@@ -25,6 +50,15 @@ console.log('📱 Waiting for WhatsApp connection...');
 // Initialize WhatsApp connection
 async function connectToWhatsApp() {
   try {
+    // Download session from Firebase Storage on startup
+    const hasRemoteSession = await storageSync.hasRemoteSession();
+    if (hasRemoteSession) {
+      console.log('📥 Downloading session from Firebase Storage...');
+      await storageSync.downloadAuthInfo();
+    } else {
+      console.log('ℹ️ No remote session found, will create new one');
+    }
+
     // Get latest version info
     const { version } = await fetchLatestBaileysVersion();
     console.log(`📦 Using Baileys version: ${version.join('.')}`);
@@ -40,8 +74,14 @@ async function connectToWhatsApp() {
       defaultQueryTimeoutMs: undefined,
     });
 
-    // Save credentials on update
-    sock.ev.on('creds.update', saveCreds);
+    // Save credentials on update AND upload to Firebase Storage
+    sock.ev.on('creds.update', async () => {
+      await saveCreds();
+
+      // Upload to Firebase Storage after credentials update
+      console.log('💾 Syncing session to Firebase Storage...');
+      await storageSync.uploadAuthInfo();
+    });
 
     // Connection updates
     sock.ev.on('connection.update', async (update) => {
@@ -58,9 +98,9 @@ async function connectToWhatsApp() {
       // Connection status
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        
+
         console.log('❌ Connection closed');
-        
+
         if (lastDisconnect?.error) {
           console.log('Error:', lastDisconnect.error.message);
         }
@@ -71,7 +111,8 @@ async function connectToWhatsApp() {
           console.log('🔄 Reconnecting...');
           setTimeout(() => connectToWhatsApp(), 3000);
         } else {
-          console.log('🚪 Logged out - scan QR code again');
+          console.log('🚪 Logged out - clearing remote session');
+          await storageSync.clearRemoteSession();
           qrCode = null;
         }
       } else if (connection === 'open') {
@@ -79,6 +120,10 @@ async function connectToWhatsApp() {
         qrCode = null;
         console.log('✅ WhatsApp connected successfully!');
         console.log('🎯 Bot is ready to send messages');
+
+        // Upload session immediately after successful connection
+        console.log('💾 Backing up session to Firebase Storage...');
+        await storageSync.uploadAuthInfo();
       } else if (connection === 'connecting') {
         console.log('⏳ Connecting to WhatsApp...');
       }
@@ -89,9 +134,9 @@ async function connectToWhatsApp() {
       if (type === 'notify') {
         for (const msg of messages) {
           if (!msg.key.fromMe && msg.message) {
-            const messageText = msg.message.conversation || 
-                              msg.message.extendedTextMessage?.text || '';
-            
+            const messageText = msg.message.conversation ||
+              msg.message.extendedTextMessage?.text || '';
+
             console.log(`📩 Received: ${messageText} from ${msg.key.remoteJid}`);
           }
         }
@@ -99,9 +144,13 @@ async function connectToWhatsApp() {
     });
 
   } catch (error) {
-    console.error('❌ Failed to connect:', error.message);
-    console.log('🔄 Retrying in 5 seconds...');
-    setTimeout(() => connectToWhatsApp(), 5000);
+    console.error('❌ Connection error:', error.message);
+
+    // Retry connection after 10 seconds
+    setTimeout(() => {
+      console.log('🔄 Retrying connection...');
+      connectToWhatsApp();
+    }, 10000);
   }
 }
 
@@ -109,17 +158,17 @@ async function connectToWhatsApp() {
 function formatPhoneNumber(phone) {
   // Remove all non-digit characters
   let cleaned = phone.replace(/\D/g, '');
-  
+
   // Convert Sri Lankan local format (077...) to international (94...)
   if (cleaned.startsWith('0')) {
     cleaned = '94' + cleaned.substring(1);
   }
-  
+
   // Ensure it doesn't start with +
   if (cleaned.startsWith('+')) {
     cleaned = cleaned.substring(1);
   }
-  
+
   // Return WhatsApp JID format
   return cleaned + '@s.whatsapp.net';
 }
@@ -166,7 +215,7 @@ app.post('/send-message', async (req, res) => {
 
     // Format phone number
     const jid = formatPhoneNumber(number);
-    
+
     console.log(`📤 Sending message to ${number} (${jid})`);
 
     // Send message
@@ -183,7 +232,7 @@ app.post('/send-message', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error sending message:', error.message);
-    
+
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to send message'
@@ -195,12 +244,12 @@ app.post('/send-message', async (req, res) => {
 app.post('/notify/attendance', async (req, res) => {
   try {
     const { studentName, parentPhone, status, date } = req.body;
-    
+
     const message = `📚 EduTrack Attendance Notification\n\n` +
-                   `Student: ${studentName}\n` +
-                   `Status: ${status}\n` +
-                   `Date: ${date}\n\n` +
-                   `Thank you for choosing EduTrack.`;
+      `Student: ${studentName}\n` +
+      `Status: ${status}\n` +
+      `Date: ${date}\n\n` +
+      `Thank you for choosing EduTrack.`;
 
     return await app.request.post('/send-message', {
       body: JSON.stringify({ number: parentPhone, message })
@@ -214,13 +263,13 @@ app.post('/notify/attendance', async (req, res) => {
 app.post('/notify/payment', async (req, res) => {
   try {
     const { studentName, parentPhone, amount, status, month } = req.body;
-    
+
     const message = `💰 EduTrack Payment Notification\n\n` +
-                   `Student: ${studentName}\n` +
-                   `Amount: Rs. ${amount}\n` +
-                   `Status: ${status}\n` +
-                   `Month: ${month}\n\n` +
-                   `Thank you for your payment!`;
+      `Student: ${studentName}\n` +
+      `Amount: Rs. ${amount}\n` +
+      `Status: ${status}\n` +
+      `Month: ${month}\n\n` +
+      `Thank you for your payment!`;
 
     return await app.request.post('/send-message', {
       body: JSON.stringify({ number: parentPhone, message })
@@ -238,7 +287,7 @@ app.listen(PORT, () => {
   console.log(`   GET  /status - Connection status`);
   console.log(`   POST /send-message - Send WhatsApp message`);
   console.log('');
-  
+
   // Connect to WhatsApp
   connectToWhatsApp();
 });

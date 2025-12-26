@@ -86,7 +86,7 @@ class Student {
     return Student(
       id: doc.id,
       name: data['name'] ?? 'N/A',
-      email: data['email'] ?? 'N/A',
+      email: data['email'] ?? '',
       className: data['class'] ?? 'N/A',
       section: data['section'] ?? 'N/A',
       indexNumber: data['indexNumber'] ?? 'N/A',
@@ -3398,7 +3398,9 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
   // --- Edit Student Details Dialog ---
   void _showEditStudentDetailsDialog(Student student) {
     final nameController = TextEditingController(text: student.name);
-    final emailController = TextEditingController(text: student.email);
+    // Set email to empty if it was 'N/A' (for backward compatibility)
+    final emailController = TextEditingController(
+        text: student.email == 'N/A' ? '' : student.email);
     final parentNameController =
         TextEditingController(text: student.parentName);
     final parentPhoneController =
@@ -3439,14 +3441,45 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             builder: (context, setDialogState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(kDefaultRadius)),
-            title: Row(
+                borderRadius: BorderRadius.circular(kDefaultRadius * 1.5)),
+            titlePadding: const EdgeInsets.fromLTRB(
+                kDefaultPadding, kDefaultPadding, kDefaultPadding, 0),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.edit_rounded, color: kPrimaryColor, size: 24),
-                const SizedBox(width: 8),
-                Text("Edit Student Details",
-                    style:
-                        textTheme.titleLarge?.copyWith(color: kPrimaryColor)),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: kPrimaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.edit_rounded,
+                          color: kPrimaryColor, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Edit Student Details",
+                              style: textTheme.titleLarge?.copyWith(
+                                  color: kPrimaryColor,
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(
+                            "${student.name} • ${student.indexNumber}",
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: Colors.grey[300]),
               ],
             ),
             contentPadding: const EdgeInsets.fromLTRB(
@@ -3554,81 +3587,145 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
 
                       // Photo Management Section
                       _buildSectionHeader(
-                          'Profile Photo', Icons.photo_camera_rounded),
+                          'Student Photo', Icons.photo_camera_rounded),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          border:
-                              Border.all(color: kPrimaryColor.withOpacity(0.3)),
-                          borderRadius:
-                              BorderRadius.circular(kDefaultRadius * 0.8),
+                          color: Colors.grey[50],
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(kDefaultRadius),
                         ),
-                        child: Column(
+                        child: Row(
                           children: [
-                            if (selectedImage != null)
-                              CircleAvatar(
-                                radius: 40,
-                                backgroundImage: FileImage(selectedImage!),
-                              )
-                            else if (student.photoUrl != null &&
-                                student.photoUrl!.isNotEmpty)
-                              CircleAvatar(
-                                radius: 40,
-                                backgroundImage: CachedNetworkImageProvider(
-                                    student.photoUrl!),
-                              )
-                            else
-                              CircleAvatar(
-                                radius: 40,
-                                backgroundColor: kPrimaryColor.withOpacity(0.1),
-                                child: Icon(Icons.person_rounded,
-                                    size: 40, color: kPrimaryColor),
+                            // Photo preview
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: kPrimaryColor.withOpacity(0.3),
+                                    width: 2),
                               ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final XFile? image = await imagePicker
-                                        .pickImage(source: ImageSource.camera);
-                                    if (image != null) {
-                                      setDialogState(() {
-                                        selectedImage = File(image.path);
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(Icons.camera_alt_rounded,
-                                      size: 16),
-                                  label: const Text('Camera'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor:
-                                        kPrimaryColor.withOpacity(0.1),
-                                    foregroundColor: kPrimaryColor,
-                                    elevation: 0,
+                              child: selectedImage != null
+                                  ? CircleAvatar(
+                                      radius: 45,
+                                      backgroundImage:
+                                          FileImage(selectedImage!),
+                                    )
+                                  : (student.photoUrl != null &&
+                                          student.photoUrl!.isNotEmpty)
+                                      ? CircleAvatar(
+                                          radius: 45,
+                                          backgroundImage:
+                                              CachedNetworkImageProvider(
+                                                  student.photoUrl!),
+                                        )
+                                      : CircleAvatar(
+                                          radius: 45,
+                                          backgroundColor:
+                                              kPrimaryColor.withOpacity(0.1),
+                                          child: Icon(Icons.person_rounded,
+                                              size: 45, color: kPrimaryColor),
+                                        ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Buttons column
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    selectedImage != null
+                                        ? 'New photo selected'
+                                        : 'Update student photo',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey[700],
+                                    ),
                                   ),
-                                ),
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final XFile? image = await imagePicker
-                                        .pickImage(source: ImageSource.gallery);
-                                    if (image != null) {
-                                      setDialogState(() {
-                                        selectedImage = File(image.path);
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(Icons.photo_library_rounded,
-                                      size: 16),
-                                  label: const Text('Gallery'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor:
-                                        kPrimaryColor.withOpacity(0.1),
-                                    foregroundColor: kPrimaryColor,
-                                    elevation: 0,
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Tooltip(
+                                        message: 'Take photo with camera',
+                                        child: OutlinedButton(
+                                          onPressed: () async {
+                                            final XFile? image =
+                                                await imagePicker.pickImage(
+                                                    source: ImageSource.camera);
+                                            if (image != null) {
+                                              setDialogState(() {
+                                                selectedImage =
+                                                    File(image.path);
+                                              });
+                                            }
+                                          },
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: kPrimaryColor,
+                                            side: BorderSide(
+                                                color: kPrimaryColor),
+                                            padding: const EdgeInsets.all(12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                              Icons.camera_alt_rounded,
+                                              size: 24),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Tooltip(
+                                        message: 'Choose from gallery',
+                                        child: OutlinedButton(
+                                          onPressed: () async {
+                                            final XFile? image =
+                                                await imagePicker.pickImage(
+                                                    source:
+                                                        ImageSource.gallery);
+                                            if (image != null) {
+                                              setDialogState(() {
+                                                selectedImage =
+                                                    File(image.path);
+                                              });
+                                            }
+                                          },
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: kPrimaryColor,
+                                            side: BorderSide(
+                                                color: kPrimaryColor),
+                                            padding: const EdgeInsets.all(12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                              Icons.photo_library_rounded,
+                                              size: 24),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
+                                  if (selectedImage != null) ...[
+                                    const SizedBox(height: 8),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          selectedImage = null;
+                                        });
+                                      },
+                                      icon: const Icon(Icons.clear, size: 16),
+                                      label: const Text('Remove selection'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.red[600],
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -3640,60 +3737,99 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                       _buildSectionHeader(
                           'Student Subjects', Icons.book_rounded),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          border:
-                              Border.all(color: kPrimaryColor.withOpacity(0.3)),
-                          borderRadius:
-                              BorderRadius.circular(kDefaultRadius * 0.8),
+                          color: Colors.grey[50],
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(kDefaultRadius),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Selected Subjects:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: kPrimaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.check_circle_outline,
+                                    size: 18, color: kPrimaryColor),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Enrolled Subjects (${selectedSubjects.length})',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: kPrimaryColor,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             if (selectedSubjects.isEmpty)
-                              Text(
-                                'No subjects selected',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontStyle: FontStyle.italic,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12, horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.info_outline,
+                                        size: 16, color: Colors.orange[700]),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'No subjects selected. Add subjects below.',
+                                      style: TextStyle(
+                                        color: Colors.orange[700],
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               )
                             else
                               Wrap(
                                 spacing: 8,
-                                runSpacing: 4,
+                                runSpacing: 8,
                                 children: selectedSubjects
                                     .map((subject) => Chip(
-                                          label: Text(subject),
+                                          label: Text(subject,
+                                              style: const TextStyle(
+                                                  fontSize: 13)),
                                           backgroundColor:
-                                              kPrimaryColor.withOpacity(0.1),
-                                          deleteIcon:
-                                              const Icon(Icons.close, size: 16),
+                                              kPrimaryColor.withOpacity(0.15),
+                                          deleteIcon: Icon(Icons.close,
+                                              size: 16, color: kPrimaryColor),
+                                          deleteIconColor: kPrimaryColor,
                                           onDeleted: () {
                                             setDialogState(() {
                                               selectedSubjects.remove(subject);
                                             });
                                           },
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 4),
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
                                         ))
                                     .toList(),
                               ),
+                            const SizedBox(height: 16),
+                            const Divider(height: 1),
                             const SizedBox(height: 12),
-                            Text(
-                              'Available Subjects:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: kPrimaryColor,
-                              ),
+                            Row(
+                              children: [
+                                Icon(Icons.add_circle_outline,
+                                    size: 18, color: Colors.grey[600]),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Available Subjects',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Obx(() {
                               final availableSubjects = profileController
                                       ?.academySubjects
@@ -3703,27 +3839,52 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                                   [];
 
                               if (availableSubjects.isEmpty) {
-                                return Text(
-                                  'All subjects selected',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontStyle: FontStyle.italic,
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.check_circle,
+                                          size: 16, color: Colors.green[700]),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'All available subjects are enrolled',
+                                        style: TextStyle(
+                                          color: Colors.green[700],
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 );
                               }
 
                               return Wrap(
                                 spacing: 8,
-                                runSpacing: 4,
+                                runSpacing: 8,
                                 children: availableSubjects
                                     .map((subject) => ActionChip(
-                                          label: Text(subject),
-                                          backgroundColor: Colors.grey[100],
+                                          avatar: Icon(Icons.add,
+                                              size: 16,
+                                              color: Colors.grey[700]),
+                                          label: Text(subject,
+                                              style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.grey[800])),
+                                          backgroundColor: Colors.grey[200],
                                           onPressed: () {
                                             setDialogState(() {
                                               selectedSubjects.add(subject);
                                             });
                                           },
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 4),
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
                                         ))
                                     .toList(),
                               );
@@ -3738,135 +3899,157 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                 ),
               ),
             ),
-            actionsPadding: const EdgeInsets.symmetric(
-                horizontal: kDefaultPadding, vertical: kDefaultPadding),
+            actionsPadding: const EdgeInsets.fromLTRB(
+                kDefaultPadding, 0, kDefaultPadding, kDefaultPadding),
             actions: <Widget>[
-              TextButton.icon(
-                icon: const Icon(Icons.cancel_outlined),
-                label: const Text("Cancel"),
-                onPressed: () => Navigator.of(context).pop(),
-                style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
-              ),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.save_rounded),
-                label: const Text("Save Changes"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kPrimaryColor,
-                  foregroundColor: kSecondaryColor,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(kDefaultRadius * 0.8)),
-                ),
-                onPressed: () async {
-                  if (_formKeyStudentEdit.currentState!.validate()) {
-                    final String? adminUid = AuthController.instance.user?.uid;
-                    if (adminUid == null) {
-                      _showStatusFlashMessage("Error: Admin not logged in.",
-                          isError: true);
-                      return;
-                    }
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text("Cancel"),
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey[700],
+                        side: BorderSide(color: Colors.grey[400]!),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(kDefaultRadius * 0.8)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.save_rounded, size: 18),
+                      label: const Text("Save Changes"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPrimaryColor,
+                        foregroundColor: kSecondaryColor,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(kDefaultRadius * 0.8)),
+                      ),
+                      onPressed: () async {
+                        if (_formKeyStudentEdit.currentState!.validate()) {
+                          final String? adminUid =
+                              AuthController.instance.user?.uid;
+                          if (adminUid == null) {
+                            _showStatusFlashMessage(
+                                "Error: Admin not logged in.",
+                                isError: true);
+                            return;
+                          }
 
-                    try {
-                      // Show loading indicator
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => const AlertDialog(
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(),
-                              SizedBox(height: 16),
-                              Text("Updating student details..."),
-                            ],
-                          ),
-                        ),
-                      );
+                          try {
+                            // Show loading indicator
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => const AlertDialog(
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    SizedBox(height: 16),
+                                    Text("Updating student details..."),
+                                  ],
+                                ),
+                              ),
+                            );
 
-                      // Upload photo if selected
-                      if (selectedImage != null) {
-                        try {
-                          CloudinaryPublic cloudinary =
-                              CloudinaryPublic('dqkofl9se', 'edutrack_preset');
-                          CloudinaryResponse response =
-                              await cloudinary.uploadFile(
-                            CloudinaryFile.fromFile(
-                              selectedImage!.path,
-                              folder: 'student_photos',
-                              publicId:
-                                  'student_${student.id}_${DateTime.now().millisecondsSinceEpoch}',
-                            ),
-                          );
-                          newPhotoUrl = response.secureUrl;
-                        } catch (e) {
-                          Navigator.of(context).pop(); // Close loading dialog
-                          _showStatusFlashMessage("Error uploading photo: $e",
-                              isError: true);
-                          return;
+                            // Upload photo if selected
+                            if (selectedImage != null) {
+                              try {
+                                CloudinaryPublic cloudinary = CloudinaryPublic(
+                                    'duckxlzaj', 'student_id_photo',
+                                    cache: false);
+                                CloudinaryResponse response =
+                                    await cloudinary.uploadFile(
+                                  CloudinaryFile.fromFile(
+                                    selectedImage!.path,
+                                    resourceType: CloudinaryResourceType.Image,
+                                    folder: 'profiles/students',
+                                  ),
+                                );
+                                newPhotoUrl = response.secureUrl;
+                              } catch (e) {
+                                Navigator.of(context)
+                                    .pop(); // Close loading dialog
+                                _showStatusFlashMessage(
+                                    "Error uploading photo: $e",
+                                    isError: true);
+                                return;
+                              }
+                            }
+
+                            final Map<String, dynamic> updatedData = {
+                              'name': nameController.text.trim(),
+                              'email': emailController.text.trim().isEmpty
+                                  ? null
+                                  : emailController.text.trim(),
+                              'parentName': parentNameController.text.trim(),
+                              'parentPhone': parentPhoneController.text.trim(),
+                              'whatsappNumber':
+                                  whatsappController.text.trim().isEmpty
+                                      ? null
+                                      : whatsappController.text.trim(),
+                              'address': addressController.text.trim().isEmpty
+                                  ? null
+                                  : addressController.text.trim(),
+                              'sex': selectedSex,
+                              'dob': selectedDob != null
+                                  ? Timestamp.fromDate(selectedDob)
+                                  : null,
+                              'Subjects':
+                                  selectedSubjects, // Update subjects using database field name
+                              'updatedAt': Timestamp.now(),
+                            };
+
+                            // Add photo URL if a new photo was uploaded
+                            if (newPhotoUrl != null) {
+                              updatedData['photoUrl'] = newPhotoUrl;
+                            }
+
+                            await FirebaseFirestore.instance
+                                .collection('admins')
+                                .doc(adminUid)
+                                .collection('students')
+                                .doc(student.id)
+                                .update(updatedData);
+
+                            Navigator.of(context).pop(); // Close loading dialog
+                            _showStatusFlashMessage(
+                                "Student details updated successfully!",
+                                isError: false);
+                            Navigator.of(context).pop(); // Close edit dialog
+
+                            // Reload student data
+                            setState(() {
+                              _studentFuture = FirebaseFirestore.instance
+                                  .collection('admins')
+                                  .doc(adminUid)
+                                  .collection('students')
+                                  .doc(widget.studentId)
+                                  .get()
+                                  .then((doc) => Student.fromFirestore(doc));
+                            });
+                          } catch (e) {
+                            Navigator.of(context)
+                                .pop(); // Close loading dialog if still open
+                            _showStatusFlashMessage(
+                                "Error updating student details: $e",
+                                isError: true);
+                          }
                         }
-                      }
-
-                      final Map<String, dynamic> updatedData = {
-                        'name': nameController.text.trim(),
-                        'email': emailController.text.trim().isEmpty
-                            ? null
-                            : emailController.text.trim(),
-                        'parentName': parentNameController.text.trim(),
-                        'parentPhone': parentPhoneController.text.trim(),
-                        'whatsappNumber': whatsappController.text.trim().isEmpty
-                            ? null
-                            : whatsappController.text.trim(),
-                        'address': addressController.text.trim().isEmpty
-                            ? null
-                            : addressController.text.trim(),
-                        'sex': selectedSex,
-                        'dob': selectedDob != null
-                            ? Timestamp.fromDate(selectedDob)
-                            : null,
-                        'Subjects':
-                            selectedSubjects, // Update subjects using database field name
-                        'updatedAt': Timestamp.now(),
-                      };
-
-                      // Add photo URL if a new photo was uploaded
-                      if (newPhotoUrl != null) {
-                        updatedData['photoUrl'] = newPhotoUrl;
-                      }
-
-                      await FirebaseFirestore.instance
-                          .collection('admins')
-                          .doc(adminUid)
-                          .collection('students')
-                          .doc(student.id)
-                          .update(updatedData);
-
-                      Navigator.of(context).pop(); // Close loading dialog
-                      _showStatusFlashMessage(
-                          "Student details updated successfully!",
-                          isError: false);
-                      Navigator.of(context).pop(); // Close edit dialog
-
-                      // Reload student data
-                      setState(() {
-                        _studentFuture = FirebaseFirestore.instance
-                            .collection('admins')
-                            .doc(adminUid)
-                            .collection('students')
-                            .doc(widget.studentId)
-                            .get()
-                            .then((doc) => Student.fromFirestore(doc));
-                      });
-                    } catch (e) {
-                      Navigator.of(context)
-                          .pop(); // Close loading dialog if still open
-                      _showStatusFlashMessage(
-                          "Error updating student details: $e",
-                          isError: true);
-                    }
-                  }
-                },
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           );
