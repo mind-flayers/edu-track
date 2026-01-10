@@ -143,29 +143,20 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       if (!mounted) return; // Check if the widget is still in the tree
       switch (index) {
         case 0:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()));
+          Get.off(() => const DashboardScreen());
           break;
         case 1:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const StudentListScreen()));
+          Get.offNamed(AppRoutes.studentList);
           break;
         case 2:
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+          Get.off(() => const TeacherListScreen());
           break; // Go to List Screen
         case 3:
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const AttendanceSummaryScreen()));
+          Get.off(() => const AttendanceSummaryScreen());
           break;
         case 4:
           AuthController.instance.signOut();
-          Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const SignInScreen()),
-              (route) => false);
+          Get.offAll(() => const SignInScreen());
           break;
       }
     });
@@ -301,7 +292,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: kLightTextColor),
           tooltip: 'Back to Teacher List',
-          onPressed: () => Navigator.pop(context), // Simple pop for back
+          onPressed: () => Get.back(), // Simple pop for back
         ),
         title: Text('Add Teacher', style: textTheme.titleLarge),
         centerTitle: true,
@@ -656,11 +647,11 @@ class _MultiSelectDialogState extends State<MultiSelectDialog> {
   }
 
   void _cancel() {
-    Navigator.pop(context);
+    Get.back();
   }
 
   void _submit() {
-    Navigator.pop(context, _selectedItems);
+    Get.back(result: _selectedItems);
   }
 
   @override

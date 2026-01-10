@@ -617,7 +617,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         icon: const Icon(Icons.arrow_back_ios_new_rounded,
             color: kSecondaryColor), // Use constant
         tooltip: 'Back',
-        onPressed: () => Navigator.pop(context),
+        onPressed: () => Get.back(),
       ),
       title: Text('Student Details',
           style: textTheme.titleLarge

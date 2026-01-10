@@ -527,7 +527,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
                         .map((subject) => ListTile(
                               title: Text(subject),
                               leading: Icon(Icons.subject_outlined),
-                              onTap: () => Navigator.of(context).pop(subject),
+                              onTap: () => Get.back(result: subject),
                               trailing:
                                   const Icon(Icons.arrow_forward_ios, size: 16),
                             ))
@@ -539,7 +539,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Get.back(),
               child: const Text('Cancel'),
             ),
           ],
@@ -1011,7 +1011,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
               setState(() =>
                   _currentScreenState = ScreenState.showPaymentTypeSelection);
             } else {
-              Navigator.pop(context); // Default back action
+              Get.back(); // Default back action
             }
           },
         ),

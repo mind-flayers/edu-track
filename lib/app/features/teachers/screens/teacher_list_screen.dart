@@ -46,22 +46,18 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
     // Navigate immediately with animation
     switch (index) {
       case 0:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        Get.toNamed(AppRoutes.studentList);
         break;
       case 1:
         break; // Already on Teacher List Screen
       case 2:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const DashboardScreen()));
+        Get.to(() => const DashboardScreen());
         break;
       case 3:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+        Get.to(() => const AttendanceSummaryScreen());
         break;
       case 4:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+        Get.to(() => const ExamResultsScreen());
         break;
     }
   }
@@ -166,12 +162,10 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
           tooltip: 'Back',
           // Navigate back or to Dashboard if no previous route
           onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
+            if (Get.key?.currentState?.canPop() ?? false) {
+              Get.back();
             } else {
-              // If cannot pop (e.g., deep linked), go to dashboard
-              Navigator.pushReplacement(context,
-                  MaterialPageRoute(builder: (_) => const DashboardScreen()));
+              Get.off(() => const DashboardScreen());
             }
           },
         ),
@@ -190,10 +184,7 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
               children: [
                 // Add Teacher Button - Styled like the image
                 ElevatedButton(
-                  onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const AddTeacherScreen())),
+                  onPressed: () => Get.to(() => const AddTeacherScreen()),
                   style: ElevatedButton.styleFrom(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(

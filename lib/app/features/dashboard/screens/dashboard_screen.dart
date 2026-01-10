@@ -33,22 +33,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Navigate immediately with animation
     switch (index) {
       case 0:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        Get.toNamed(AppRoutes.studentList);
         break;
       case 1:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+        Get.to(() => const TeacherListScreen());
         break;
       case 2:
         break; // Already on Dashboard
       case 3:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+        Get.to(() => const AttendanceSummaryScreen());
         break;
       case 4:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+        Get.to(() => const ExamResultsScreen());
         break;
     }
   }
@@ -138,10 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         leading: IconButton(
             icon: Icon(Icons.qr_code_rounded, color: lightTextColor, size: 26),
             tooltip: 'Scan QR Code',
-            onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const QRCodeScannerScreen()))),
+            onPressed: () => Get.to(() => const QRCodeScannerScreen())),
         title: Text("MEC Kanamoolai", style: textTheme.titleLarge),
         centerTitle: true,
         actions: [_buildProfileAvatar()],
@@ -290,11 +283,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               color1: kPrimaryColor,
                               color2: const Color(0xFF9B84FF),
                               textColor: kSecondaryColor,
-                              onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          const StudentListScreen())));
+                              onTap: () => Get.toNamed(AppRoutes.studentList));
                         },
                       ),
                       // --- Total Teachers Card ---
@@ -319,11 +308,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               color1: kPrimaryColor,
                               color2: const Color(0xFF9B84FF),
                               textColor: kSecondaryColor,
-                              onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          const TeacherListScreen())));
+                              onTap: () => Get.to(() => const TeacherListScreen()));
                         },
                       ),
                       // --- Today Attendance Card (Calculates Absent = Total - Present) ---
@@ -428,11 +413,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 color1: kPrimaryColor,
                                 color2: const Color(0xFF9B84FF), // Use const
                                 textColor: kSecondaryColor,
-                                onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const AttendanceSummaryScreen())),
+                                onTap: () => Get.to(() => const AttendanceSummaryScreen()),
                               );
                             },
                           );
@@ -513,31 +494,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ActionButtonCard(
                       icon: Icons.school,
                       label: "Add Student",
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const AddStudentScreen()))),
+                      onTap: () => Get.to(() => const AddStudentScreen())),
                   ActionButtonCard(
                       icon: Icons.co_present,
                       label: "Add Teacher",
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const AddTeacherScreen()))),
+                      onTap: () => Get.to(() => const AddTeacherScreen())),
                   ActionButtonCard(
                       icon: Icons.qr_code_2,
                       label: "Scan QR Code",
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const QRCodeScannerScreen()))),
+                      onTap: () => Get.to(() => const QRCodeScannerScreen())),
                   ActionButtonCard(
                       icon: Icons.add_box_outlined,
                       label: "Exam Results",
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const ExamResultsScreen()))),
+                      onTap: () => Get.to(() => const ExamResultsScreen())),
                 ],
               )
                   .animate()

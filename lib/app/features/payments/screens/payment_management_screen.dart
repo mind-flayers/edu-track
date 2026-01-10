@@ -570,7 +570,7 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: kLightTextColor),
           tooltip: 'Back',
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Get.back(),
         ),
         title: Text('Payment Management', style: textTheme.titleLarge),
         centerTitle: true,

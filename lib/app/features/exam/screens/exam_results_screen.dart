@@ -1081,8 +1081,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
         icon: const Icon(Icons.account_circle_rounded,
             size: 30, color: kLightTextColor),
         tooltip: 'Profile Settings',
-        onPressed: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const ProfileSettingsScreen())),
+        onPressed: () => Get.toNamed(AppRoutes.profileSettings),
       );
     }
     return StreamBuilder<DocumentSnapshot>(
@@ -1515,12 +1514,10 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
                   isError: true, isInfo: true);
               return;
             }
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
+            if (Get.key?.currentState?.canPop() ?? false) {
+              Get.back();
             } else {
-              // Navigate to Dashboard if cannot pop (e.g., deep linked)
-              Navigator.pushReplacement(context,
-                  MaterialPageRoute(builder: (_) => const DashboardScreen()));
+              Get.off(() => const DashboardScreen());
             }
           },
         ),
@@ -1603,20 +1600,16 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
     // Navigate immediately with animation
     switch (index) {
       case 0:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        Get.toNamed(AppRoutes.studentList);
         break;
       case 1:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+        Get.to(() => const TeacherListScreen());
         break;
       case 2:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const DashboardScreen()));
+        Get.to(() => const DashboardScreen());
         break;
       case 3:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+        Get.to(() => const AttendanceSummaryScreen());
         break;
       case 4:
         break; // Already on Exam Results Screen

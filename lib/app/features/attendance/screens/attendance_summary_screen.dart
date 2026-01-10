@@ -502,22 +502,18 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     // Navigate immediately with animation
     switch (index) {
       case 0:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const StudentListScreen()));
+        Get.toNamed(AppRoutes.studentList);
         break;
       case 1:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const TeacherListScreen()));
+        Get.to(() => const TeacherListScreen());
         break;
       case 2:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const DashboardScreen()));
+        Get.to(() => const DashboardScreen());
         break;
       case 3:
         break; // Already on Attendance Summary Screen
       case 4:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const ExamResultsScreen()));
+        Get.to(() => const ExamResultsScreen());
         break;
     }
   }
@@ -971,11 +967,10 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
               color: kLightTextColor),
           tooltip: 'Back',
           onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
+            if (Get.key?.currentState?.canPop() ?? false) {
+              Get.back();
             } else {
-              Navigator.pushReplacement(context,
-                  MaterialPageRoute(builder: (_) => const DashboardScreen()));
+              Get.off(() => const DashboardScreen());
             }
           },
         ),
