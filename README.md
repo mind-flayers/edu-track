@@ -37,7 +37,7 @@ Flutter App + Next.js Portal + WhatsApp Bot
 
 **Admin Portal**: Multi-academy management • CSV bulk import • Cloudinary integration • Admin account creation
 
-**WhatsApp Bot**: Automated parent notifications • Message queue • Delivery tracking • Auto-retry • Free Oracle Cloud hosting
+**WhatsApp Bot**: Automated parent notifications • Message queue • Delivery tracking • Auto-retry • Free 24/7 hosting on Render.com
 
 ## 🤔 Why EduTrack?
 
@@ -92,8 +92,6 @@ flutter build apk --release    # Android
 flutter build web --release    # Web
 ```
 
-See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) for complete instructions.
-
 ---
 
 ### 2️⃣ Next.js Admin Portal Setup
@@ -128,9 +126,9 @@ npm run bridge  # Terminal 2: Start Firebase queue processor
 
 **Flow**: Flutter app → Firestore queue → Firebase bridge → WhatsApp bot → Parent's WhatsApp
 
-**Deploy**: Free 24/7 hosting on Oracle Cloud. See [`ORACLE_CLOUD_DEPLOYMENT_GUIDE.md`](whatsapp-edutrack-bot/ORACLE_CLOUD_DEPLOYMENT_GUIDE.md)
+**Deploy**: Free 24/7 hosting on **Render.com** with Firebase Storage for session persistence and cron-job.org for keep-alive.
 
-See [`whatsapp-edutrack-bot/README.md`](whatsapp-edutrack-bot/README.md) for details.
+See [`RENDER_DEPLOYMENT_COMPLETE_GUIDE.md`](whatsapp-edutrack-bot/RENDER_DEPLOYMENT_COMPLETE_GUIDE.md) for complete deployment instructions.
 
 ---
 
@@ -193,9 +191,7 @@ See [`db/database_structure.md`](db/database_structure.md) for complete schema.
 **Hosting**:
 - Flutter App → Google Play, App Store, or direct APK
 - Admin Portal → Vercel, Netlify, Firebase Hosting
-- WhatsApp Bot → Oracle Cloud Free Tier ($0/month)
-
-See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) for complete instructions.
+- WhatsApp Bot → Render.com Free Tier ($0/month) + cron-job.org + Firebase Storage
 
 ---
 
@@ -215,15 +211,6 @@ See [`.github/copilot-instructions.md`](.github/copilot-instructions.md) for dev
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
----
-
-## 📚 Documentation
-
-**Components**: [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) • [`admin-portal/README.md`](admin-portal/README.md) • [`whatsapp-edutrack-bot/README.md`](whatsapp-edutrack-bot/README.md) • [`db/database_structure.md`](db/database_structure.md)
-
-**Deployment**: [`ORACLE_CLOUD_DEPLOYMENT_GUIDE.md`](whatsapp-edutrack-bot/ORACLE_CLOUD_DEPLOYMENT_GUIDE.md) • [`QUICK_START_ORACLE.md`](whatsapp-edutrack-bot/QUICK_START_ORACLE.md)
-
-**Security**: [`admin-portal/SECURITY.md`](admin-portal/SECURITY.md)
 
 ---
 
@@ -253,7 +240,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Flutter app is minimum. Add portal for bulk imports. Add bot for WhatsApp notifications.
 
 **Q: Is it free?**  
-Yes! MIT license. Firebase/Cloudinary have free tiers. Bot runs free on Oracle Cloud.
+Yes! MIT license. Firebase/Cloudinary have free tiers. Bot runs free on Render.com.
 
 **Q: Platforms supported?**  
 Android, iOS (Mac needed), Web, Windows, macOS
@@ -262,12 +249,12 @@ Android, iOS (Mac needed), Web, Windows, macOS
 All data scoped under `admins/{adminUid}` - complete isolation per academy.
 
 **Q: WhatsApp bot cost?**  
-$0/month on Oracle Cloud Free Tier (24/7)
+$0/month on Render.com free tier with cron-job.org keep-alive and Firebase Storage for session persistence.
 
 **Q: Customize branding?**  
 Yes - update `lib/app/utils/constants.dart` and assets/images/
 
-**Troubleshooting**: Check component-specific READMEs • Search [GitHub Issues](https://github.com/mind-flayers/edu-track/issues) • Email: mishaf1106@gmail.com
+**Troubleshooting**: Check component-specific READMEs • Search [GitHub Issues](https://github.com/mind-flayers/edu-track/issues) • Email: mishafhasan@gmail.com
 
 ---
 
@@ -277,7 +264,7 @@ Yes - update `lib/app/utils/constants.dart` and assets/images/
 
 **Secrets**: Never commit `.env.local`, `service-account-key.json`, or `google-services.json`
 
-**Bot**: Use Helmet/CORS • Secure QR authentication • Follow Oracle Cloud security practices
+**Bot**: Use Helmet/CORS • Secure QR authentication • Use environment variables for secrets on Render.com
 
 See [`admin-portal/SECURITY.md`](admin-portal/SECURITY.md) for details.
 
@@ -285,7 +272,7 @@ See [`admin-portal/SECURITY.md`](admin-portal/SECURITY.md) for details.
 
 ## 🙏 Acknowledgments
 
-**Technologies**: Flutter • Firebase • GetX • Next.js • Baileys • Cloudinary • Oracle Cloud
+**Technologies**: Flutter • Firebase • GetX • Next.js • Baileys • Cloudinary • Render.com
 
 **Libraries**: FL Chart • Mobile Scanner • QR Flutter • Excel • PDF • Express • PM2 • Tailwind CSS • And many more
 

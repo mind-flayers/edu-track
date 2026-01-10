@@ -1,193 +1,290 @@
-# WhatsApp EduTrack Bot - Complete Documentation
+# WhatsApp EduTrack Bot
 
-## 📚 Documentation Index
+Automated WhatsApp notification bot for EduTrack Academy Management System. Sends attendance updates, fee reminders, and exam results to parents via WhatsApp.
 
-**New to this project?** Start with the [Quick Answer](#quick-answer) below.
+## ✅ Features
 
-### 🚀 Deployment Guides
+- 📱 Automated WhatsApp notifications to parents
+- 🔄 Message queue with retry mechanism
+- 💾 Session persistence via Firebase Storage
+- 🌐 Free 24/7 hosting on Render.com
+- ⚡ Real-time status tracking in Firestore
 
-1. **[IS_FREE_TIER_ENOUGH.md](./IS_FREE_TIER_ENOUGH.md)** ⭐ START HERE
-   - Quick answer: Is Oracle Cloud free tier sufficient?
-   - Visual resource comparison
-   - Cost analysis
-   - Performance expectations
+## 🏗️ Architecture
 
-2. **[QUICK_START_ORACLE.md](./QUICK_START_ORACLE.md)** ⚡ Fast Setup
-   - 30-minute deployment guide
-   - Essential commands
-   - Quick troubleshooting
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Render.com Free Tier                       │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │        Combined Web Service (start.js)               │   │
+│  │  ├── server-baileys.js (WhatsApp Bot)               │   │
+│  │  │   - Connects to WhatsApp Web                     │   │
+│  │  │   - Syncs auth_info to Firebase Storage          │   │
+│  │  └── firebase-bridge.js (Queue Monitor)             │   │
+│  │      - Polls Firestore every 10s                    │   │
+│  │      - Forwards messages to bot                     │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+               │                        │
+               ▼                        ▼
+    ┌──────────────────┐      ┌──────────────────────┐
+    │   Cron-job.org   │      │   Firebase Storage   │
+    │   Pings /health  │      │   Session backup     │
+    │   every 12 min   │      │   (auth_info/)       │
+    └──────────────────┘      └──────────────────────┘
+```
 
-3. **[ORACLE_CLOUD_DEPLOYMENT_GUIDE.md](./ORACLE_CLOUD_DEPLOYMENT_GUIDE.md)** 📖 Complete Guide
-   - Step-by-step deployment (13,000+ words)
-   - Security best practices
-   - Monitoring & maintenance
-   - Troubleshooting
-
-4. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)** 📋 Detailed Plan
-   - Architecture overview
-   - Phase-by-phase implementation
-   - Timeline & milestones
-   - Success criteria
-
-### 🛠️ Technical Resources
-
-- **[ecosystem.config.js](./ecosystem.config.js)** - PM2 process configuration
-- **[setup-oracle-instance.sh](./setup-oracle-instance.sh)** - Automated instance setup
-- **[deploy-bot.sh](./deploy-bot.sh)** - Automated deployment
-- **[monitor-bot.sh](./monitor-bot.sh)** - Health monitoring script
-- **[backup-auth.sh](./backup-auth.sh)** - Auth backup automation
-
-### 📱 Local Development
-
-- **[SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)** - Local setup guide
-- **[TESTING_GUIDE.md](./TESTING_GUIDE.md)** - Testing procedures
-- **[TROUBLESHOOTING_NOT_READY.md](./TROUBLESHOOTING_NOT_READY.md)** - Common issues
+**Message Flow:**
+```
+Flutter App → Firebase Firestore → Firebase Bridge → WhatsApp Bot → WhatsApp Web → Parent
+```
 
 ---
 
-## ❓ Quick Answer
+## 📋 Prerequisites
 
-**Q: Can I host my WhatsApp bot 24/7 on Oracle Cloud Free Tier?**
-
-**A: YES! Absolutely! ✅**
-
-Oracle Cloud Free Tier provides **20-50x more resources** than your bot needs:
-- Your bot needs: 0.3 CPU cores, 400MB RAM, 3GB storage
-- Oracle gives: 4 CPU cores, 24GB RAM, 50GB storage
-- **Cost: $0/month forever** (not a trial!)
-
-👉 **Read [IS_FREE_TIER_ENOUGH.md](./IS_FREE_TIER_ENOUGH.md) for detailed analysis**
+- Node.js 18+
+- Firebase project with Firestore and Storage enabled
+- GitHub account (for Render deployment)
+- Render.com account (free)
+- Cron-job.org account (free)
 
 ---
 
-## 🏗️ Architecture Overview
+## 🚀 Local Development Setup
 
-### Smart Solution for Network Connectivity Issues
-
-Since we encountered network connectivity issues between your Android device and PC, we've implemented a **Firebase Bridge** solution that eliminates the need for direct network connectivity.
-
-## Architecture
-
-```
-Flutter App (Android) → Firebase Firestore → Node.js Bridge → WhatsApp Bot → WhatsApp Web
-```
-
-## Setup Instructions
-
-### 1. Install Dependencies
+### Step 1: Install Dependencies
 
 ```bash
 cd whatsapp-edutrack-bot
 npm install
 ```
 
-### 2. Get Firebase Service Account Key
+### Step 2: Get Firebase Service Account Key
 
-1. Go to [Firebase Console](https://console.firebase.google.com/project/edutrack-73a2e/settings/serviceaccounts/adminsdk)
-2. Click "Generate new private key"
-3. Download the JSON file
-4. Rename it to `service-account-key.json`
-5. Place it in the `whatsapp-edutrack-bot` folder
+1. Go to [Firebase Console](https://console.firebase.google.com/) → Your Project
+2. Project Settings → Service Accounts
+3. Click "Generate new private key"
+4. Rename downloaded file to `service-account-key.json`
+5. Place in `whatsapp-edutrack-bot/` folder
 
-### 3. Start the WhatsApp Bot Server
+### Step 3: Start the Bot (Terminal 1)
 
 ```bash
-cd whatsapp-edutrack-bot
 npm start
 ```
 
-- Scan the QR code with WhatsApp
-- Wait for "WhatsApp bot is ready!" message
+- Scan QR code with WhatsApp → Linked Devices → Link a Device
+- Wait for "✅ WhatsApp connected successfully!"
 
-### 4. Start the Firebase Bridge (New Terminal)
+### Step 4: Start Firebase Bridge (Terminal 2)
 
 ```bash
-cd whatsapp-edutrack-bot
 npm run bridge
 ```
 
-This will:
-- Monitor Firestore for queued messages
-- Forward messages to your WhatsApp bot
-- Update message status in Firebase
+### Step 5: Test
 
-### 5. Test the Integration
+1. Open Flutter app → Mark attendance for a student
+2. Check Firestore → `admins/{uid}/whatsappQueue` for message
+3. Verify WhatsApp message received by parent
 
-1. Open your Flutter app
-2. Scan a student QR code
-3. Select a subject
-4. Mark attendance
-5. Check that the message appears in Firestore and gets delivered via WhatsApp
+---
 
-## How It Works
+## ☁️ Production Deployment (Render.com)
 
-### Flutter App Side
-- When you mark attendance, the app queues a message in Firestore
-- Path: `admins/{adminUid}/whatsappQueue/{messageId}`
-- Status: `pending` → `processing` → `completed` or `failed`
+### Step 1: Enable Firebase Storage
 
-### Firebase Bridge Side
-- Monitors Firestore every 10 seconds
-- Finds messages with `status: 'pending'`
-- Sends them to your WhatsApp bot via HTTP
-- Updates status based on success/failure
+1. Go to Firebase Console → Storage → Get Started
+2. Select production mode
+3. Choose location (e.g., `asia-southeast1`)
+4. Update Storage Rules:
 
-### Benefits of This Architecture
-
-✅ **No Network Issues**: Firebase is always accessible from both Android and PC
-✅ **Reliable**: Built-in retry mechanism with status tracking
-✅ **Scalable**: Can handle multiple admins and message queues
-✅ **Monitoring**: Real-time status updates in Firestore
-✅ **Offline Support**: Messages queue up when network is down
-
-## Troubleshooting
-
-### WhatsApp Bot Issues
-```bash
-# Check if bot is running
-curl http://localhost:3000/health
-
-# Should return: {"status":"healthy","timestamp":"..."}
+```javascript
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /whatsapp-sessions/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
 ```
 
-### Firebase Bridge Issues
-```bash
-# Check if bridge can connect to bot
-curl http://localhost:3000/health
+### Step 2: Push Code to GitHub
 
-# Check Firestore permissions in Firebase Console
+```bash
+cd whatsapp-edutrack-bot
+git init
+git add .
+git commit -m "WhatsApp bot for Render deployment"
+git remote add origin https://github.com/YOUR_USERNAME/edutrack-whatsapp-bot.git
+git push -u origin main
 ```
 
-### Flutter App Issues
-- Make sure WhatsAppQueueService is properly initialized
-- Check that messages are appearing in Firestore console
-- Verify admin UID is correctly set
+### Step 3: Create Render Web Service
 
-## Message Flow Example
+1. Go to [render.com](https://render.com/) → Sign up with GitHub
+2. Click "New +" → "Web Service"
+3. Connect your GitHub repository
+4. Configure:
+   - **Name**: `edutrack-whatsapp-bot`
+   - **Region**: Singapore (or closest)
+   - **Branch**: `main`
+   - **Runtime**: Node
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Instance Type**: Free
 
-1. **Flutter**: QR scan → Mark attendance → Queue message in Firestore
-2. **Firestore**: Message appears with `status: "pending"`
-3. **Bridge**: Detects pending message → Sends to WhatsApp bot
-4. **WhatsApp Bot**: Receives message → Sends via WhatsApp Web
-5. **Bridge**: Updates status to `"completed"` in Firestore
-6. **Flutter**: Can monitor status via real-time stream
+### Step 4: Add Environment Variables
 
-## Firebase Collection Structure
+In Render Dashboard → Environment:
+
+```bash
+NODE_ENV=production
+PORT=10000
+FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"..."}
+```
+
+**To get service account as single line:**
+```bash
+cat service-account-key.json | tr -d '\n' | tr -s ' '
+```
+
+### Step 5: Deploy
+
+1. Click "Create Web Service"
+2. Wait for deployment (5-10 minutes)
+3. Check logs for QR code
+4. Scan QR with WhatsApp
+5. Session auto-saves to Firebase Storage
+
+### Step 6: Setup Keep-Alive (Cron-job.org)
+
+Render free tier sleeps after 15 min of inactivity. Use cron-job.org to keep it awake:
+
+1. Go to [cron-job.org](https://cron-job.org/) → Create free account
+2. Create new cronjob:
+   - **Title**: `EduTrack WhatsApp Keep-Alive`
+   - **URL**: `https://your-app.onrender.com/health`
+   - **Schedule**: Every 12 minutes (`*/12 * * * *`)
+3. Enable email notifications on failure
+
+---
+
+## 📁 Project Structure
+
+```
+whatsapp-edutrack-bot/
+├── server-baileys.js       # WhatsApp bot server (Baileys)
+├── firebase-bridge.js      # Firestore queue monitor
+├── firebase-storage-sync.js # Session sync to Firebase Storage
+├── start.js                # Combined launcher for Render
+├── package.json            # Dependencies and scripts
+├── .gitignore              # Ignore node_modules, auth_info, secrets
+└── service-account-key.json # Firebase Admin SDK (DO NOT COMMIT)
+```
+
+## 📊 Firestore Collection Structure
 
 ```
 admins/
   └── {adminUid}/
       └── whatsappQueue/
           └── {messageId}/
-              ├── recipientNumber: "94757593737"
+              ├── recipientNumber: "+94771234567"
               ├── message: "📚 Attendance Update..."
-              ├── messageType: "attendance"
+              ├── messageType: "attendance" | "fee" | "exam"
               ├── status: "pending" | "processing" | "completed" | "failed"
               ├── attempts: 0
               ├── maxAttempts: 3
               ├── createdAt: Timestamp
               ├── updatedAt: Timestamp
-              └── metadata: {...}
+              └── metadata: { studentName, subject, ... }
 ```
 
-This solution completely bypasses the network connectivity issues we encountered and provides a robust, production-ready WhatsApp integration! 🎉
+**Status Flow**: `pending` → `processing` → `completed` or `failed`
+
+---
+
+## 🔧 Troubleshooting
+
+### Bot not connecting to WhatsApp
+
+```bash
+# Check health endpoint
+curl http://localhost:3000/health
+
+# Delete auth_info and re-scan QR
+rm -rf auth_info/
+npm start
+```
+
+### Messages stuck in "pending"
+
+1. Check Firebase Bridge is running: `npm run bridge`
+2. Verify bot health: `curl http://localhost:3000/health`
+3. Check Firestore rules allow read/write
+
+### Session lost after Render restart
+
+1. Verify Firebase Storage is enabled
+2. Check `FIREBASE_STORAGE_BUCKET` env var is correct
+3. Look for "📥 Downloading session from Firebase Storage..." in logs
+
+### Render service sleeping
+
+1. Verify cron-job.org is pinging `/health` every 12 minutes
+2. Check cron-job execution history for failures
+3. Ensure URL is correct: `https://your-app.onrender.com/health`
+
+### Out of memory on Render
+
+Render free tier has 512MB limit. If crashing:
+
+1. Check for memory leaks in logs
+2. Reduce polling interval in firebase-bridge.js
+3. Restart service to clear memory
+
+---
+
+## 💰 Cost Breakdown
+
+| Service | Free Tier | Usage | Cost |
+|---------|-----------|-------|------|
+| Render.com | 750 hrs/month | 24/7 service | $0 |
+| Firebase Storage | 5GB | ~1MB sessions | $0 |
+| Firebase Firestore | 50K reads/day | ~2K/day | $0 |
+| Cron-job.org | 50 jobs | 1 job | $0 |
+| **Total** | | | **$0/month** |
+
+---
+
+## 🔒 Security
+
+- ❌ Never commit `service-account-key.json` to Git
+- ❌ Never commit `auth_info/` folder
+- ✅ Use environment variables on Render
+- ✅ Keep Firebase Storage rules restrictive
+- ✅ Use `.gitignore` properly
+
+---
+
+## 📜 Scripts
+
+```bash
+npm start       # Start bot server (server-baileys.js)
+npm run bridge  # Start Firebase bridge (firebase-bridge.js)
+npm run dev     # Start combined service (start.js) - for Render
+```
+
+---
+
+## ✨ Benefits
+
+- ✅ **Free Forever**: $0/month with all free tiers
+- ✅ **No Server Management**: Render handles everything
+- ✅ **Auto-Recovery**: Session persists in Firebase Storage
+- ✅ **Scalable**: Handles 100+ students easily
+- ✅ **Reliable**: Built-in retry mechanism
