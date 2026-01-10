@@ -303,7 +303,7 @@ Specializing in:
 - WhatsApp bot automation
 - Educational technology solutions
 
-**Contact**: mishaf1106@gmail.com
+**Contact**: mishafhasan@gmail.com
 
 ---
 
