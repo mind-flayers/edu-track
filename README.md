@@ -359,7 +359,16 @@ See [`db/database_structure.md`](db/database_structure.md) for complete schema.
 
 ---
 
-**🎥 Demo Video**: Coming soon! App is fully functional with all features demonstrated above.
+### 🎥 Promo Video
+
+<div align="center">
+  <a href="https://youtu.be/3fHwCYnB2qk" target="_blank">
+    <img src="https://img.youtube.com/vi/3fHwCYnB2qk/maxresdefault.jpg" alt="EduTrack Promo Video" width="600"/>
+  </a>
+  
+  <p><b>📹 Click the video above to watch the full app demonstration!</b></p>
+  <p><sub>See EduTrack in action with all features showcased</sub></p>
+</div>
 
 ---
 
