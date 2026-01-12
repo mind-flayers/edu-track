@@ -180,7 +180,186 @@ See [`db/database_structure.md`](db/database_structure.md) for complete schema.
 
 ## 📸 Screenshots & Demo
 
-**Demo video coming soon!** App is fully functional with: Dashboard • Student/Teacher management • QR attendance • Exam results • Fee tracking • Admin portal • WhatsApp integration
+### 🔐 Authentication & Dashboard
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/login-page.png" alt="Login Page" width="250"/><br/>
+        <b>Login Page</b><br/>
+        <sub>Secure authentication</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/dashboard-page.png" alt="Dashboard" width="250"/><br/>
+        <b>Dashboard</b><br/>
+        <sub>Analytics overview</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/profile-settings-page.png" alt="Profile Settings" width="250"/><br/>
+        <b>Profile Settings</b><br/>
+        <sub>Account management</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+### 👥 Student & Teacher Management
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/students-list-page.png" alt="Students List" width="250"/><br/>
+        <b>Students List</b><br/>
+        <sub>View all students</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/add-student-page.png" alt="Add Student" width="250"/><br/>
+        <b>Add Student</b><br/>
+        <sub>Register new student</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/teachers-list-page.png" alt="Teachers List" width="250"/><br/>
+        <b>Teachers List</b><br/>
+        <sub>Manage teachers</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+### 📋 Student Details & Information
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/student-details-page-1.jpg" alt="Student Details 1" width="250"/><br/>
+        <b>Student Profile</b><br/>
+        <sub>Personal information</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/student-details-page-2.png" alt="Student Details 2" width="250"/><br/>
+        <b>Student Details</b><br/>
+        <sub>Academic records</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/student-details-page-3.png" alt="Student Details 3" width="250"/><br/>
+        <b>Student Info</b><br/>
+        <sub>Contact & QR code</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+### 📱 QR Code Attendance System
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/qr-code-scanner-page-1.png" alt="QR Scanner 1" width="250"/><br/>
+        <b>QR Scanner</b><br/>
+        <sub>Scan student QR</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/qr-code-scanner-page-2.png" alt="QR Scanner 2" width="250"/><br/>
+        <b>Scanning Process</b><br/>
+        <sub>Real-time detection</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/qr-code-scanner-page-3.png" alt="QR Scanner 3" width="250"/><br/>
+        <b>Attendance Marked</b><br/>
+        <sub>Success confirmation</sub>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" colspan="3">
+        <img src="assets/screenshots/qr-code-scanner-page-4.png" alt="QR Scanner 4" width="250"/><br/>
+        <b>Attendance History</b><br/>
+        <sub>View attendance records</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+### 💰 Payment Management & WhatsApp Integration
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/pending-payments.png" alt="Pending Payments" width="250"/><br/>
+        <b>Pending Payments</b><br/>
+        <sub>Outstanding fees</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/mark-payment-1.png" alt="Mark Payment 1" width="250"/><br/>
+        <b>Mark Payment</b><br/>
+        <sub>Record fee payment</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/mark-payment-2.png" alt="Mark Payment 2" width="250"/><br/>
+        <b>Payment Details</b><br/>
+        <sub>Enter payment info</sub>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" colspan="3">
+        <img src="assets/screenshots/payment-maked-whatsapp-notification-sent.png" alt="WhatsApp Notification" width="250"/><br/>
+        <b>WhatsApp Notification</b><br/>
+        <sub>Automated parent notification</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+### 📊 Exam Results & Reports
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/exam-results-page.png" alt="Exam Results" width="250"/><br/>
+        <b>Exam Results</b><br/>
+        <sub>View all results</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/export-exam-results-by-class.png" alt="Export by Class" width="250"/><br/>
+        <b>Export by Class</b><br/>
+        <sub>Bulk export options</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/export-student-exam-results.png" alt="Student Results" width="250"/><br/>
+        <b>Student Results</b><br/>
+        <sub>Individual reports</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+### 📄 Export & Reports
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/export-payments.png" alt="Export Payments" width="250"/><br/>
+        <b>Export Payments</b><br/>
+        <sub>Financial reports (Excel)</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/exported-student-details.png" alt="Exported Details" width="250"/><br/>
+        <b>Student Details Export</b><br/>
+        <sub>Complete data export</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+---
+
+**🎥 Demo Video**: Coming soon! App is fully functional with all features demonstrated above.
 
 ---
 
