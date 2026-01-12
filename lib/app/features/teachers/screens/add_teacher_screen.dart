@@ -30,7 +30,6 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
   bool _isLoading = false;
   String? _statusMessage;
   bool _isError = false;
-  int _selectedIndex = 2; // Keep track of bottom nav selection
 
   // TODO: Fetch these dynamically or use a better configuration method
   final List<String> _availableClasses = [
@@ -129,38 +128,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     );
   }
 
-  // --- Reusable Bottom Navigation Logic (from TeacherListScreen) ---
-  void _onBottomNavItemTapped(int index) {
-    if (_selectedIndex == index) return;
 
-    // Set state immediately for visual feedback
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    // Use Future.delayed to allow animation before navigation
-    Future.delayed(150.ms, () {
-      if (!mounted) return; // Check if the widget is still in the tree
-      switch (index) {
-        case 0:
-          Get.off(() => const DashboardScreen());
-          break;
-        case 1:
-          Get.offNamed(AppRoutes.studentList);
-          break;
-        case 2:
-          Get.off(() => const TeacherListScreen());
-          break; // Go to List Screen
-        case 3:
-          Get.off(() => const AttendanceSummaryScreen());
-          break;
-        case 4:
-          AuthController.instance.signOut();
-          Get.offAll(() => const SignInScreen());
-          break;
-      }
-    });
-  }
 
   // --- Form Submission Logic ---
   Future<void> _submitForm() async {
@@ -270,22 +238,6 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     // final colorScheme = Theme.of(context).colorScheme;
-
-    // Define Bottom Nav Bar items (same as TeacherListScreen)
-    final Map<int, IconData> navIcons = {
-      0: Icons.school_rounded,
-      1: Icons.co_present_rounded, // Icon for Teachers
-      2: Icons.dashboard_rounded,
-      3: Icons.assignment_rounded,
-      4: Icons.assessment_outlined
-    };
-    final Map<int, String> navLabels = {
-      0: 'Students',
-      1: 'Teachers',
-      2: 'Dashboard',
-      3: 'Attendance',
-      4: 'Exam'
-    };
 
     return Scaffold(
       appBar: AppBar(
@@ -445,36 +397,6 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: List.generate(navIcons.length, (index) {
-          bool isSelected = _selectedIndex == index;
-          return BottomNavigationBarItem(
-            icon: Animate(
-              target: isSelected ? 1 : 0,
-              effects: [
-                ScaleEffect(
-                    begin: const Offset(0.9, 0.9),
-                    end: const Offset(1.1, 1.1),
-                    duration: 200.ms,
-                    curve: Curves.easeOut)
-              ],
-              child: Icon(navIcons[index]),
-            ),
-            label: navLabels[index],
-          );
-        }),
-        currentIndex: _selectedIndex,
-        selectedItemColor: kPrimaryColor,
-        unselectedItemColor: kLightTextColor,
-        onTap: _onBottomNavItemTapped,
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-        showSelectedLabels: true,
-        selectedFontSize: 12.0,
-        unselectedFontSize: 11.0,
-        elevation: 10.0,
-        backgroundColor: Colors.white, // Or kSecondaryColor
       ),
     );
   }

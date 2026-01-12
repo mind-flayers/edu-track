@@ -1,14 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:edu_track/app/features/attendance/screens/attendance_summary_screen.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
-import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
-import 'package:edu_track/app/features/exam/screens/exam_results_screen.dart';
 import 'package:edu_track/app/features/qr_scanner/screens/qr_code_scanner_screen.dart';
 import 'package:edu_track/app/features/students/screens/add_student_screen.dart';
-import 'package:edu_track/app/features/students/screens/student_list_screen.dart';
 import 'package:edu_track/app/features/teachers/screens/add_teacher_screen.dart';
-import 'package:edu_track/app/features/teachers/screens/teacher_list_screen.dart';
+import 'package:edu_track/app/navigation/navigation_controller.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
@@ -24,30 +20,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 2;
   int _cachedPendingCount = 0; // Cache for pending payments count
-
-  void _onItemTapped(int index) {
-    if (_selectedIndex == index) return;
-
-    // Navigate immediately with animation
-    switch (index) {
-      case 0:
-        Get.toNamed(AppRoutes.studentList);
-        break;
-      case 1:
-        Get.to(() => const TeacherListScreen());
-        break;
-      case 2:
-        break; // Already on Dashboard
-      case 3:
-        Get.to(() => const AttendanceSummaryScreen());
-        break;
-      case 4:
-        Get.to(() => const ExamResultsScreen());
-        break;
-    }
-  }
 
   Widget _buildProfileAvatar() {
     final String? userId = AuthController.instance.user?.uid;
@@ -113,21 +86,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final todayDateString = DateFormat('yyyy-MM-dd').format(now);
     final currentYear = now.year;
     final currentMonth = now.month;
-
-    final Map<int, IconData> navIcons = {
-      0: Icons.school_rounded,
-      1: Icons.co_present_rounded,
-      2: Icons.dashboard_rounded,
-      3: Icons.assignment_rounded,
-      4: Icons.assessment_outlined
-    };
-    final Map<int, String> navLabels = {
-      0: 'Students',
-      1: 'Teachers',
-      2: 'Dashboard',
-      3: 'Attendance',
-      4: 'Exam'
-    };
 
     return Scaffold(
       appBar: AppBar(
@@ -308,7 +266,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               color1: kPrimaryColor,
                               color2: const Color(0xFF9B84FF),
                               textColor: kSecondaryColor,
-                              onTap: () => Get.to(() => const TeacherListScreen()));
+                              onTap: () {
+                                final navController =
+                                    Get.find<NavigationController>();
+                                navController.goToTeachers();
+                              });
                         },
                       ),
                       // --- Today Attendance Card (Calculates Absent = Total - Present) ---
@@ -413,7 +375,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 color1: kPrimaryColor,
                                 color2: const Color(0xFF9B84FF), // Use const
                                 textColor: kSecondaryColor,
-                                onTap: () => Get.to(() => const AttendanceSummaryScreen()),
+                                onTap: () {
+                                  final navController =
+                                      Get.find<NavigationController>();
+                                  navController.goToAttendance();
+                                },
                               );
                             },
                           );
@@ -506,7 +472,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ActionButtonCard(
                       icon: Icons.add_box_outlined,
                       label: "Exam Results",
-                      onTap: () => Get.to(() => const ExamResultsScreen())),
+                      onTap: () {
+                        final navController = Get.find<NavigationController>();
+                        navController.goToExam();
+                      }),
                 ],
               )
                   .animate()
@@ -515,36 +484,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: List.generate(navIcons.length, (index) {
-          bool isSelected = _selectedIndex == index;
-          return BottomNavigationBarItem(
-            icon: Animate(
-              target: isSelected ? 1 : 0,
-              effects: [
-                ScaleEffect(
-                    begin: Offset(0.9, 0.9),
-                    end: Offset(1.1, 1.1),
-                    duration: 200.ms,
-                    curve: Curves.easeOut)
-              ],
-              child: Icon(navIcons[index]),
-            ),
-            label: navLabels[index],
-          );
-        }),
-        currentIndex: _selectedIndex,
-        selectedItemColor: kPrimaryColor,
-        unselectedItemColor: kLightTextColor,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-        showSelectedLabels: true,
-        selectedFontSize: 12.0,
-        unselectedFontSize: 11.0,
-        elevation: 10.0,
-        backgroundColor: Colors.white,
       ),
     );
   }

@@ -61,7 +61,6 @@ class AttendanceSummaryScreen extends StatefulWidget {
 }
 
 class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
-  int _selectedIndex = 3; // Attendance tab is selected
   String? _selectedClass;
   String? _selectedSubject;
   DateTime _selectedDate = DateTime.now();
@@ -496,27 +495,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     });
   }
 
-  void _onBottomNavItemTapped(int index) {
-    if (_selectedIndex == index) return;
 
-    // Navigate immediately with animation
-    switch (index) {
-      case 0:
-        Get.toNamed(AppRoutes.studentList);
-        break;
-      case 1:
-        Get.to(() => const TeacherListScreen());
-        break;
-      case 2:
-        Get.to(() => const DashboardScreen());
-        break;
-      case 3:
-        break; // Already on Attendance Summary Screen
-      case 4:
-        Get.to(() => const ExamResultsScreen());
-        break;
-    }
-  }
 
   Widget _buildProfileAvatar() {
     final String? userId = AuthController.instance.user?.uid;
@@ -945,35 +924,9 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     final textTheme = Theme.of(context).textTheme;
     // final colorScheme = Theme.of(context).colorScheme;
 
-    final Map<int, IconData> navIcons = {
-      0: Icons.school_rounded,
-      1: Icons.co_present_rounded,
-      2: Icons.dashboard_rounded,
-      3: Icons.assignment_rounded,
-      4: Icons.assessment_outlined
-    };
-    final Map<int, String> navLabels = {
-      0: 'Students',
-      1: 'Teachers',
-      2: 'Dashboard',
-      3: 'Attendance',
-      4: 'Exam'
-    };
-
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: kLightTextColor),
-          tooltip: 'Back',
-          onPressed: () {
-            if (Get.key?.currentState?.canPop() ?? false) {
-              Get.back();
-            } else {
-              Get.off(() => const DashboardScreen());
-            }
-          },
-        ),
+        automaticallyImplyLeading: false, // No back button for tab screens
         title: Text('Attendance Summary', style: textTheme.titleLarge),
         centerTitle: true,
         actions: [
@@ -1216,37 +1169,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
             child: _buildContentArea(context),
           ),
         ], // Closing Column children
-      ), // Closing Column
-      bottomNavigationBar: BottomNavigationBar(
-        items: List.generate(navIcons.length, (index) {
-          bool isSelected = _selectedIndex == index;
-          return BottomNavigationBarItem(
-            icon: Animate(
-              target: isSelected ? 1 : 0,
-              effects: [
-                ScaleEffect(
-                    begin: const Offset(0.9, 0.9),
-                    end: const Offset(1.1, 1.1),
-                    duration: 200.ms,
-                    curve: Curves.easeOut)
-              ],
-              child: Icon(navIcons[index]),
-            ),
-            label: navLabels[index],
-          );
-        }),
-        currentIndex: _selectedIndex,
-        selectedItemColor: kPrimaryColor,
-        unselectedItemColor: kLightTextColor,
-        onTap: _onBottomNavItemTapped,
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-        showSelectedLabels: true,
-        selectedFontSize: 12.0,
-        unselectedFontSize: 11.0,
-        elevation: 10.0,
-        backgroundColor: Colors.white,
-      ),
+      ), // Closing body Column
     ); // Closing Scaffold
   } // build method ends here
 

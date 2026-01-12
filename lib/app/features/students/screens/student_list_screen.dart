@@ -23,22 +23,6 @@ class StudentListScreen extends StatelessWidget {
     final controller = Get.find<StudentController>();
     final textTheme = Theme.of(context).textTheme;
 
-    // Define Bottom Nav Bar items
-    final Map<int, IconData> navIcons = {
-      0: Icons.school_rounded,
-      1: Icons.co_present_rounded,
-      2: Icons.dashboard_rounded,
-      3: Icons.assignment_rounded,
-      4: Icons.assessment_outlined
-    };
-    final Map<int, String> navLabels = {
-      0: 'Students',
-      1: 'Teachers',
-      2: 'Dashboard',
-      3: 'Attendance',
-      4: 'Exam'
-    };
-
     return Scaffold(
       appBar: _buildAppBar(context, controller, textTheme),
       body: Column(
@@ -47,12 +31,6 @@ class StudentListScreen extends StatelessWidget {
           Expanded(child: _buildStudentList(context, controller, textTheme)),
         ],
       ),
-      bottomNavigationBar: Obx(() => _buildBottomNavBar(
-            context,
-            controller,
-            navIcons,
-            navLabels,
-          )),
     );
   }
 
@@ -63,18 +41,14 @@ class StudentListScreen extends StatelessWidget {
   PreferredSizeWidget _buildAppBar(
       BuildContext context, StudentController controller, TextTheme textTheme) {
     return AppBar(
+      automaticallyImplyLeading: false, // No back button for tab screens
       leading: Obx(() => controller.isSelectionMode.value
           ? IconButton(
               icon: const Icon(Icons.close, color: kErrorColor),
               tooltip: 'Cancel',
               onPressed: controller.exitSelectionMode,
             )
-          : IconButton(
-              icon: Icon(Icons.arrow_back_ios_new_rounded,
-                  color: kLightTextColor),
-              tooltip: 'Back',
-              onPressed: () => Get.back(),
-            )),
+          : const SizedBox.shrink()), // Empty widget when not in selection mode
       title: Obx(() => controller.isSelectionMode.value
           ? Text('${controller.selectedStudentIds.length} Selected',
               style: textTheme.titleLarge)
@@ -548,66 +522,4 @@ class StudentListScreen extends StatelessWidget {
     });
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // BOTTOM NAV BAR
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  Widget _buildBottomNavBar(
-    BuildContext context,
-    StudentController controller,
-    Map<int, IconData> navIcons,
-    Map<int, String> navLabels,
-  ) {
-    return BottomNavigationBar(
-      items: List.generate(navIcons.length, (index) {
-        bool isSelected = controller.selectedNavIndex.value == index;
-        return BottomNavigationBarItem(
-          icon: Animate(
-            target: isSelected ? 1 : 0,
-            effects: [
-              ScaleEffect(
-                  begin: const Offset(0.9, 0.9),
-                  end: const Offset(1.1, 1.1),
-                  duration: 200.ms,
-                  curve: Curves.easeOut)
-            ],
-            child: Icon(navIcons[index]),
-          ),
-          label: navLabels[index],
-        );
-      }),
-      currentIndex: controller.selectedNavIndex.value,
-      selectedItemColor: kPrimaryColor,
-      unselectedItemColor: kLightTextColor,
-      onTap: (index) {
-        // Prevent navigation during selection mode
-        if (controller.isSelectionMode.value) return;
-        if (controller.selectedNavIndex.value == index) return;
-
-        switch (index) {
-          case 0:
-            break; // Already on Students
-          case 1:
-            Get.to(() => const TeacherListScreen());
-            break;
-          case 2:
-            Get.to(() => const DashboardScreen());
-            break;
-          case 3:
-            Get.to(() => const AttendanceSummaryScreen());
-            break;
-          case 4:
-            Get.to(() => const ExamResultsScreen());
-            break;
-        }
-      },
-      type: BottomNavigationBarType.fixed,
-      showUnselectedLabels: true,
-      showSelectedLabels: true,
-      selectedFontSize: 12.0,
-      unselectedFontSize: 11.0,
-      elevation: 10.0,
-      backgroundColor: Colors.white,
-    );
-  }
 }

@@ -11,6 +11,8 @@ import 'package:edu_track/app/features/students/bindings/student_binding.dart'; 
 import 'package:edu_track/app/features/students/screens/student_list_screen.dart'; // Import StudentListScreen
 import 'package:edu_track/app/services/whatsapp_service.dart'; // Import WhatsApp service
 import 'package:edu_track/app/services/whatsapp_queue_service.dart'; // Import WhatsApp queue service
+import 'package:edu_track/app/navigation/navigation_controller.dart'; // Import NavigationController
+import 'package:edu_track/app/navigation/main_shell_screen.dart'; // Import MainShellScreen
 // Import firebase_options.dart (Generated via FlutterFire CLI)
 import 'firebase_options.dart';
 
@@ -64,6 +66,7 @@ class MyApp extends StatelessWidget {
 // Define Route Names
 class AppRoutes {
   static const launching = '/';
+  static const mainShell = '/main'; // Main shell with persistent nav bar
   static const profileSettings = '/profile-settings';
   static const paymentManagement = '/payment-management';
   static const studentList = '/student-list';
@@ -79,6 +82,11 @@ class AppPages {
       name: AppRoutes.launching,
       page: () => const LaunchingScreen(),
       // No specific binding needed here if AuthController is globally put
+    ),
+    GetPage(
+      name: AppRoutes.mainShell,
+      page: () => const MainShellScreen(),
+      binding: NavigationBinding(), // Apply navigation binding
     ),
     GetPage(
       name: AppRoutes.profileSettings,
@@ -100,3 +108,4 @@ class AppPages {
     // GetPage(name: AppRoutes.addTeacher, page: () => AddTeacherScreen(), binding: AddTeacherBinding()),
   ];
 }
+

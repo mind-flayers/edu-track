@@ -1,11 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart'; // Reverted: No longer needed here
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
-// Import Dashboard Screen
-import 'package:edu_track/app/features/dashboard/screens/dashboard_screen.dart';
+import 'package:edu_track/main.dart'; // Import for AppRoutes
 
 class AuthController extends GetxController {
   static AuthController get instance => Get.find(); // Makes it easy to find the instance
@@ -39,9 +37,10 @@ class AuthController extends GetxController {
         print("User is null, navigating to SignInScreen");
         Get.offAll(() => const SignInScreen());
       } else {
-        // If user is logged in, navigate to DashboardScreen
-        print("User is logged in (${user.email}), navigating to DashboardScreen");
-        Get.offAll(() => const DashboardScreen()); // Navigate to the actual DashboardScreen
+        // If user is logged in, navigate to MainShellScreen (persistent nav bar)
+        print("User is logged in (${user.email}), navigating to MainShellScreen");
+        // Use named route so NavigationBinding is applied (registers all controllers)
+        Get.offAllNamed(AppRoutes.mainShell);
       }
     });
   }
@@ -51,10 +50,8 @@ class AuthController extends GetxController {
     isLoading.value = true; // Start loading
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
-      // Explicitly navigate to Dashboard on successful sign-in
-      // The authStateChanges stream listener (_setInitialScreen) will also fire,
-      // but Get.offAll handles replacing the stack correctly.
-      Get.offAll(() => const DashboardScreen());
+      // Use named route so NavigationBinding is applied (registers all controllers)
+      Get.offAllNamed(AppRoutes.mainShell);
       isLoading.value = false; // Stop loading
       return true; // Indicate success
     } on FirebaseAuthException catch (e) {
@@ -67,6 +64,7 @@ class AuthController extends GetxController {
       return false; // Indicate failure
     }
   }
+
 
   // Send Password Reset Email
   // Reverted: signUpWithEmailAndPassword method removed as it's not used in the developer-led workflow.

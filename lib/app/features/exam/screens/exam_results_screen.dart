@@ -57,7 +57,6 @@ class ExamResultsScreen extends StatefulWidget {
 }
 
 class _ExamResultsScreenState extends State<ExamResultsScreen> {
-  int _selectedIndex = 4; // Exam Results is at index 4
   String? _selectedClassSection;
   String? _selectedSubject;
   _ExamTerm? _selectedTerm;
@@ -1504,23 +1503,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: kLightTextColor),
-          tooltip: 'Back',
-          onPressed: () {
-            if (_isEditing) {
-              _showSnackbar("Please save or cancel edits before navigating.",
-                  isError: true, isInfo: true);
-              return;
-            }
-            if (Get.key?.currentState?.canPop() ?? false) {
-              Get.back();
-            } else {
-              Get.off(() => const DashboardScreen());
-            }
-          },
-        ),
+        automaticallyImplyLeading: false, // No back button for tab screens
         title:
             Text('Exam Results', style: textTheme.titleLarge), // Updated title
         centerTitle: true,
@@ -1535,84 +1518,6 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           _buildResultsTable(),
         ],
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    final Map<int, IconData> navIcons = {
-      0: Icons.school_rounded,
-      1: Icons.co_present_rounded,
-      2: Icons.dashboard_rounded,
-      3: Icons.assignment_rounded,
-      4: Icons.assessment_outlined
-    };
-    final Map<int, String> navLabels = {
-      0: 'Students',
-      1: 'Teachers',
-      2: 'Dashboard',
-      3: 'Attendance',
-      4: 'Exam'
-    };
-
-    return BottomNavigationBar(
-      items: List.generate(navIcons.length, (index) {
-        bool isSelected = _selectedIndex == index;
-        return BottomNavigationBarItem(
-          icon: Animate(
-            target: isSelected ? 1 : 0,
-            effects: [
-              ScaleEffect(
-                  begin: const Offset(0.9, 0.9),
-                  end: const Offset(1.1, 1.1),
-                  duration: 200.ms,
-                  curve: Curves.easeOut)
-            ],
-            child: Icon(navIcons[index]),
-          ),
-          label: navLabels[index],
-        );
-      }),
-      currentIndex: _selectedIndex,
-      selectedItemColor: kPrimaryColor,
-      unselectedItemColor: kLightTextColor,
-      onTap: _onBottomNavItemTapped,
-      type: BottomNavigationBarType.fixed,
-      showUnselectedLabels: true,
-      showSelectedLabels: true,
-      selectedFontSize: 12.0,
-      unselectedFontSize: 11.0,
-      elevation: 10.0,
-      backgroundColor: Colors.white,
-    );
-  }
-
-  void _onBottomNavItemTapped(int index) {
-    if (_selectedIndex == index) return;
-
-    // Prevent navigation if in editing mode
-    if (_isEditing) {
-      _showSnackbar("Please save or cancel edits before navigating.",
-          isError: true, isInfo: true);
-      return;
-    }
-
-    // Navigate immediately with animation
-    switch (index) {
-      case 0:
-        Get.toNamed(AppRoutes.studentList);
-        break;
-      case 1:
-        Get.to(() => const TeacherListScreen());
-        break;
-      case 2:
-        Get.to(() => const DashboardScreen());
-        break;
-      case 3:
-        Get.to(() => const AttendanceSummaryScreen());
-        break;
-      case 4:
-        break; // Already on Exam Results Screen
-    }
   }
 }
