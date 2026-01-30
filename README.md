@@ -59,7 +59,13 @@ Flutter App + Next.js Portal + WhatsApp Bot
 ```bash
 git clone https://github.com/mind-flayers/edu-track.git
 cd edu_track
+
+# Initialize and clone the WhatsApp bot submodule (optional)
+git submodule init
+git submodule update
 ```
+
+> **Note**: The WhatsApp bot is maintained in a separate repository at [https://github.com/mind-flayers/whatsapp-edutrack-bot](https://github.com/mind-flayers/whatsapp-edutrack-bot) and linked as a git submodule.
 
 ---
 
@@ -115,6 +121,11 @@ See [`admin-portal/README.md`](admin-portal/README.md) for details.
 
 ### 3️⃣ WhatsApp Bot Setup
 
+> **Note**: The WhatsApp bot is a separate repository. Make sure you've initialized the submodule first:
+> ```bash
+> git submodule init && git submodule update
+> ```
+
 ```bash
 cd whatsapp-edutrack-bot && npm install
 
@@ -128,7 +139,9 @@ npm run bridge  # Terminal 2: Start Firebase queue processor
 
 **Deploy**: Free 24/7 hosting on **Render.com** with Firebase Storage for session persistence and cron-job.org for keep-alive.
 
-See [`RENDER_DEPLOYMENT_COMPLETE_GUIDE.md`](whatsapp-edutrack-bot/RENDER_DEPLOYMENT_COMPLETE_GUIDE.md) for complete deployment instructions.
+**Repository**: [https://github.com/mind-flayers/whatsapp-edutrack-bot](https://github.com/mind-flayers/whatsapp-edutrack-bot)
+
+See the separate repository's README for complete deployment instructions.
 
 ---
 
@@ -150,11 +163,13 @@ npm run serve
 ```
 lib/                    # Flutter app (authentication, dashboard, students, teachers, etc.)
 admin-portal/           # Next.js super admin portal
-whatsapp-edutrack-bot/  # WhatsApp notification bot (Baileys)
+whatsapp-edutrack-bot/  # WhatsApp notification bot (git submodule - separate repository)
 functions/              # Firebase Cloud Functions
 db/                     # Database scripts and documentation
 docs/                   # Deployment and setup guides
 ```
+
+> **Important**: The `whatsapp-edutrack-bot` directory is a **Git Submodule** pointing to [https://github.com/mind-flayers/whatsapp-edutrack-bot](https://github.com/mind-flayers/whatsapp-edutrack-bot). Use `git submodule init && git submodule update` to clone it.
 
 ## 🛠️ Tech Stack
 
