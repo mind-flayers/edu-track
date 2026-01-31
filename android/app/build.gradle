@@ -39,6 +39,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Enable multidex support
+        multiDexEnabled true
     }
 
     signingConfigs {
@@ -52,6 +55,10 @@ android {
 
     buildTypes {
         release {
+            // Code shrinking disabled for faster builds (can be enabled later if needed)
+            minifyEnabled false
+            shrinkResources false
+            
             signingConfig signingConfigs.release
         }
     }
