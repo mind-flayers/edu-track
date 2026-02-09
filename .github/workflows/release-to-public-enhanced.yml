@@ -233,9 +233,7 @@ jobs:
             CUSTOM_NOTES="## What's New in $VERSION
 
 See the full changelog in the release assets."
-"
           fi
-          
           # Build complete release notes
           cat > release_notes.md << EOF
           # Ã°Å¸Å½â€œ EduTrack $VERSION
