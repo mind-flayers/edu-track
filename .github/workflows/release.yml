@@ -1,0 +1,152 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags like v1.0.0, v1.1.0, etc.
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  build:
+    name: Build Split APKs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive # Include WhatsApp bot submodule
+      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.6.0'
+          channel: 'stable'
+          cache: true
+      
+      - name: Install Dependencies
+        run: flutter pub get
+      
+      - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+      
+      - name: Create key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+      
+      - name: Build Split APKs
+        run: flutter build apk --release --split-per-abi
+      
+      - name: Get Version from Tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Rename APKs
+        run: |
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+             build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-arm64-v8a.apk || true
+          mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+             build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-armeabi-v7a.apk || true
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-universal.apk || true
+      
+      - name: Get APK Sizes
+        id: apk_sizes
+        run: |
+          ARM64_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk | awk '{print $5}')
+          ARMV7_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk | awk '{print $5}')
+          UNIVERSAL_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-universal.apk | awk '{print $5}')
+          echo "ARM64_SIZE=$ARM64_SIZE" >> $GITHUB_OUTPUT
+          echo "ARMV7_SIZE=$ARMV7_SIZE" >> $GITHUB_OUTPUT
+          echo "UNIVERSAL_SIZE=$UNIVERSAL_SIZE" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build/app/outputs/flutter-apk/edutrack-*.apk
+          name: EduTrack ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            # 🎓 EduTrack ${{ steps.get_version.outputs.VERSION }}
+            
+            ## 📱 Download the Right APK for Your Device
+            
+            | APK File | Best For | Size | Download |
+            |----------|----------|------|----------|
+            | **arm64-v8a** | Modern phones (2017+) | ${{ steps.apk_sizes.outputs.ARM64_SIZE }} | ⭐ **RECOMMENDED** for 90% of users |
+            | **armeabi-v7a** | Older phones (2015-2017) | ${{ steps.apk_sizes.outputs.ARMV7_SIZE }} | For older Android devices |
+            | **universal** | All devices | ${{ steps.apk_sizes.outputs.UNIVERSAL_SIZE }} | Works everywhere but larger |
+            
+            ## 🚀 How to Install
+            
+            1. **Download** the APK for your device architecture
+            2. **Enable** "Install from Unknown Sources" in Android settings
+            3. **Install** the APK file
+            4. **Grant** permissions when prompted
+            
+            📖 **Full Instructions**: See [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edu-track/blob/main/INSTALLATION_GUIDE.md)
+            
+            ## ✨ What's New
+            
+            See [RELEASE_NOTES_v1.0.0.md](https://github.com/mind-flayers/edu-track/blob/main/RELEASE_NOTES_v1.0.0.md) for full details.
+            
+            ## 📚 Documentation
+            
+            - **README**: [Main Documentation](https://github.com/mind-flayers/edu-track#readme)
+            - **Installation Guide**: [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edutrack/blob/main/INSTALLATION_GUIDE.md)
+            - **Database Setup**: [DATABASE_SETUP_INSTRUCTIONS.md](https://github.com/mind-flayers/edu-track/blob/main/docs/DATABASE_SETUP_INSTRUCTIONS.md)
+            
+            ## 🔐 SHA256 Checksums
+            
+            ```
+            arm64-v8a: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk | awk '{print $1}')
+            armeabi-v7a: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk | awk '{print $1}')
+            universal: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-universal.apk | awk '{print $1}')
+            ```
+            
+            ## 🐛 Reporting Issues
+            
+            Found a bug? [Create an issue](https://github.com/mind-flayers/edu-track/issues/new)
+            
+            ## 💝 Support the Project
+            
+            If you find EduTrack useful, please ⭐ star the repository!
+            
+            ---
+            
+            Made with ❤️ for Educational Institutions
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-builds
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f android/app/upload-keystore.jks
+          rm -f android/key.properties

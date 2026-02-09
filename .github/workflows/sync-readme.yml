@@ -1,0 +1,168 @@
+name: Sync README to Public Repo
+
+# Workflow to sync README updates to public repository
+# without creating a new release
+# Useful for documentation-only updates
+
+on:
+  workflow_dispatch:  # Manual trigger only
+  push:
+    branches:
+      - main
+    paths:
+      - 'README.md'
+      - 'LICENSE'
+      - 'docs/INSTALLATION_GUIDE.md'
+
+env:
+  PUBLIC_REPO: 'mind-flayers/edu-track-releases'
+
+jobs:
+  sync-documentation:
+    name: Sync Documentation Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📦 Checkout Private Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: 📄 Prepare README for Public Repo
+        run: |
+          # Create a version without private repo links
+          cp README.md README.public.md
+          
+          # Update repository URLs to point to public repo
+          sed -i 's|mind-flayers/edu-track|mind-flayers/edu-track-releases|g' README.public.md
+          
+          # Add notice at the top
+          cat > README.temp.md << 'EOF'
+          # 🎓 EduTrack - Academy Management System
+          
+          > **📦 This is the PUBLIC RELEASES repository**  
+          > Contains only APK releases and documentation. Source code is in a private repository.
+          
+          ---
+          
+          EOF
+          
+          cat README.public.md >> README.temp.md
+          mv README.temp.md README.public.md
+          
+          echo "✅ Public README prepared"
+      
+      - name: 🔄 Checkout Public Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PUBLIC_REPO }}
+          token: ${{ secrets.RELEASES_REPO_TOKEN }}
+          path: public-repo
+      
+      - name: 📂 Sync Documentation Files
+        run: |
+          # Copy README
+          cp README.public.md public-repo/README.md
+          echo "✅ README copied"
+          
+          # Copy LICENSE if exists
+          if [ -f LICENSE ]; then
+            cp LICENSE public-repo/LICENSE
+            echo "✅ LICENSE copied"
+          fi
+          
+          # Copy installation guide if exists
+          if [ -f docs/INSTALLATION_GUIDE.md ]; then
+            cp docs/INSTALLATION_GUIDE.md public-repo/INSTALLATION_GUIDE.md
+            echo "✅ INSTALLATION_GUIDE copied"
+          fi
+          
+          # Create .github directory if not exists
+          mkdir -p public-repo/.github
+          
+          # Create a minimal contributing guide
+          cat > public-repo/.github/CONTRIBUTING.md << 'EOF'
+          # Contributing to EduTrack
+          
+          Thank you for your interest in contributing to EduTrack!
+          
+          ## Reporting Issues
+          
+          If you find a bug or have a feature request:
+          
+          1. Check if the issue already exists in [Issues](https://github.com/mind-flayers/edu-track-releases/issues)
+          2. If not, create a new issue with:
+             - Clear description of the problem
+             - Steps to reproduce
+             - Expected vs actual behavior
+             - Device info (model, Android version)
+             - Screenshots if applicable
+          
+          ## Security Issues
+          
+          Please DO NOT open public issues for security vulnerabilities.
+          Instead, email directly to: mishaf1106@gmail.com
+          
+          ## Questions?
+          
+          - Check the [FAQ](https://github.com/mind-flayers/edu-track-releases#faq)
+          - Open a [discussion](https://github.com/mind-flayers/edu-track-releases/discussions)
+          - Email: mishaf1106@gmail.com
+          
+          ---
+          
+          Made with ❤️ for Educational Institutions
+          EOF
+          
+          echo "✅ Contributing guide created"
+      
+      - name: 💾 Commit and Push Changes
+        run: |
+          cd public-repo
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          
+          if git diff --staged --quiet; then
+            echo "ℹ️ No changes detected"
+          else
+            COMMIT_MSG="📝 Update documentation from private repo
+            
+            Synced at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            Triggered by: ${{ github.event_name }}
+            "
+            
+            git commit -m "$COMMIT_MSG"
+            git push
+            
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ DOCUMENTATION SYNCED SUCCESSFULLY!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "📝 Updated files:"
+            echo "  • README.md"
+            echo "  • LICENSE (if present)"
+            echo "  • INSTALLATION_GUIDE.md (if present)"
+            echo "  • .github/CONTRIBUTING.md"
+            echo ""
+            echo "🔗 View: https://github.com/${{ env.PUBLIC_REPO }}"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          fi
+      
+      - name: ❌ Failure Notification
+        if: failure()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "❌ DOCUMENTATION SYNC FAILED!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Common issues:"
+          echo "  • Invalid RELEASES_REPO_TOKEN secret"
+          echo "  • Insufficient permissions on public repo"
+          echo "  • Public repository doesn't exist"
+          echo ""
+          echo "🔗 Check: https://github.com/${{ github.repository }}/actions"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          exit 1

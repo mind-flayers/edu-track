@@ -1,0 +1,177 @@
+name: Release to Public Repository
+
+# This workflow automatically builds and releases EduTrack APK to the public repository
+# Triggers: When you push a tag (e.g., v1.0.0) to this private repository
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+jobs:
+  build-and-release:
+    name: Build APK and Create Public Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Checkout the private repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper version tracking
+      
+      # Step 2: Set up Java (required for Android builds)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      # Step 3: Set up Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.6.0'
+          channel: 'stable'
+      
+      # Step 4: Install dependencies
+      - name: Install Flutter dependencies
+        run: flutter pub get
+      
+      # Step 5: Configure Android signing
+      # Note: You need to add these secrets to your private repository:
+      # - ANDROID_KEYSTORE_BASE64: Base64-encoded keystore file
+      # - KEYSTORE_PASSWORD: Keystore password
+      # - KEY_ALIAS: Key alias
+      # - KEY_PASSWORD: Key password
+      - name: Configure Android signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          # Decode keystore from base64
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/edutrack-release-key.jks
+          
+          # Create key.properties file
+          cat > android/key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=edutrack-release-key.jks
+          EOF
+      
+      # Step 6: Build release APK
+      - name: Build release APK
+        run: flutter build apk --release
+      
+      # Step 7: Get version from tag
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+      
+      # Step 8: Rename APK with version
+      - name: Rename APK
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          cp build/app/outputs/flutter-apk/app-release.apk edutrack-${VERSION}.apk
+      
+      # Step 9: Generate release notes
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          
+          # Get the tag annotation message (if it exists)
+          TAG_MESSAGE=$(git tag -l --format='%(contents)' ${VERSION})
+          
+          # If no custom message, create default release notes
+          if [ -z "$TAG_MESSAGE" ]; then
+            TAG_MESSAGE="## 🎉 EduTrack ${VERSION}
+          
+          ### 📥 Installation
+          1. Download the APK below
+          2. Enable 'Install from Unknown Sources' in Android settings
+          3. Open and install the APK
+          4. Launch EduTrack!
+          
+          ### 📱 Requirements
+          - Android 5.0 (API 21) or higher
+          - Internet connection required
+          - Storage: ~50MB
+          
+          ### 📞 Support
+          - Report issues: https://github.com/mind-flayers/edu-track-releases/issues
+          - Email: mishaf1106@gmail.com
+          
+          ### 📋 Full Changelog
+          See commits: https://github.com/mind-flayers/edu-track-releases/releases"
+          fi
+          
+          # Save to output (escape newlines for GitHub Actions)
+          {
+            echo 'notes<<EOF'
+            echo "$TAG_MESSAGE"
+            echo EOF
+          } >> $GITHUB_OUTPUT
+      
+      # Step 10: Create release in public repository
+      - name: Create release in public repo
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+        with:
+          # Target the public repository
+          repository: mind-flayers/edu-track-releases
+          
+          # Tag and release details
+          tag_name: ${{ steps.version.outputs.version }}
+          name: EduTrack ${{ steps.version.outputs.version }}
+          body: ${{ steps.release_notes.outputs.notes }}
+          
+          # Upload the APK
+          files: edutrack-${{ steps.version.outputs.version }}.apk
+          
+          # Release settings
+          draft: false
+          prerelease: false
+          
+          # Make it the latest release
+          make_latest: true
+      
+      # Step 11: Notify on success
+      - name: Release successful
+        if: success()
+        run: |
+          echo "✅ Release created successfully!"
+          echo "📥 Download: https://github.com/mind-flayers/edu-track-releases/releases/tag/${{ steps.version.outputs.version }}"
+      
+      # Step 12: Notify on failure
+      - name: Release failed
+        if: failure()
+        run: |
+          echo "❌ Release failed! Check the logs above for details."
+          exit 1
+
+  # Optional: Notify via other channels (email, Slack, etc.)
+  notify:
+    name: Notify Team
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Notify on success
+        if: needs.build-and-release.result == 'success'
+        run: |
+          echo "✅ Release completed successfully!"
+          echo "Public users can now download the new version."
+          # Add Slack/Discord/Email notification here if needed
+      
+      - name: Notify on failure
+        if: needs.build-and-release.result == 'failure'
+        run: |
+          echo "❌ Release failed!"
+          echo "Please check the workflow logs and try again."
+          # Add Slack/Discord/Email notification here if needed

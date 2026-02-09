@@ -19,6 +19,24 @@ EduTrack is a comprehensive **Academy Management Ecosystem** for educational ins
 
 Manage students, teachers, attendance, exams, fees, and parent communication - all in one platform.
 
+---
+
+## 🔒 Repository Structure
+
+> **Important**: This is the **PRIVATE DEVELOPMENT REPOSITORY** containing full source code.
+
+**📦 Public Releases**: For downloading APK files and viewing public documentation, visit:
+- **Download APKs**: https://github.com/mind-flayers/edu-track-releases/releases
+- **Public Docs**: https://github.com/mind-flayers/edu-track-releases
+
+**🚀 Automated Releases**: Pushing a version tag (e.g., `v1.0.0`) to this repository automatically:
+- Builds production APK files
+- Creates release in public repository
+- Syncs README and documentation
+- See [Release Process Guide](docs/RELEASE_PROCESS.md) for details
+
+---
+
 ## 🏗️ System Architecture
 
 ```

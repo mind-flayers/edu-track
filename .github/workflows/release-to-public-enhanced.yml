@@ -1,0 +1,507 @@
+name: Release to Public Repository (Enhanced)
+
+# Automated workflow to build APK and publish to public repository
+# Trigger: Push version tags (v1.0.0, v1.1.0, etc.) to private repo
+# Output: Creates release with APK in public repo + syncs README
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Matches v1.0.0, v2.1.3, etc.
+      - 'v*.*.*-beta.*'  # Matches v1.0.0-beta.1, etc.
+      - 'v*.*.*-rc.*'  # Matches v1.0.0-rc.1, etc.
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  FLUTTER_VERSION: '3.6.0'
+  JAVA_VERSION: '17'
+  PUBLIC_REPO: 'mind-flayers/edu-track-releases'
+
+jobs:
+  build-and-release:
+    name: Build APK & Create Public Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      # ============================================================
+      # PHASE 1: SETUP ENVIRONMENT
+      # ============================================================
+      
+      - name: 📦 Checkout Private Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog generation
+          submodules: recursive  # Include WhatsApp bot submodule
+      
+      - name: ☕ Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+      
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+      
+      - name: 📋 Flutter Doctor
+        run: flutter doctor -v
+      
+      - name: 📥 Install Dependencies
+        run: flutter pub get
+      
+      # ============================================================
+      # PHASE 2: VERSION EXTRACTION
+      # ============================================================
+      
+      - name: 🔖 Extract Version from Tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          
+          # Remove 'v' prefix for clean version
+          CLEAN_VERSION=${VERSION#v}
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "clean_version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+          
+          # Determine if pre-release
+          if [[ "$VERSION" =~ (beta|rc|alpha) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "📦 Building pre-release: $VERSION"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "🚀 Building stable release: $VERSION"
+          fi
+      
+      # ============================================================
+      # PHASE 3: ANDROID SIGNING CONFIGURATION
+      # ============================================================
+      
+      - name: 🔐 Decode Android Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "Decoding keystore..."
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          
+          # Verify keystore exists
+          if [ ! -f android/app/upload-keystore.jks ]; then
+            echo "❌ ERROR: Keystore file not created!"
+            exit 1
+          fi
+          
+          echo "✅ Keystore decoded successfully"
+      
+      - name: 📝 Create key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          cat > android/key.properties << EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+          
+          echo "✅ key.properties created"
+      
+      # ============================================================
+      # PHASE 4: BUILD APK (SPLIT BY ABI)
+      # ============================================================
+      
+      - name: 🏗️ Build Release APKs (Split by ABI)
+        run: |
+          echo "Building split APKs for optimal size..."
+          flutter build apk --release --split-per-abi --verbose
+          
+          echo "✅ Build completed!"
+          ls -lh build/app/outputs/flutter-apk/
+      
+      - name: 📦 Rename APK Files
+        id: rename
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          OUTPUT_DIR="build/app/outputs/flutter-apk"
+          
+          # Rename each APK with version
+          mv $OUTPUT_DIR/app-arm64-v8a-release.apk $OUTPUT_DIR/edutrack-$VERSION-arm64-v8a.apk 2>/dev/null || true
+          mv $OUTPUT_DIR/app-armeabi-v7a-release.apk $OUTPUT_DIR/edutrack-$VERSION-armeabi-v7a.apk 2>/dev/null || true
+          mv $OUTPUT_DIR/app-x86_64-release.apk $OUTPUT_DIR/edutrack-$VERSION-x86_64.apk 2>/dev/null || true
+          
+          # Also build universal APK for compatibility
+          flutter build apk --release
+          mv build/app/outputs/flutter-apk/app-release.apk $OUTPUT_DIR/edutrack-$VERSION-universal.apk
+          
+          echo "✅ APKs renamed with version"
+          ls -lh $OUTPUT_DIR/edutrack-*.apk
+      
+      - name: 📊 Calculate APK Sizes
+        id: apk_sizes
+        run: |
+          OUTPUT_DIR="build/app/outputs/flutter-apk"
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Get file sizes in human-readable format
+          ARM64_SIZE=$(ls -lh $OUTPUT_DIR/edutrack-$VERSION-arm64-v8a.apk 2>/dev/null | awk '{print $5}' || echo "N/A")
+          ARMV7_SIZE=$(ls -lh $OUTPUT_DIR/edutrack-$VERSION-armeabi-v7a.apk 2>/dev/null | awk '{print $5}' || echo "N/A")
+          X86_SIZE=$(ls -lh $OUTPUT_DIR/edutrack-$VERSION-x86_64.apk 2>/dev/null | awk '{print $5}' || echo "N/A")
+          UNIVERSAL_SIZE=$(ls -lh $OUTPUT_DIR/edutrack-$VERSION-universal.apk 2>/dev/null | awk '{print $5}' || echo "N/A")
+          
+          echo "arm64_size=$ARM64_SIZE" >> $GITHUB_OUTPUT
+          echo "armv7_size=$ARMV7_SIZE" >> $GITHUB_OUTPUT
+          echo "x86_size=$X86_SIZE" >> $GITHUB_OUTPUT
+          echo "universal_size=$UNIVERSAL_SIZE" >> $GITHUB_OUTPUT
+          
+          echo "📊 APK Sizes:"
+          echo "  - arm64-v8a: $ARM64_SIZE"
+          echo "  - armeabi-v7a: $ARMV7_SIZE"
+          echo "  - x86_64: $X86_SIZE"
+          echo "  - universal: $UNIVERSAL_SIZE"
+      
+      - name: 🔒 Calculate SHA256 Checksums
+        id: checksums
+        run: |
+          OUTPUT_DIR="build/app/outputs/flutter-apk"
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          ARM64_SHA=$(sha256sum $OUTPUT_DIR/edutrack-$VERSION-arm64-v8a.apk 2>/dev/null | awk '{print $1}' || echo "N/A")
+          ARMV7_SHA=$(sha256sum $OUTPUT_DIR/edutrack-$VERSION-armeabi-v7a.apk 2>/dev/null | awk '{print $1}' || echo "N/A")
+          X86_SHA=$(sha256sum $OUTPUT_DIR/edutrack-$VERSION-x86_64.apk 2>/dev/null | awk '{print $1}' || echo "N/A")
+          UNIVERSAL_SHA=$(sha256sum $OUTPUT_DIR/edutrack-$VERSION-universal.apk 2>/dev/null | awk '{print $1}' || echo "N/A")
+          
+          echo "arm64_sha=$ARM64_SHA" >> $GITHUB_OUTPUT
+          echo "armv7_sha=$ARMV7_SHA" >> $GITHUB_OUTPUT
+          echo "x86_sha=$X86_SHA" >> $GITHUB_OUTPUT
+          echo "universal_sha=$UNIVERSAL_SHA" >> $GITHUB_OUTPUT
+      
+      # ============================================================
+      # PHASE 5: PREPARE PUBLIC REPO CONTENT
+      # ============================================================
+      
+      - name: 📄 Prepare README for Public Repo
+        run: |
+          # Create a version without private repo links
+          cp README.md README.public.md
+          
+          # Update repository URLs to point to public repo
+          sed -i 's|mind-flayers/edu-track|mind-flayers/edu-track-releases|g' README.public.md
+          
+          # Add notice at the top
+          cat > README.temp.md << 'EOF'
+          # 🎓 EduTrack - Academy Management System
+          
+          > **📦 This is the PUBLIC RELEASES repository**  
+          > Contains only APK releases and documentation. Source code is in a private repository.
+          
+          ---
+          
+          EOF
+          
+          cat README.public.md >> README.temp.md
+          mv README.temp.md README.public.md
+          
+          echo "✅ Public README prepared"
+      
+      - name: 📝 Generate Release Notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IS_PRERELEASE="${{ steps.version.outputs.is_prerelease }}"
+          
+          # Check if RELEASE_NOTES file exists for this version
+          RELEASE_FILE="RELEASE_NOTES_$VERSION.md"
+          
+          if [ -f "$RELEASE_FILE" ]; then
+            CUSTOM_NOTES=$(cat $RELEASE_FILE)
+          else
+            CUSTOM_NOTES="## What's New in $VERSION
+
+See the full changelog in the release assets.
+"
+          fi
+          
+          # Build complete release notes
+          cat > release_notes.md << EOF
+          # 🎓 EduTrack $VERSION
+          
+          $CUSTOM_NOTES
+          
+          ---
+          
+          ## 📱 Download the Right APK for Your Device
+          
+          | APK Variant | Best For | Size | Compatibility |
+          |-------------|----------|------|---------------|
+          | **arm64-v8a** ⭐ | Modern phones (2017+) | ${{ steps.apk_sizes.outputs.arm64_size }} | **RECOMMENDED** - 90% of devices |
+          | **armeabi-v7a** | Older phones (2015-2017) | ${{ steps.apk_sizes.outputs.armv7_size }} | 32-bit ARM devices |
+          | **universal** | All devices | ${{ steps.apk_sizes.outputs.universal_size }} | Works everywhere (larger file) |
+          
+          > **💡 Tip**: Most users should download **arm64-v8a** for optimal size and performance.
+          
+          ---
+          
+          ## 🚀 Installation Guide
+          
+          ### Step 1: Download APK
+          - Click on the APK file below that matches your device
+          - Save to your device's Downloads folder
+          
+          ### Step 2: Enable Unknown Sources
+          - Open **Settings** → **Security** / **Privacy**
+          - Enable **"Install from Unknown Sources"** for your browser/file manager
+          
+          ### Step 3: Install
+          - Open the downloaded APK file
+          - Tap **Install** and wait for completion
+          - Tap **Open** to launch EduTrack
+          
+          ### Step 4: Grant Permissions
+          - Camera (for QR code scanning)
+          - Storage (for exporting reports)
+          - Internet (for Firebase sync)
+          
+          ---
+          
+          ## 📋 System Requirements
+          
+          - **Android Version**: 5.0 (Lollipop) or higher (API Level 21+)
+          - **RAM**: 2GB minimum, 4GB recommended
+          - **Storage**: 100MB free space
+          - **Internet**: Required for cloud sync
+          
+          ---
+          
+          ## 🔐 Security Verification
+          
+          ### SHA256 Checksums
+          
+          Verify your download integrity by comparing checksums:
+          
+          \`\`\`
+          arm64-v8a:     ${{ steps.checksums.outputs.arm64_sha }}
+          armeabi-v7a:   ${{ steps.checksums.outputs.armv7_sha }}
+          universal:     ${{ steps.checksums.outputs.universal_sha }}
+          \`\`\`
+          
+          **How to verify on Windows:**
+          \`\`\`powershell
+          certutil -hashfile edutrack-$VERSION-arm64-v8a.apk SHA256
+          \`\`\`
+          
+          **On Linux/Mac:**
+          \`\`\`bash
+          sha256sum edutrack-$VERSION-arm64-v8a.apk
+          \`\`\`
+          
+          ---
+          
+          ## 📚 Documentation
+          
+          - [📖 Full Documentation](https://github.com/mind-flayers/edu-track-releases#readme)
+          - [💡 User Guide](https://github.com/mind-flayers/edu-track-releases#getting-started)
+          - [❓ FAQ](https://github.com/mind-flayers/edu-track-releases#faq)
+          
+          ---
+          
+          ## 🐛 Reporting Issues
+          
+          Found a bug or have a feature request?
+          
+          1. Check [existing issues](https://github.com/mind-flayers/edu-track-releases/issues)
+          2. Create a [new issue](https://github.com/mind-flayers/edu-track-releases/issues/new)
+          3. Include:
+             - Android version
+             - Device model
+             - Steps to reproduce
+             - Screenshots (if applicable)
+          
+          ---
+          
+          ## 💝 Support the Project
+          
+          If EduTrack helps your institution:
+          - ⭐ **Star this repository**
+          - 🐛 **Report bugs** to help improve quality
+          - 💡 **Share feedback** on your experience
+          - 📢 **Tell others** about EduTrack
+          
+          ---
+          
+          ## 📞 Contact & Support
+          
+          - **Email**: mishaf1106@gmail.com
+          - **Issues**: [GitHub Issues](https://github.com/mind-flayers/edu-track-releases/issues)
+          - **Developer**: Mishaf Hasan
+          
+          ---
+          
+          <div align="center">
+            <p><sub>Made with ❤️ for Educational Institutions</sub></p>
+            <p><sub>© 2025 Mishaf Hasan. Licensed under MIT License.</sub></p>
+          </div>
+          EOF
+          
+          echo "✅ Release notes generated"
+      
+      # ============================================================
+      # PHASE 6: CHECKOUT PUBLIC REPO & SYNC FILES
+      # ============================================================
+      
+      - name: 🔄 Checkout Public Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PUBLIC_REPO }}
+          token: ${{ secrets.RELEASES_REPO_TOKEN }}
+          path: public-repo
+      
+      - name: 📂 Sync Files to Public Repo
+        run: |
+          # Copy README
+          cp README.public.md public-repo/README.md
+          
+          # Copy LICENSE if exists
+          if [ -f LICENSE ]; then
+            cp LICENSE public-repo/LICENSE
+          fi
+          
+          # Create/update INSTALLATION_GUIDE.md
+          if [ -f docs/INSTALLATION_GUIDE.md ]; then
+            cp docs/INSTALLATION_GUIDE.md public-repo/INSTALLATION_GUIDE.md
+          fi
+          
+          echo "✅ Files synced to public repo"
+      
+      - name: 💾 Commit and Push Changes to Public Repo
+        run: |
+          cd public-repo
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "📝 Update documentation for ${{ steps.version.outputs.version }}"
+            git push
+            echo "✅ Documentation updated in public repo"
+          fi
+      
+      # ============================================================
+      # PHASE 7: CREATE GITHUB RELEASE
+      # ============================================================
+      
+      - name: 🎉 Create Release in Public Repository
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+        with:
+          repository: ${{ env.PUBLIC_REPO }}
+          tag_name: ${{ steps.version.outputs.version }}
+          name: EduTrack ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          files: |
+            build/app/outputs/flutter-apk/edutrack-*.apk
+          draft: false
+          prerelease: ${{ steps.version.outputs.is_prerelease }}
+          make_latest: ${{ steps.version.outputs.is_prerelease == 'false' }}
+      
+      # ============================================================
+      # PHASE 8: CLEANUP & NOTIFICATIONS
+      # ============================================================
+      
+      - name: 🧹 Cleanup Sensitive Files
+        if: always()
+        run: |
+          rm -f android/app/upload-keystore.jks
+          rm -f android/key.properties
+          echo "✅ Sensitive files removed"
+      
+      - name: 📊 Upload Build Artifacts (Backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-builds-${{ steps.version.outputs.version }}
+          path: build/app/outputs/flutter-apk/edutrack-*.apk
+          retention-days: 30
+      
+      - name: ✅ Release Success Notification
+        if: success()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🎉 RELEASE SUCCESSFUL!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "📦 Version: ${{ steps.version.outputs.version }}"
+          echo "🔗 Release URL: https://github.com/${{ env.PUBLIC_REPO }}/releases/tag/${{ steps.version.outputs.version }}"
+          echo "📥 Download: https://github.com/${{ env.PUBLIC_REPO }}/releases/latest"
+          echo ""
+          echo "📱 APK Files Released:"
+          echo "  • arm64-v8a (${{ steps.apk_sizes.outputs.arm64_size }})"
+          echo "  • armeabi-v7a (${{ steps.apk_sizes.outputs.armv7_size }})"
+          echo "  • universal (${{ steps.apk_sizes.outputs.universal_size }})"
+          echo ""
+          echo "✅ All users can now download the new version!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      
+      - name: ❌ Release Failure Notification
+        if: failure()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "❌ RELEASE FAILED!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Please check the workflow logs above for details."
+          echo "Common issues:"
+          echo "  • Missing or invalid GitHub secrets"
+          echo "  • Invalid keystore or signing configuration"
+          echo "  • Flutter build errors"
+          echo "  • Insufficient permissions on public repo"
+          echo ""
+          echo "🔗 Workflow: https://github.com/${{ github.repository }}/actions"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          exit 1
+
+  # ============================================================
+  # OPTIONAL: NOTIFICATION JOB
+  # ============================================================
+  
+  notify:
+    name: Send Notifications
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: ✅ Success Notification
+        if: needs.build-and-release.result == 'success'
+        run: |
+          echo "✅ Release pipeline completed successfully!"
+          echo "Public users can now download EduTrack"
+          # Add Slack/Discord/Email notification here if needed
+          # Example: curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"EduTrack released successfully!"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}
+      
+      - name: ❌ Failure Notification
+        if: needs.build-and-release.result == 'failure'
+        run: |
+          echo "❌ Release pipeline failed!"
+          echo "Please check workflow logs and retry"
+          # Add Slack/Discord/Email notification here if needed
