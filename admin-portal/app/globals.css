@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-deep-indigo: #1e1b4b;
+  --color-indigo-950: #172554;
+  --color-vibrant-accent: #6366f1;
+  --color-slate-850: #1e293b;
+  
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer utilities {
+  .glass {
+    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl;
+  }
+  
+  .glass-dark {
+    @apply bg-slate-900/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+  
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/30 shadow-xl rounded-2xl;
+  }
+  
+  .gradient-text {
+    @apply bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent;
+  }
+  
+  .gradient-border {
+    @apply relative before:absolute before:inset-0 before:p-[1px] before:bg-gradient-to-r before:from-indigo-500 before:to-purple-500 before:rounded-2xl before:-z-10;
+  }
+  
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl;
+  }
+  
+  .btn-gradient {
+    @apply bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:shadow-indigo-500/40;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
 }

@@ -38,7 +38,7 @@ const db = getFirestore(app);
 async function verify() {
   try {
     console.log('🔌 Testing Firebase Admin Connection...\n');
-    
+
     // Test Auth
     console.log('🔐 Firebase Authentication:');
     const listUsersResult = await auth.listUsers(10);
@@ -48,13 +48,13 @@ async function verify() {
       console.log(`      • ${user.email} (UID: ${user.uid})`);
     }
     console.log('');
-    
+
     // Test Firestore
     console.log('📦 Firestore Database:');
     const adminsSnapshot = await db.collection('admins').get();
     console.log(`   ✅ Connected successfully`);
     console.log(`   admins collection: ${adminsSnapshot.docs.length} documents`);
-    
+
     if (adminsSnapshot.docs.length === 0) {
       console.log('\n⚠️  ISSUE IDENTIFIED:');
       console.log('   The admins collection is EMPTY in Firestore!');
@@ -79,7 +79,7 @@ async function verify() {
         }
       }
     }
-    
+
     // List all collections
     console.log('\n📁 All Root Collections:');
     const collections = await db.listCollections();
@@ -87,13 +87,14 @@ async function verify() {
       const snapshot = await col.limit(1).get();
       console.log(`   • ${col.id} (${snapshot.docs.length > 0 ? 'has data' : 'empty'})`);
     }
-    
+
     console.log('\n' + '='.repeat(60));
     console.log('✅ Verification Complete');
     console.log('='.repeat(60));
-    
-  } catch (error: any) {
-    console.error('\n❌ Error:', error.message);
+
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('\n❌ Error:', message);
     console.error('\nFull error:', error);
     process.exit(1);
   }

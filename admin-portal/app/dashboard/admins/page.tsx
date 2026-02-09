@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminProfile } from '@/types';
-import Link from 'next/link';
+import { motion, AnimatePresence } from "framer-motion";
+import { GradientButton } from "@/components/ui/gradient-button";
+import { InputField } from "@/components/ui/input-field";
+import { Plus, Shield, Mail, Building2, X, Upload, Edit2, Trash2 } from "lucide-react";
 
 export default function AdminsPage() {
   const { user, loading } = useAuth();
@@ -35,27 +38,22 @@ export default function AdminsPage() {
   const fetchAdmins = async () => {
     try {
       const response = await fetch('/api/admins');
-      
-      // Log response status
-      console.log('Response status:', response.status);
-      
-      // Check if response is ok
+
       if (!response.ok) {
-        console.error('Response not OK:', response.status, response.statusText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      console.log('Admins API response:', data);
-      
+
       if (data.success) {
         setAdmins(data.data);
       } else {
         setError(data.error || 'Failed to fetch admins');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Fetch admins error:', err);
-      setError(err.message || 'Failed to fetch admins');
+      const message = err instanceof Error ? err.message : 'Failed to fetch admins';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -88,7 +86,7 @@ export default function AdminsPage() {
       } else {
         setError(data.error || 'Failed to create admin');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to create admin');
     } finally {
       setCreating(false);
@@ -120,157 +118,207 @@ export default function AdminsPage() {
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6 mt-8"
+    >
       {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-purple-600 hover:text-purple-700">
-              ← Back to Dashboard
-            </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Admin Management</h1>
-          </div>
-          <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            {showCreateForm ? 'Cancel' : '+ Create Admin'}
-          </button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+            <Shield className="w-8 h-8 text-indigo-600" />
+            Admin Management
+          </h1>
+          <p className="text-slate-600 mt-1">Manage academy administrators and their permissions</p>
         </div>
-      </header>
+        <GradientButton onClick={() => setShowCreateForm(true)} className="flex items-center gap-2">
+          <Plus className="w-5 h-5" />
+          Create Admin
+        </GradientButton>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+          {error}
+        </div>
+      )}
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="glass-card p-4 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
+            <span className="text-2xl font-bold text-indigo-600">{admins.length}</span>
           </div>
-        )}
+          <div>
+            <p className="text-sm text-slate-600">Total Admins</p>
+          </div>
+        </div>
+      </div>
 
-        {/* Create Form */}
-        {showCreateForm && (
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Admin</h2>
-            <form onSubmit={handleCreateAdmin} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+      {/* Admins List */}
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+        </div>
+      ) : admins.length === 0 ? (
+        <div className="glass-card p-12 text-center">
+          <p className="text-slate-500 text-lg">No admins found. Create your first admin to get started.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {admins.map((admin, index) => (
+            <motion.div
+              key={admin.uid}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -5 }}
+              className="glass-card p-6"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                {admin.profilePhotoUrl ? (
+                  <img
+                    src={admin.profilePhotoUrl}
+                    alt={admin.name}
+                    className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Academy Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.academyName}
-                    onChange={(e) => setFormData({ ...formData, academyName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Profile Photo URL (optional)</label>
-                  <input
-                    type="url"
-                    value={formData.profilePhotoUrl}
-                    onChange={(e) => setFormData({ ...formData, profilePhotoUrl: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg">
+                    <span className="text-2xl font-semibold text-white">
+                      {admin.name.charAt(0)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="font-semibold text-slate-900">{admin.name}</h3>
+                  <p className="text-sm text-slate-600">{admin.academyName}</p>
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="space-y-2 text-sm">
+                <p className="text-slate-600"><span className="font-medium">Email:</span> {admin.email}</p>
+                <p className="text-slate-600"><span className="font-medium">UID:</span> <span className="font-mono text-xs">{admin.uid}</span></p>
+              </div>
+              <div className="mt-4 flex gap-2">
                 <button
-                  type="submit"
-                  disabled={creating}
-                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  onClick={() => handleDeleteAdmin(admin.uid)}
+                  className="flex-1 px-3 py-2 bg-rose-50 text-rose-600 text-sm rounded-lg hover:bg-rose-100 transition-colors flex items-center justify-center gap-2"
                 >
-                  {creating ? 'Creating...' : 'Create Admin'}
+                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </button>
               </div>
-            </form>
-          </div>
-        )}
+            </motion.div>
+          ))}
+        </div>
+      )}
 
-        {/* Admins List */}
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-600"></div>
-          </div>
-        ) : admins.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <p className="text-gray-500 text-lg">No admins found. Create your first admin to get started.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {admins.map((admin) => (
-              <div key={admin.uid} className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  {admin.profilePhotoUrl ? (
-                    <img
-                      src={admin.profilePhotoUrl}
-                      alt={admin.name}
-                      className="w-16 h-16 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center">
-                      <span className="text-2xl font-semibold text-purple-600">
-                        {admin.name.charAt(0)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{admin.name}</h3>
-                    <p className="text-sm text-gray-600">{admin.academyName}</p>
+      {/* Create Admin Drawer */}
+      <AnimatePresence>
+        {showCreateForm && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCreateForm(false)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50"
+            />
+
+            {/* Drawer */}
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl z-50 overflow-y-auto"
+            >
+              <div className="p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">Create New Admin</h2>
+                    <p className="text-slate-600 mt-1">Add a new academy administrator</p>
                   </div>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <p className="text-gray-600"><span className="font-medium">Email:</span> {admin.email}</p>
-                  <p className="text-gray-600"><span className="font-medium">UID:</span> <span className="font-mono text-xs">{admin.uid}</span></p>
-                </div>
-                <div className="mt-4 flex gap-2">
                   <button
-                    onClick={() => handleDeleteAdmin(admin.uid)}
-                    className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                    onClick={() => setShowCreateForm(false)}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
                   >
-                    Delete
+                    <X className="w-6 h-6 text-slate-600" />
                   </button>
                 </div>
+
+                <form onSubmit={handleCreateAdmin} className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <InputField
+                      label="Full Name"
+                      icon={<Shield className="w-5 h-5 text-slate-400" />}
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="John Doe"
+                      required
+                    />
+                    <InputField
+                      label="Email"
+                      type="email"
+                      icon={<Mail className="w-5 h-5 text-slate-400" />}
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="john@academy.edu"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <InputField
+                      label="Academy Name"
+                      icon={<Building2 className="w-5 h-5 text-slate-400" />}
+                      value={formData.academyName}
+                      onChange={(e) => setFormData({ ...formData, academyName: e.target.value })}
+                      placeholder="Academy Name"
+                      required
+                    />
+                    <InputField
+                      label="Password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+
+                  <InputField
+                    label="Profile Photo URL (optional)"
+                    value={formData.profilePhotoUrl}
+                    onChange={(e) => setFormData({ ...formData, profilePhotoUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateForm(false)}
+                      className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <GradientButton type="submit" className="flex-1 justify-center" isLoading={creating}>
+                      {creating ? 'Creating...' : 'Create Admin'}
+                    </GradientButton>
+                  </div>
+                </form>
               </div>
-            ))}
-          </div>
+            </motion.div>
+          </>
         )}
-      </main>
-    </div>
+      </AnimatePresence>
+    </motion.div>
   );
 }

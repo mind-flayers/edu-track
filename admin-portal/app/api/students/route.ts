@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { adminUid, studentData } = body;
-    
+
     if (!adminUid || !studentData) {
       const response: ApiResponse = {
         success: false,
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 400 });
     }
-    
+
     // Validate student data
     const validation = validateStudentData(studentData);
     if (!validation.valid) {
@@ -25,20 +25,20 @@ export async function POST(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 400 });
     }
-    
+
     const studentsRef = adminDb
       .collection('admins')
       .doc(adminUid)
       .collection('students');
-    
+
     // Get next sequential index number
     const nextIndexNumber = await getNextIndexNumber(adminUid);
-    
+
     const indexNumber = generateIndexNumber(nextIndexNumber);
-    
+
     // Create student document
     const studentDocRef = studentsRef.doc();
-    
+
     const finalStudentData = {
       ...studentData,
       indexNumber,
@@ -47,26 +47,27 @@ export async function POST(request: NextRequest) {
       isActive: true,
       dob: new Date(studentData.dob),
     };
-    
+
     await studentDocRef.set(finalStudentData);
-    
+
     const student: Student = {
       id: studentDocRef.id,
       ...finalStudentData,
     };
-    
+
     const response: ApiResponse<Student> = {
       success: true,
       data: student,
       message: 'Student created successfully',
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating student:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create student';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to create student',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const adminUid = searchParams.get('adminUid');
-    
+
     if (!adminUid) {
       const response: ApiResponse = {
         success: false,
@@ -85,15 +86,15 @@ export async function GET(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 400 });
     }
-    
+
     const studentsSnapshot = await adminDb
       .collection('admins')
       .doc(adminUid)
       .collection('students')
       .get();
-    
+
     const students: Student[] = [];
-    
+
     studentsSnapshot.forEach((doc) => {
       const data = doc.data();
       students.push({
@@ -116,18 +117,19 @@ export async function GET(request: NextRequest) {
         isNonePayee: data.isNonePayee ?? false,
       });
     });
-    
+
     const response: ApiResponse<Student[]> = {
       success: true,
       data: students,
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching students:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch students';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to fetch students',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }

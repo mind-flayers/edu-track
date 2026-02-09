@@ -50,7 +50,7 @@ export interface StudentCSVRow {
 }
 
 // API Response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -62,7 +62,7 @@ export interface ImportResult {
   success: number;
   failed: number;
   skipped: number;
-  errors: Array<{ row: number; error: string; data?: any }>;
+  errors: Array<{ row: number; error: string; data?: Record<string, unknown> }>;
   successfulStudents: Student[];
   skippedDuplicates: Array<{ row: number; name: string; reason: string }>; // Now tracks duplicates that were given new index numbers
 }

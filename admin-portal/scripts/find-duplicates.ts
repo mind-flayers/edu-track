@@ -11,7 +11,7 @@ interface StudentData {
   class: string;
   section: string;
   indexNumber: string;
-  dob: any;
+  dob: { toDate?: () => Date } | Date;
   adminPath: string;
 }
 
@@ -21,7 +21,7 @@ async function findDuplicates() {
   try {
     // Get all admins
     const adminsSnapshot = await adminDb.collection('admins').listDocuments();
-    
+
     let totalStudents = 0;
     let totalDuplicates = 0;
     const duplicateGroups: Map<string, StudentData[]> = new Map();
@@ -42,7 +42,7 @@ async function findDuplicates() {
 
       studentsSnapshot.forEach((doc) => {
         const data = doc.data();
-        
+
         // Create a unique key based on name + class + section + dob
         const dobStr = data.dob?.toDate?.()?.toISOString() || '';
         const key = `${data.name}|${data.class}|${data.section}|${dobStr}`;
@@ -77,7 +77,7 @@ async function findDuplicates() {
 
     if (duplicateGroups.size > 0) {
       console.log('=== DUPLICATE GROUPS ===\n');
-      
+
       let groupNum = 1;
       duplicateGroups.forEach((students) => {
         const first = students[0];
@@ -93,7 +93,7 @@ async function findDuplicates() {
       console.log('   1. Review the list above');
       console.log('   2. Manually delete duplicate document IDs from Firestore Console');
       console.log('   3. Or create a cleanup script that keeps the first occurrence\n');
-      
+
       console.log('🔗 Firestore Console:');
       console.log('   https://console.firebase.google.com/project/edutrack-73a2e/firestore\n');
     } else {

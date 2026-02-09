@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminProfile, ImportResult } from '@/types';
-import Link from 'next/link';
+import { motion } from "framer-motion";
+import { useDropzone } from "react-dropzone";
+import { GradientButton } from "@/components/ui/gradient-button";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, ChevronLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function ImportStudentsPage() {
   const { user, loading } = useAuth();
@@ -15,6 +19,7 @@ export default function ImportStudentsPage() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState('');
+  const [stage, setStage] = useState<'select' | 'upload' | 'complete'>('select');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -28,29 +33,36 @@ export default function ImportStudentsPage() {
     try {
       const response = await fetch('/api/admins');
       const data = await response.json();
-      
+
       if (data.success) {
         setAdmins(data.data);
         if (data.data.length > 0) {
           setSelectedAdmin(data.data[0].uid);
         }
       }
-    } catch (err) {
-      console.error('Failed to fetch admins:', err);
+    } catch (_err) {
+      console.error('Failed to fetch admins:', _err);
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const onDrop = (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
       setCsvContent(text);
+      setStage('upload');
     };
     reader.readAsText(file);
   };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'text/csv': ['.csv'] },
+    maxFiles: 1,
+  });
 
   const handleImport = async () => {
     if (!selectedAdmin || !csvContent) {
@@ -76,14 +88,12 @@ export default function ImportStudentsPage() {
 
       if (data.success) {
         setResult(data.data);
+        setStage('complete');
         setCsvContent('');
-        // Reset file input
-        const fileInput = document.getElementById('csv-upload') as HTMLInputElement;
-        if (fileInput) fileInput.value = '';
       } else {
         setError(data.error || 'Failed to import students');
       }
-    } catch (err: any) {
+    } catch (_err: unknown) {
       setError('Failed to import students');
     } finally {
       setImporting(false);
@@ -93,60 +103,94 @@ export default function ImportStudentsPage() {
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
+  const steps = [
+    { id: 'select', label: 'Select Academy', icon: FileSpreadsheet },
+    { id: 'upload', label: 'Upload CSV', icon: Upload },
+    { id: 'complete', label: 'Complete', icon: CheckCircle2 },
+  ];
+
+  const currentStepIndex = steps.findIndex(s => s.id === stage);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
-          <Link href="/dashboard" className="text-purple-600 hover:text-purple-700">
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Import Students from CSV</h1>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-4xl mx-auto space-y-8"
+    >
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/dashboard" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+          <ChevronLeft className="w-6 h-6 text-slate-600" />
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Import Students</h1>
+          <p className="text-slate-600">Bulk upload student data via CSV file</p>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-blue-900 mb-2">CSV Format Instructions</h2>
-          <p className="text-blue-800 mb-4">Your CSV file should have the following columns (header row required):</p>
-          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-            <li><strong>name</strong> - Student full name (required)</li>
-            <li><strong>class</strong> - e.g., "Grade 10" (required)</li>
-            <li><strong>section</strong> - e.g., "A" or "B" (required)</li>
-            <li><strong>subjects</strong> - Comma-separated, e.g., "Mathematics,Science,English" (required)</li>
-            <li><strong>dob</strong> - Date of birth in YYYY-MM-DD format (required)</li>
-            <li><strong>sex</strong> - "Male" or "Female" (required)</li>
-            <li><strong>parentName</strong> - Parent/guardian name (required)</li>
-            <li><strong>parentPhone</strong> - Phone number (required)</li>
-            <li><strong>whatsappNumber</strong> - WhatsApp number (optional, defaults to parentPhone)</li>
-            <li><strong>address</strong> - Full address (optional)</li>
-            <li><strong>photoUrl</strong> - Google Drive link or direct image URL (optional)</li>
-            <li><strong>isNonePayee</strong> - "true" or "false" for fee exemption (optional, defaults to false)</li>
-          </ul>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          {error}
         </div>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
+      {/* Stepper */}
+      <div className="relative">
+        <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-200 -translate-y-1/2 rounded-full" />
+        <div
+          className="absolute top-1/2 left-0 h-1 bg-indigo-600 -translate-y-1/2 rounded-full transition-all duration-500"
+          style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+        />
+        <div className="relative flex justify-between">
+          {steps.map((step, index) => {
+            const Icon = step.icon;
+            const isActive = index <= currentStepIndex;
+            const isCurrent = index === currentStepIndex;
 
-        {/* Import Form */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="space-y-6">
+            return (
+              <div key={step.id} className="flex flex-col items-center gap-2">
+                <motion.div
+                  animate={{
+                    scale: isCurrent ? 1.1 : 1,
+                    backgroundColor: isActive ? "#4f46e5" : "#e2e8f0",
+                  }}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg ${isActive ? "text-white" : "text-slate-400"
+                    }`}
+                >
+                  <Icon className="w-6 h-6" />
+                </motion.div>
+                <span className={`text-sm font-medium ${isActive ? "text-slate-900" : "text-slate-400"}`}>
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Content */}
+      {stage === 'select' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-8"
+        >
+          <h2 className="text-xl font-semibold text-slate-900 mb-6">Select Academy</h2>
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Admin/Academy
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Choose the academy to import students into
               </label>
               <select
                 value={selectedAdmin}
                 onChange={(e) => setSelectedAdmin(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200 outline-none transition-all"
               >
                 {admins.map((admin) => (
                   <option key={admin.uid} value={admin.uid}>
@@ -155,110 +199,124 @@ export default function ImportStudentsPage() {
                 ))}
               </select>
             </div>
+            <GradientButton
+              onClick={() => setStage('upload')}
+              disabled={!selectedAdmin}
+              className="w-full py-3"
+            >
+              Continue to Upload
+            </GradientButton>
+          </div>
+        </motion.div>
+      )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Upload CSV File
-              </label>
-              <input
-                id="csv-upload"
-                type="file"
-                accept=".csv"
-                onChange={handleFileUpload}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-              {csvContent && (
-                <p className="mt-2 text-sm text-green-600">✓ CSV file loaded successfully</p>
-              )}
+      {stage === 'upload' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {/* Instructions */}
+          <div className="glass-card p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">CSV Format Instructions</h3>
+            <div className="space-y-2 text-sm text-slate-600">
+              <p>Required columns: <strong>name, class, section, subjects, dob, sex, parentName, parentPhone</strong></p>
+              <p>Optional columns: whatsappNumber, address, photoUrl, isNonePayee</p>
             </div>
+          </div>
 
+          {/* Upload Zone */}
+          <div
+            {...getRootProps()}
+            className={`glass-card p-12 text-center cursor-pointer transition-all ${isDragActive ? "border-indigo-500 bg-indigo-50/50 scale-[1.02]" : ""
+              }`}
+          >
+            <input {...getInputProps()} />
+            <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Upload className="w-10 h-10 text-indigo-600" />
+            </div>
+            {csvContent ? (
+              <div>
+                <p className="text-lg font-semibold text-emerald-600 mb-2">✓ CSV file loaded successfully</p>
+                <p className="text-sm text-slate-600">Click &quot;Import Students&quot; to proceed</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                  {isDragActive ? "Drop CSV file here" : "Upload CSV File"}
+                </h3>
+                <p className="text-slate-600 mb-4">Drag and drop your file here, or click to browse</p>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full text-sm text-slate-600">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Supports .csv files up to 10MB
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex gap-4">
             <button
+              onClick={() => setStage('select')}
+              className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+            >
+              Back
+            </button>
+            <GradientButton
               onClick={handleImport}
-              disabled={importing || !csvContent || !selectedAdmin}
-              className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              disabled={!csvContent || importing}
+              isLoading={importing}
+              className="flex-1 py-3"
             >
               {importing ? 'Importing...' : 'Import Students'}
+            </GradientButton>
+          </div>
+        </motion.div>
+      )}
+
+      {stage === 'complete' && result && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-card p-8 text-center"
+        >
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Import Complete!</h2>
+          <p className="text-slate-600 mb-6">
+            Successfully imported {result.success} students
+          </p>
+          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-6">
+            <div className="p-4 bg-emerald-50 rounded-xl">
+              <p className="text-2xl font-bold text-emerald-600">{result.success}</p>
+              <p className="text-sm text-emerald-700">Successful</p>
+            </div>
+            <div className="p-4 bg-amber-50 rounded-xl">
+              <p className="text-2xl font-bold text-amber-600">{result.skippedDuplicates?.length || 0}</p>
+              <p className="text-sm text-amber-700">Duplicates</p>
+            </div>
+            <div className="p-4 bg-rose-50 rounded-xl">
+              <p className="text-2xl font-bold text-rose-600">{result.errors?.length || 0}</p>
+              <p className="text-sm text-rose-700">Errors</p>
+            </div>
+          </div>
+          <div className="flex gap-4 justify-center">
+            <Link href="/dashboard">
+              <GradientButton>Return to Dashboard</GradientButton>
+            </Link>
+            <button
+              onClick={() => {
+                setStage('select');
+                setResult(null);
+                setCsvContent('');
+              }}
+              className="px-6 py-3 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+            >
+              Import More
             </button>
           </div>
-        </div>
-
-        {/* Import Result */}
-        {result && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Import Results</h2>
-            
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-800 font-medium">Successful</p>
-                <p className="text-3xl font-bold text-green-900">{result.success}</p>
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800 font-medium">Duplicates</p>
-                <p className="text-3xl font-bold text-blue-900">{result.skippedDuplicates?.length || 0}</p>
-              </div>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-sm text-red-800 font-medium">Failed</p>
-                <p className="text-3xl font-bold text-red-900">{result.failed}</p>
-              </div>
-            </div>
-
-            {result.skippedDuplicates && result.skippedDuplicates.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Duplicate Students Handled</h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  These students already exist in the database. They were imported with new unique index numbers.
-                </p>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {result.skippedDuplicates.map((duplicate, index) => (
-                    <div key={index} className="bg-blue-50 border border-blue-200 rounded p-3">
-                      <p className="text-sm font-medium text-blue-900">Row {duplicate.row}: {duplicate.name}</p>
-                      <p className="text-sm text-blue-700">{duplicate.reason}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {result.errors.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Errors</h3>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {result.errors.map((error, index) => (
-                    <div key={index} className="bg-red-50 border border-red-200 rounded p-3">
-                      <p className="text-sm font-medium text-red-900">Row {error.row}</p>
-                      <p className="text-sm text-red-700">{error.error}</p>
-                      {error.data && (
-                        <p className="text-xs text-red-600 mt-1 font-mono">
-                          {JSON.stringify(error.data)}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {result.successfulStudents.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Successfully Imported Students</h3>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {result.successfulStudents.map((student) => (
-                    <div key={student.id} className="bg-green-50 border border-green-200 rounded p-3 flex items-center gap-3">
-                      {student.photoUrl && (
-                        <img src={student.photoUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover" />
-                      )}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{student.name}</p>
-                        <p className="text-xs text-gray-600">{student.indexNumber} • {student.class} {student.section}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-    </div>
+        </motion.div>
+      )}
+    </motion.div>
   );
 }

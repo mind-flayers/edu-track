@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 
-const inter = Inter({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   title: "EduTrack Admin Portal",
-  description: "Admin management portal for EduTrack Academy Management System",
+  description: "Premium Education Management System",
 };
 
 export default function RootLayout({
@@ -19,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${plusJakarta.variable} font-sans antialiased bg-slate-50 text-slate-900`}>
         <AuthProvider>
           {children}
         </AuthProvider>

@@ -6,20 +6,20 @@ import { AdminProfile, ApiResponse } from '@/types';
 export async function GET(request: NextRequest) {
   try {
     console.log('[API] Fetching admins from Firebase Auth...');
-    
+
     // Get all users from Firebase Auth instead of Firestore
     const listUsersResult = await adminAuth.listUsers(1000);
     console.log(`[API] Found ${listUsersResult.users.length} users in Firebase Auth`);
-    
+
     const admins: AdminProfile[] = [];
-    
+
     for (const user of listUsersResult.users) {
       console.log(`[API] Checking user: ${user.email} (${user.uid})`);
-      
+
       // Check if this user has an admin profile in Firestore
       const profileRef = adminDb.collection('admins').doc(user.uid).collection('adminProfile').doc('profile');
       const profileDoc = await profileRef.get();
-      
+
       if (profileDoc.exists) {
         const data = profileDoc.data();
         console.log(`[API] Profile found for ${user.uid}`);
@@ -38,19 +38,20 @@ export async function GET(request: NextRequest) {
         console.log(`[API] No profile found for user ${user.uid}, skipping`);
       }
     }
-    
+
     console.log(`[API] Returning ${admins.length} admins with profiles`);
     const response: ApiResponse<AdminProfile[]> = {
       success: true,
       data: admins,
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[API] Error fetching admins:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch admins';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to fetch admins',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password, name, academyName, profilePhotoUrl } = body;
-    
+
     // Validate input
     if (!email || !password || !name || !academyName) {
       const response: ApiResponse = {
@@ -70,18 +71,18 @@ export async function POST(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 400 });
     }
-    
+
     // Create Firebase Auth user
     const userRecord = await adminAuth.createUser({
       email,
       password,
       displayName: name,
     });
-    
+
     // Create admin profile in Firestore
     const adminRef = adminDb.collection('admins').doc(userRecord.uid);
     const profileRef = adminRef.collection('adminProfile').doc('profile');
-    
+
     const profileData = {
       name,
       academyName,
@@ -92,9 +93,9 @@ export async function POST(request: NextRequest) {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     await profileRef.set(profileData);
-    
+
     // Create academy settings with default subjects
     const settingsRef = adminRef.collection('academySettings').doc('subjects');
     await settingsRef.set({
@@ -103,24 +104,25 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
       updatedBy: userRecord.uid,
     });
-    
+
     const admin: AdminProfile = {
       uid: userRecord.uid,
       ...profileData,
     };
-    
+
     const response: ApiResponse<AdminProfile> = {
       success: true,
       data: admin,
       message: 'Admin created successfully',
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating admin:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create admin';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to create admin',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }

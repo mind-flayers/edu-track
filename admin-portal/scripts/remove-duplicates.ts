@@ -13,9 +13,19 @@ interface StudentData {
   class: string;
   section: string;
   indexNumber: string;
-  dob: any;
-  joinedAt: any;
+  dob: { toDate?: () => Date } | Date;
+  joinedAt: { toDate?: () => Date } | Date;
   adminPath: string;
+}
+
+// Helper to get time from either Firestore Timestamp or Date
+function getTimeFromTimestamp(value: { toDate?: () => Date } | Date | undefined): number {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+    return value.toDate().getTime();
+  }
+  return 0;
 }
 
 async function askConfirmation(question: string): Promise<boolean> {
@@ -38,7 +48,7 @@ async function removeDuplicates() {
   try {
     // Get all admins
     const adminsSnapshot = await adminDb.collection('admins').listDocuments();
-    
+
     const duplicateGroups: Map<string, StudentData[]> = new Map();
 
     for (const adminRef of adminsSnapshot) {
@@ -54,7 +64,7 @@ async function removeDuplicates() {
 
       studentsSnapshot.forEach((doc) => {
         const data = doc.data();
-        
+
         // Create a unique key based on name + class + section + dob
         const dobStr = data.dob?.toDate?.()?.toISOString() || '';
         const key = `${data.name}|${data.class}|${data.section}|${dobStr}`;
@@ -96,18 +106,18 @@ async function removeDuplicates() {
     duplicateGroups.forEach((students) => {
       const first = students[0];
       console.log(`Group ${groupNum}: ${first.name} - ${first.class} ${first.section}`);
-      
+
       // Sort by joinedAt to keep the oldest
       students.sort((a, b) => {
-        const aTime = a.joinedAt?.toDate?.()?.getTime() || 0;
-        const bTime = b.joinedAt?.toDate?.()?.getTime() || 0;
+        const aTime = getTimeFromTimestamp(a.joinedAt);
+        const bTime = getTimeFromTimestamp(b.joinedAt);
         return aTime - bTime;
       });
 
       students.forEach((student, idx) => {
         const marker = idx === 0 ? '✅ KEEP' : '❌ DELETE';
         console.log(`  ${marker} - Index: ${student.indexNumber} | ID: ${student.id}`);
-        
+
         if (idx > 0) {
           toDelete.push({
             adminPath: student.adminPath,

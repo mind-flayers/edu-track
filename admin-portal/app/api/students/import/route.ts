@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { Student, StudentCSVRow, ApiResponse, ImportResult } from '@/types';
+import { Student, ApiResponse, ImportResult } from '@/types';
 import { generateIndexNumber, getNextIndexNumber, parseDateString, validateStudentData } from '@/lib/student-utils';
 import { transferGoogleDriveToCloudinary } from '@/lib/image-utils';
 import Papa from 'papaparse';
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { adminUid, csvData } = body;
-    
+
     if (!adminUid || !csvData) {
       const response: ApiResponse = {
         success: false,
@@ -17,14 +17,14 @@ export async function POST(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 400 });
     }
-    
+
     // Parse CSV
-    const parseResult = Papa.parse<any>(csvData, {
+    const parseResult = Papa.parse<Record<string, string>>(csvData, {
       header: true,
       skipEmptyLines: true,
       transformHeader: (header) => header.trim(),
     });
-    
+
     if (parseResult.errors.length > 0) {
       const response: ApiResponse = {
         success: false,
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 400 });
     }
-    
+
     const result: ImportResult = {
       success: 0,
       failed: 0,
@@ -42,17 +42,17 @@ export async function POST(request: NextRequest) {
       successfulStudents: [],
       skippedDuplicates: [], // Tracks duplicates that were assigned new index numbers
     };
-    
+
     const studentsRef = adminDb
       .collection('admins')
       .doc(adminUid)
       .collection('students');
-    
+
     // Process each row
     for (let i = 0; i < parseResult.data.length; i++) {
       const row = parseResult.data[i];
       const rowNumber = i + 2; // +2 because row 1 is header, array is 0-indexed
-      
+
       try {
         // Map Google Forms column names to our field names
         const fullName = row['Full Name'] || row['name'] || '';
@@ -66,13 +66,13 @@ export async function POST(request: NextRequest) {
         const address = row['Address'] || row['address'] || '';
         const subjectsStr = row['Subjects'] || row['subjects'] || '';
         const studentPhoto = row['Student Photo'] || row['photoUrl'] || '';
-        const paymentType = row['Payment type'] || row['paymentType'] || 'monthly';
-        
+        // Payment type handling removed - not currently used in student data structure
+
         // Parse subjects from comma-separated string
         const subjects = subjectsStr
           ? subjectsStr.split(',').map((s: string) => s.trim()).filter((s: string) => s)
           : [];
-        
+
         // Parse date and ensure it's valid
         let dob: Date;
         try {
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
           console.warn(`Error parsing date for row ${rowNumber}:`, dateError);
           dob = new Date();
         }
-        
+
         // Check for duplicate student before creating
         // Query by name, class, section, and date of birth
         const duplicateQuery = await studentsRef
@@ -96,19 +96,17 @@ export async function POST(request: NextRequest) {
           .where('dob', '==', dob)
           .limit(1)
           .get();
-        
+
         let indexNumber: string;
-        let isDuplicate = false;
-        
+
         if (!duplicateQuery.empty) {
           // Student already exists - generate a unique index number
-          isDuplicate = true;
           const existingStudent = duplicateQuery.docs[0].data();
-          
+
           // Get next available sequential index number to ensure uniqueness
           const nextIndexNumber = await getNextIndexNumber(adminUid);
           indexNumber = generateIndexNumber(nextIndexNumber);
-          
+
           result.skippedDuplicates.push({
             row: rowNumber,
             name: fullName,
@@ -120,7 +118,7 @@ export async function POST(request: NextRequest) {
           const nextIndexNumber = await getNextIndexNumber(adminUid);
           indexNumber = generateIndexNumber(nextIndexNumber);
         }
-        
+
         // Handle photo upload
         let photoUrl = '';
         if (studentPhoto && studentPhoto.trim()) {
@@ -141,11 +139,11 @@ export async function POST(request: NextRequest) {
             photoUrl = '';
           }
         }
-        
+
         // Create student document
         const studentDocRef = studentsRef.doc();
         const now = new Date();
-        
+
         const studentData = {
           name: fullName,
           class: studentClass,
@@ -164,7 +162,7 @@ export async function POST(request: NextRequest) {
           isActive: true,
           isNonePayee: false, // Default to false
         };
-        
+
         // Validate
         const validation = validateStudentData(studentData);
         if (!validation.valid) {
@@ -176,7 +174,7 @@ export async function POST(request: NextRequest) {
           result.failed++;
           continue;
         }
-        
+
         // Validate dates before saving to Firestore
         if (isNaN(studentData.dob.getTime())) {
           result.errors.push({
@@ -187,44 +185,47 @@ export async function POST(request: NextRequest) {
           result.failed++;
           continue;
         }
-        
+
         // Save to Firestore
         try {
           await studentDocRef.set(studentData);
-        } catch (firestoreError: any) {
+        } catch (firestoreError: unknown) {
           console.error(`Firestore error for row ${rowNumber}:`, firestoreError);
-          throw new Error(`Failed to save to Firestore: ${firestoreError.message}`);
+          const message = firestoreError instanceof Error ? firestoreError.message : 'Unknown error';
+          throw new Error(`Failed to save to Firestore: ${message}`);
         }
-        
+
         result.success++;
         result.successfulStudents.push({
           id: studentDocRef.id,
           ...studentData,
         } as Student);
-        
-      } catch (error: any) {
+
+      } catch (error: unknown) {
         console.error(`Error processing row ${rowNumber}:`, error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
         result.errors.push({
           row: rowNumber,
-          error: error.message || 'Unknown error',
+          error: message,
           data: row,
         });
         result.failed++;
       }
     }
-    
+
     const response: ApiResponse<ImportResult> = {
       success: true,
       data: result,
       message: `Import completed: ${result.success} succeeded, ${result.failed} failed${result.skippedDuplicates.length > 0 ? `, ${result.skippedDuplicates.length} duplicates assigned new index numbers` : ''}`,
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error importing students:', error);
+    const message = error instanceof Error ? error.message : 'Failed to import students';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to import students',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }

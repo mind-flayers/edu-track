@@ -47,40 +47,45 @@ function askQuestion(query: string): Promise<string> {
 async function bootstrapSuperAdmin() {
   try {
     console.log('🚀 Bootstrap Super Admin Account');
-    console.log('=' .repeat(60));
+    console.log('='.repeat(60));
     console.log(`Super Admin Email: ${SUPER_ADMIN_EMAIL}\n`);
-    
+
     // Check if user exists in Firebase Auth
     let user;
     try {
       user = await auth.getUserByEmail(SUPER_ADMIN_EMAIL);
       console.log(`✅ User already exists in Firebase Auth (UID: ${user.uid})`);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
+    } catch (error: unknown) {
+      const isUserNotFoundError = error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'auth/user-not-found';
+
+      if (isUserNotFoundError) {
         console.log('📝 User not found in Firebase Auth. Creating...');
-        
+
         // Prompt for details
         const name = await askQuestion('Enter admin name: ');
         const password = await askQuestion('Enter password (min 6 characters): ');
         const academyName = await askQuestion('Enter academy name: ');
-        
+
         if (password.length < 6) {
           throw new Error('Password must be at least 6 characters');
         }
-        
+
         // Create user
         user = await auth.createUser({
           email: SUPER_ADMIN_EMAIL,
           password: password,
           displayName: name,
         });
-        
+
         console.log(`✅ Created user in Firebase Auth (UID: ${user.uid})`);
-        
+
         // Create Firestore profile
         const adminRef = db.collection('admins').doc(user.uid);
         const profileRef = adminRef.collection('adminProfile').doc('profile');
-        
+
         const profileData = {
           name: name,
           academyName: academyName,
@@ -91,10 +96,10 @@ async function bootstrapSuperAdmin() {
           createdAt: new Date(),
           updatedAt: new Date(),
         };
-        
+
         await profileRef.set(profileData);
         console.log(`✅ Created admin profile in Firestore`);
-        
+
         // Create academy settings
         const settingsRef = adminRef.collection('academySettings').doc('subjects');
         await settingsRef.set({
@@ -104,30 +109,30 @@ async function bootstrapSuperAdmin() {
           updatedBy: user.uid,
         });
         console.log(`✅ Created academy settings`);
-        
+
         console.log('\n' + '='.repeat(60));
         console.log('🎉 Super Admin Account Created Successfully!');
         console.log(`   Email: ${SUPER_ADMIN_EMAIL}`);
         console.log(`   UID: ${user.uid}`);
         console.log('='.repeat(60));
-        
+
       } else {
         throw error;
       }
     }
-    
+
     // If user exists, check if profile exists in Firestore
     if (user) {
       const adminRef = db.collection('admins').doc(user.uid);
       const profileRef = adminRef.collection('adminProfile').doc('profile');
       const profileDoc = await profileRef.get();
-      
+
       if (!profileDoc.exists) {
         console.log('⚠️  User exists in Auth but not in Firestore. Creating profile...');
-        
+
         const name = await askQuestion(`Enter admin name [${user.displayName || 'Admin'}]: `) || user.displayName || 'Admin';
         const academyName = await askQuestion('Enter academy name [My Academy]: ') || 'My Academy';
-        
+
         const profileData = {
           name: name,
           academyName: academyName,
@@ -138,14 +143,14 @@ async function bootstrapSuperAdmin() {
           createdAt: new Date(user.metadata.creationTime || Date.now()),
           updatedAt: new Date(),
         };
-        
+
         await profileRef.set(profileData);
         console.log(`✅ Created admin profile in Firestore`);
-        
+
         // Create academy settings if not exists
         const settingsRef = adminRef.collection('academySettings').doc('subjects');
         const settingsDoc = await settingsRef.get();
-        
+
         if (!settingsDoc.exists) {
           await settingsRef.set({
             subjects: ['Mathematics', 'Science', 'English', 'History', 'ICT', 'Tamil', 'Sinhala', 'Commerce'],
@@ -155,7 +160,7 @@ async function bootstrapSuperAdmin() {
           });
           console.log(`✅ Created academy settings`);
         }
-        
+
         console.log('\n' + '='.repeat(60));
         console.log('🎉 Super Admin Profile Synced Successfully!');
         console.log(`   Email: ${SUPER_ADMIN_EMAIL}`);
@@ -170,7 +175,7 @@ async function bootstrapSuperAdmin() {
         console.log('='.repeat(60));
       }
     }
-    
+
   } catch (error) {
     console.error('\n❌ Error:', error);
     process.exit(1);

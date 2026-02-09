@@ -4,7 +4,7 @@ import { AdminProfile, ApiResponse } from '@/types';
 
 // GET /api/admins/[id] - Get single admin
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -15,7 +15,7 @@ export async function GET(
       .collection('adminProfile')
       .doc('profile')
       .get();
-    
+
     if (!profileDoc.exists) {
       const response: ApiResponse = {
         success: false,
@@ -23,7 +23,7 @@ export async function GET(
       };
       return NextResponse.json(response, { status: 404 });
     }
-    
+
     const data = profileDoc.data();
     const admin: AdminProfile = {
       uid: adminId,
@@ -36,18 +36,19 @@ export async function GET(
       createdAt: data?.createdAt?.toDate() || new Date(),
       updatedAt: data?.updatedAt?.toDate() || new Date(),
     };
-    
+
     const response: ApiResponse<AdminProfile> = {
       success: true,
       data: admin,
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching admin:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch admin';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to fetch admin',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }
@@ -55,49 +56,50 @@ export async function GET(
 
 // PATCH /api/admins/[id] - Update admin
 export async function PATCH(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: adminId } = await params;
-    const body = await request.json();
+    const body = await _request.json();
     const { name, academyName, profilePhotoUrl, smsGatewayToken, whatsappGatewayToken } = body;
-    
-    const updateData: any = {
+
+    const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
-    
+
     if (name) updateData.name = name;
     if (academyName) updateData.academyName = academyName;
     if (profilePhotoUrl !== undefined) updateData.profilePhotoUrl = profilePhotoUrl;
     if (smsGatewayToken !== undefined) updateData.smsGatewayToken = smsGatewayToken;
     if (whatsappGatewayToken !== undefined) updateData.whatsappGatewayToken = whatsappGatewayToken;
-    
+
     await adminDb
       .collection('admins')
       .doc(adminId)
       .collection('adminProfile')
       .doc('profile')
       .update(updateData);
-    
+
     // Update Firebase Auth display name if name changed
     if (name) {
       await adminAuth.updateUser(adminId, {
         displayName: name,
       });
     }
-    
+
     const response: ApiResponse = {
       success: true,
       message: 'Admin updated successfully',
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating admin:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update admin';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to update admin',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }
@@ -105,41 +107,42 @@ export async function PATCH(
 
 // DELETE /api/admins/[id] - Delete admin
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: adminId } = await params;
-    
+
     // Delete all subcollections (students, teachers, etc.)
     const adminRef = adminDb.collection('admins').doc(adminId);
-    
+
     // Delete admin profile
     await adminRef.collection('adminProfile').doc('profile').delete();
-    
+
     // Delete academy settings
     const settingsSnapshot = await adminRef.collection('academySettings').get();
     for (const doc of settingsSnapshot.docs) {
       await doc.ref.delete();
     }
-    
+
     // Delete admin document
     await adminRef.delete();
-    
+
     // Delete Firebase Auth user
     await adminAuth.deleteUser(adminId);
-    
+
     const response: ApiResponse = {
       success: true,
       message: 'Admin deleted successfully',
     };
-    
+
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error deleting admin:', error);
+    const message = error instanceof Error ? error.message : 'Failed to delete admin';
     const response: ApiResponse = {
       success: false,
-      error: error.message || 'Failed to delete admin',
+      error: message,
     };
     return NextResponse.json(response, { status: 500 });
   }
