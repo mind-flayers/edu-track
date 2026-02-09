@@ -1,4 +1,4 @@
-name: Release to Public Repository (Enhanced)
+﻿name: Release to Public Repository (Enhanced)
 
 # Automated workflow to build APK and publish to public repository
 # Trigger: Push version tags (v1.0.0, v1.1.0, etc.) to private repo
@@ -33,37 +33,37 @@ jobs:
       # PHASE 1: SETUP ENVIRONMENT
       # ============================================================
       
-      - name: 📦 Checkout Private Repository
+      - name: Ã°Å¸â€œÂ¦ Checkout Private Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for changelog generation
           submodules: recursive  # Include WhatsApp bot submodule
       
-      - name: ☕ Setup Java JDK 17
+      - name: Ã¢Ëœâ€¢ Setup Java JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
           cache: 'gradle'
       
-      - name: 🐦 Setup Flutter
+      - name: Ã°Å¸ÂÂ¦ Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
       
-      - name: 📋 Flutter Doctor
+      - name: Ã°Å¸â€œâ€¹ Flutter Doctor
         run: flutter doctor -v
       
-      - name: 📥 Install Dependencies
+      - name: Ã°Å¸â€œÂ¥ Install Dependencies
         run: flutter pub get
       
       # ============================================================
       # PHASE 2: VERSION EXTRACTION
       # ============================================================
       
-      - name: 🔖 Extract Version from Tag
+      - name: Ã°Å¸â€â€“ Extract Version from Tag
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -81,17 +81,17 @@ jobs:
           # Determine if pre-release
           if [[ "$VERSION" =~ (beta|rc|alpha) ]]; then
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
-            echo "📦 Building pre-release: $VERSION"
+            echo "Ã°Å¸â€œÂ¦ Building pre-release: $VERSION"
           else
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
-            echo "🚀 Building stable release: $VERSION"
+            echo "Ã°Å¸Å¡â‚¬ Building stable release: $VERSION"
           fi
       
       # ============================================================
       # PHASE 3: ANDROID SIGNING CONFIGURATION
       # ============================================================
       
-      - name: 🔐 Decode Android Keystore
+      - name: Ã°Å¸â€Â Decode Android Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -100,13 +100,13 @@ jobs:
           
           # Verify keystore exists
           if [ ! -f android/app/upload-keystore.jks ]; then
-            echo "❌ ERROR: Keystore file not created!"
+            echo "Ã¢ÂÅ’ ERROR: Keystore file not created!"
             exit 1
           fi
           
-          echo "✅ Keystore decoded successfully"
+          echo "Ã¢Å“â€¦ Keystore decoded successfully"
       
-      - name: 📝 Create key.properties
+      - name: Ã°Å¸â€œÂ Create key.properties
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -119,21 +119,21 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
           
-          echo "✅ key.properties created"
+          echo "Ã¢Å“â€¦ key.properties created"
       
       # ============================================================
       # PHASE 4: BUILD APK (SPLIT BY ABI)
       # ============================================================
       
-      - name: 🏗️ Build Release APKs (Split by ABI)
+      - name: Ã°Å¸Ââ€”Ã¯Â¸Â Build Release APKs (Split by ABI)
         run: |
           echo "Building split APKs for optimal size..."
           flutter build apk --release --split-per-abi --verbose
           
-          echo "✅ Build completed!"
+          echo "Ã¢Å“â€¦ Build completed!"
           ls -lh build/app/outputs/flutter-apk/
       
-      - name: 📦 Rename APK Files
+      - name: Ã°Å¸â€œÂ¦ Rename APK Files
         id: rename
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -148,10 +148,10 @@ jobs:
           flutter build apk --release
           mv build/app/outputs/flutter-apk/app-release.apk $OUTPUT_DIR/edutrack-$VERSION-universal.apk
           
-          echo "✅ APKs renamed with version"
+          echo "Ã¢Å“â€¦ APKs renamed with version"
           ls -lh $OUTPUT_DIR/edutrack-*.apk
       
-      - name: 📊 Calculate APK Sizes
+      - name: Ã°Å¸â€œÅ  Calculate APK Sizes
         id: apk_sizes
         run: |
           OUTPUT_DIR="build/app/outputs/flutter-apk"
@@ -168,13 +168,13 @@ jobs:
           echo "x86_size=$X86_SIZE" >> $GITHUB_OUTPUT
           echo "universal_size=$UNIVERSAL_SIZE" >> $GITHUB_OUTPUT
           
-          echo "📊 APK Sizes:"
+          echo "Ã°Å¸â€œÅ  APK Sizes:"
           echo "  - arm64-v8a: $ARM64_SIZE"
           echo "  - armeabi-v7a: $ARMV7_SIZE"
           echo "  - x86_64: $X86_SIZE"
           echo "  - universal: $UNIVERSAL_SIZE"
       
-      - name: 🔒 Calculate SHA256 Checksums
+      - name: Ã°Å¸â€â€™ Calculate SHA256 Checksums
         id: checksums
         run: |
           OUTPUT_DIR="build/app/outputs/flutter-apk"
@@ -194,7 +194,7 @@ jobs:
       # PHASE 5: PREPARE PUBLIC REPO CONTENT
       # ============================================================
       
-      - name: 📄 Prepare README for Public Repo
+      - name: Ã°Å¸â€œâ€ž Prepare README for Public Repo
         run: |
           # Create a version without private repo links
           cp README.md README.public.md
@@ -204,9 +204,9 @@ jobs:
           
           # Add notice at the top
           cat > README.temp.md << 'EOF'
-          # 🎓 EduTrack - Academy Management System
+          # Ã°Å¸Å½â€œ EduTrack - Academy Management System
           
-          > **📦 This is the PUBLIC RELEASES repository**  
+          > **Ã°Å¸â€œÂ¦ This is the PUBLIC RELEASES repository**  
           > Contains only APK releases and documentation. Source code is in a private repository.
           
           ---
@@ -216,9 +216,9 @@ jobs:
           cat README.public.md >> README.temp.md
           mv README.temp.md README.public.md
           
-          echo "✅ Public README prepared"
+          echo "Ã¢Å“â€¦ Public README prepared"
       
-      - name: 📝 Generate Release Notes
+      - name: Ã°Å¸â€œÂ Generate Release Notes
         id: release_notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -232,38 +232,38 @@ jobs:
           else
             CUSTOM_NOTES="## What's New in $VERSION
 
-See the full changelog in the release assets.
+See the full changelog in the release assets."
 "
           fi
           
           # Build complete release notes
           cat > release_notes.md << EOF
-          # 🎓 EduTrack $VERSION
+          # Ã°Å¸Å½â€œ EduTrack $VERSION
           
           $CUSTOM_NOTES
           
           ---
           
-          ## 📱 Download the Right APK for Your Device
+          ## Ã°Å¸â€œÂ± Download the Right APK for Your Device
           
           | APK Variant | Best For | Size | Compatibility |
           |-------------|----------|------|---------------|
-          | **arm64-v8a** ⭐ | Modern phones (2017+) | ${{ steps.apk_sizes.outputs.arm64_size }} | **RECOMMENDED** - 90% of devices |
+          | **arm64-v8a** Ã¢Â­Â | Modern phones (2017+) | ${{ steps.apk_sizes.outputs.arm64_size }} | **RECOMMENDED** - 90% of devices |
           | **armeabi-v7a** | Older 32-bit devices | ${{ steps.apk_sizes.outputs.armv7_size }} | Legacy ARM devices |
           | **x86_64** | Intel tablets/emulators | ${{ steps.apk_sizes.outputs.x86_size }} | Intel-based Android devices |
           
-          > **💡 Tip**: Most users should download **arm64-v8a** for optimal size and performance.
+          > **Ã°Å¸â€™Â¡ Tip**: Most users should download **arm64-v8a** for optimal size and performance.
           
           ---
           
-          ## 🚀 Installation Guide
+          ## Ã°Å¸Å¡â‚¬ Installation Guide
           
           ### Step 1: Download APK
           - Click on the APK file below that matches your device
           - Save to your device's Downloads folder
           
           ### Step 2: Enable Unknown Sources
-          - Open **Settings** → **Security** / **Privacy**
+          - Open **Settings** Ã¢â€ â€™ **Security** / **Privacy**
           - Enable **"Install from Unknown Sources"** for your browser/file manager
           
           ### Step 3: Install
@@ -278,7 +278,7 @@ See the full changelog in the release assets.
           
           ---
           
-          ## 📋 System Requirements
+          ## Ã°Å¸â€œâ€¹ System Requirements
           
           - **Android Version**: 5.0 (Lollipop) or higher (API Level 21+)
           - **RAM**: 2GB minimum, 4GB recommended
@@ -287,7 +287,7 @@ See the full changelog in the release assets.
           
           ---
           
-          ## 🔐 Security Verification
+          ## Ã°Å¸â€Â Security Verification
           
           ### SHA256 Checksums
           
@@ -311,15 +311,15 @@ See the full changelog in the release assets.
           
           ---
           
-          ## 📚 Documentation
+          ## Ã°Å¸â€œÅ¡ Documentation
           
-          - [📖 Full Documentation](https://github.com/mind-flayers/edu-track-releases#readme)
-          - [💡 User Guide](https://github.com/mind-flayers/edu-track-releases#getting-started)
-          - [❓ FAQ](https://github.com/mind-flayers/edu-track-releases#faq)
+          - [Ã°Å¸â€œâ€“ Full Documentation](https://github.com/mind-flayers/edu-track-releases#readme)
+          - [Ã°Å¸â€™Â¡ User Guide](https://github.com/mind-flayers/edu-track-releases#getting-started)
+          - [Ã¢Ââ€œ FAQ](https://github.com/mind-flayers/edu-track-releases#faq)
           
           ---
           
-          ## 🐛 Reporting Issues
+          ## Ã°Å¸Ââ€º Reporting Issues
           
           Found a bug or have a feature request?
           
@@ -333,17 +333,17 @@ See the full changelog in the release assets.
           
           ---
           
-          ## 💝 Support the Project
+          ## Ã°Å¸â€™Â Support the Project
           
           If EduTrack helps your institution:
-          - ⭐ **Star this repository**
-          - 🐛 **Report bugs** to help improve quality
-          - 💡 **Share feedback** on your experience
-          - 📢 **Tell others** about EduTrack
+          - Ã¢Â­Â **Star this repository**
+          - Ã°Å¸Ââ€º **Report bugs** to help improve quality
+          - Ã°Å¸â€™Â¡ **Share feedback** on your experience
+          - Ã°Å¸â€œÂ¢ **Tell others** about EduTrack
           
           ---
           
-          ## 📞 Contact & Support
+          ## Ã°Å¸â€œÅ¾ Contact & Support
           
           - **Email**: mishaf1106@gmail.com
           - **Issues**: [GitHub Issues](https://github.com/mind-flayers/edu-track-releases/issues)
@@ -352,25 +352,25 @@ See the full changelog in the release assets.
           ---
           
           <div align="center">
-            <p><sub>Made with ❤️ for Educational Institutions</sub></p>
-            <p><sub>© 2025 Mishaf Hasan. Licensed under MIT License.</sub></p>
+            <p><sub>Made with Ã¢ÂÂ¤Ã¯Â¸Â for Educational Institutions</sub></p>
+            <p><sub>Ã‚Â© 2025 Mishaf Hasan. Licensed under MIT License.</sub></p>
           </div>
           EOF
           
-          echo "✅ Release notes generated"
+          echo "Ã¢Å“â€¦ Release notes generated"
       
       # ============================================================
       # PHASE 6: CHECKOUT PUBLIC REPO & SYNC FILES
       # ============================================================
       
-      - name: 🔄 Checkout Public Repository
+      - name: Ã°Å¸â€â€ž Checkout Public Repository
         uses: actions/checkout@v4
         with:
           repository: ${{ env.PUBLIC_REPO }}
           token: ${{ secrets.RELEASES_REPO_TOKEN }}
           path: public-repo
       
-      - name: 📂 Sync Files to Public Repo
+      - name: Ã°Å¸â€œâ€š Sync Files to Public Repo
         run: |
           # Copy README
           cp README.public.md public-repo/README.md
@@ -385,9 +385,9 @@ See the full changelog in the release assets.
             cp docs/INSTALLATION_GUIDE.md public-repo/INSTALLATION_GUIDE.md
           fi
           
-          echo "✅ Files synced to public repo"
+          echo "Ã¢Å“â€¦ Files synced to public repo"
       
-      - name: 💾 Commit and Push Changes to Public Repo
+      - name: Ã°Å¸â€™Â¾ Commit and Push Changes to Public Repo
         run: |
           cd public-repo
           
@@ -399,16 +399,16 @@ See the full changelog in the release assets.
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "📝 Update documentation for ${{ steps.version.outputs.version }}"
+            git commit -m "Ã°Å¸â€œÂ Update documentation for ${{ steps.version.outputs.version }}"
             git push
-            echo "✅ Documentation updated in public repo"
+            echo "Ã¢Å“â€¦ Documentation updated in public repo"
           fi
       
       # ============================================================
       # PHASE 7: CREATE GITHUB RELEASE
       # ============================================================
       
-      - name: 🎉 Create Release in Public Repository
+      - name: Ã°Å¸Å½â€° Create Release in Public Repository
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
@@ -427,55 +427,55 @@ See the full changelog in the release assets.
       # PHASE 8: CLEANUP & NOTIFICATIONS
       # ============================================================
       
-      - name: 🧹 Cleanup Sensitive Files
+      - name: Ã°Å¸Â§Â¹ Cleanup Sensitive Files
         if: always()
         run: |
           rm -f android/app/upload-keystore.jks
           rm -f android/key.properties
-          echo "✅ Sensitive files removed"
+          echo "Ã¢Å“â€¦ Sensitive files removed"
       
-      - name: 📊 Upload Build Artifacts (Backup)
+      - name: Ã°Å¸â€œÅ  Upload Build Artifacts (Backup)
         uses: actions/upload-artifact@v4
         with:
           name: apk-builds-${{ steps.version.outputs.version }}
           path: build/app/outputs/flutter-apk/edutrack-*.apk
           retention-days: 30
       
-      - name: ✅ Release Success Notification
+      - name: Ã¢Å“â€¦ Release Success Notification
         if: success()
         run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🎉 RELEASE SUCCESSFUL!"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â"
+          echo "Ã°Å¸Å½â€° RELEASE SUCCESSFUL!"
+          echo "Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â"
           echo ""
-          echo "📦 Version: ${{ steps.version.outputs.version }}"
-          echo "🔗 Release URL: https://github.com/${{ env.PUBLIC_REPO }}/releases/tag/${{ steps.version.outputs.version }}"
-          echo "📥 Download: https://github.com/${{ env.PUBLIC_REPO }}/releases/latest"
+          echo "Ã°Å¸â€œÂ¦ Version: ${{ steps.version.outputs.version }}"
+          echo "Ã°Å¸â€â€” Release URL: https://github.com/${{ env.PUBLIC_REPO }}/releases/tag/${{ steps.version.outputs.version }}"
+          echo "Ã°Å¸â€œÂ¥ Download: https://github.com/${{ env.PUBLIC_REPO }}/releases/latest"
           echo ""
-          echo "📱 APK Files Released:"
-          echo "  • arm64-v8a (${{ steps.apk_sizes.outputs.arm64_size }})"
-          echo "  • armeabi-v7a (${{ steps.apk_sizes.outputs.armv7_size }})"
-          echo "  • universal (${{ steps.apk_sizes.outputs.universal_size }})"
+          echo "Ã°Å¸â€œÂ± APK Files Released:"
+          echo "  Ã¢â‚¬Â¢ arm64-v8a (${{ steps.apk_sizes.outputs.arm64_size }})"
+          echo "  Ã¢â‚¬Â¢ armeabi-v7a (${{ steps.apk_sizes.outputs.armv7_size }})"
+          echo "  Ã¢â‚¬Â¢ universal (${{ steps.apk_sizes.outputs.universal_size }})"
           echo ""
-          echo "✅ All users can now download the new version!"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Ã¢Å“â€¦ All users can now download the new version!"
+          echo "Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â"
       
-      - name: ❌ Release Failure Notification
+      - name: Ã¢ÂÅ’ Release Failure Notification
         if: failure()
         run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "❌ RELEASE FAILED!"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â"
+          echo "Ã¢ÂÅ’ RELEASE FAILED!"
+          echo "Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â"
           echo ""
           echo "Please check the workflow logs above for details."
           echo "Common issues:"
-          echo "  • Missing or invalid GitHub secrets"
-          echo "  • Invalid keystore or signing configuration"
-          echo "  • Flutter build errors"
-          echo "  • Insufficient permissions on public repo"
+          echo "  Ã¢â‚¬Â¢ Missing or invalid GitHub secrets"
+          echo "  Ã¢â‚¬Â¢ Invalid keystore or signing configuration"
+          echo "  Ã¢â‚¬Â¢ Flutter build errors"
+          echo "  Ã¢â‚¬Â¢ Insufficient permissions on public repo"
           echo ""
-          echo "🔗 Workflow: https://github.com/${{ github.repository }}/actions"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Ã°Å¸â€â€” Workflow: https://github.com/${{ github.repository }}/actions"
+          echo "Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â"
           exit 1
 
   # ============================================================
@@ -489,19 +489,19 @@ See the full changelog in the release assets.
     if: always()
     
     steps:
-      - name: ✅ Success Notification
+      - name: Ã¢Å“â€¦ Success Notification
         if: needs.build-and-release.result == 'success'
         run: |
-          echo "✅ Release pipeline completed successfully!"
+          echo "Ã¢Å“â€¦ Release pipeline completed successfully!"
           echo "Public users can now download EduTrack"
           # Add Slack/Discord/Email notification here if needed
           # Example: curl -X POST -H 'Content-type: application/json' \
           #   --data '{"text":"EduTrack released successfully!"}' \
           #   ${{ secrets.SLACK_WEBHOOK_URL }}
       
-      - name: ❌ Failure Notification
+      - name: Ã¢ÂÅ’ Failure Notification
         if: needs.build-and-release.result == 'failure'
         run: |
-          echo "❌ Release pipeline failed!"
+          echo "Ã¢ÂÅ’ Release pipeline failed!"
           echo "Please check workflow logs and retry"
           # Add Slack/Discord/Email notification here if needed
