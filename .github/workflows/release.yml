@@ -98,47 +98,50 @@ jobs:
           body: |
             # 🎓 EduTrack ${{ steps.get_version.outputs.VERSION }}
             
-            ## 📱 Download the Right APK for Your Device
+            ## Release highlights ✅
+            - **Build toolchain upgraded**: Android Gradle Plugin **8.9.1**, Gradle **8.12**, Kotlin **2.1.0** (fixes recent AndroidX compatibility failures).
+            - **New artifact**: `x86_64` APK is now produced and published (useful for emulators / some Chromebooks).
+            - **CI reliability**: release workflow injects required Firebase config at build-time from Actions Secrets (no credentials in repo).
+            - **Smaller, focused public releases**: arm64 + armeabi-v7a + optional x86_64 + universal (when produced).
             
-            | APK File | Best For | Size | Download |
-            |----------|----------|------|----------|
-            | **arm64-v8a** | Modern phones (2017+) | ${{ steps.apk_sizes.outputs.ARM64_SIZE }} | ⭐ **RECOMMENDED** for 90% of users |
-            | **armeabi-v7a** | Older phones (2015-2017) | ${{ steps.apk_sizes.outputs.ARMV7_SIZE }} | For older Android devices |
-            | **x86_64** | Emulators / some Chromebooks | ${{ steps.apk_sizes.outputs.X86_64_SIZE }} | Optional — emulator/desktop use |
-            | **universal** | All devices | ${{ steps.apk_sizes.outputs.UNIVERSAL_SIZE }} | Works everywhere but larger |
+            ## 📱 APKs included (pick by device)
+            | APK File | Best for | Size |
+            |----------|----------|------|
+            | **arm64-v8a** | Most modern phones (recommended) | ${{ steps.apk_sizes.outputs.ARM64_SIZE }} |
+            | **armeabi-v7a** | Older Android phones | ${{ steps.apk_sizes.outputs.ARMV7_SIZE }} |
+            | **x86_64** | Emulators / Chromebook / desktop testing | ${{ steps.apk_sizes.outputs.X86_64_SIZE }} |
+            | **universal** | All-device compatibility (larger) | ${{ steps.apk_sizes.outputs.UNIVERSAL_SIZE }} |
             
-            ## 🚀 How to Install
+            ## 🔧 Important upgrade notes (read before installing)
+            - This release required an Android toolchain upgrade; if you build locally, run `flutter clean` then `flutter pub get`.
+            - CI now decodes `google-services.json` from a repository secret during build — nothing to commit locally.
+            - Use **arm64-v8a** for production installs; **x86_64** is primarily for QA/emulator use.
             
-            1. **Download** the APK for your device architecture
-            2. **Enable** "Install from Unknown Sources" in Android settings
-            3. **Install** the APK file
-            4. **Grant** permissions when prompted
+            ## ✅ Verification checklist (smoke tests)
+            1. Install the **arm64-v8a** APK on a modern device and perform sign-in (Auth).
+            2. Open student list → open a student → scan QR to mark attendance (QR flow).
+            3. Export a CSV from Students list and verify file opens in Excel/Sheets.
+            4. On an emulator/Chromebook, install **x86_64** and run QA flows.
             
-            📖 **Full Instructions**: See [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edu-track-releases/blob/main/INSTALLATION_GUIDE.md)
+            ## ⚠️ Known issues
+            - Some older devices may still require the **armeabi-v7a** build.
+            - If you hit Firebase-related runtime errors, confirm the app uses the correct Firebase project (check Settings → About in the app).
             
-            ## ✨ What's New
+            ## 📚 More details
+            - Full changelog: [RELEASE_NOTES_v1.0.0.md](https://github.com/mind-flayers/edu-track-releases/blob/main/RELEASE_NOTES_v1.0.0.md)
+            - Installation guide: [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edu-track-releases/blob/main/INSTALLATION_GUIDE.md)
+            - CI docs: `.github/SETUP_GITHUB_SECRET.md` (how the Firebase config is provided to Actions)
             
-            See [RELEASE_NOTES_v1.0.0.md](https://github.com/mind-flayers/edu-track-releases/blob/main/RELEASE_NOTES_v1.0.0.md) for full details.
-            
-            ## 📚 Documentation
-            
-            - **README**: [Main Documentation](https://github.com/mind-flayers/edu-track-releases#readme)
-            
-            ## 🔐 SHA256 Checksums
-            
+            ## 🔐 SHA256 checksums
             ```
             arm64-v8a: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk | awk '{print $1}')
             armeabi-v7a: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk | awk '{print $1}')
+            x86_64: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-x86_64.apk | awk '{print $1}' 2>/dev/null || echo "missing")
             universal: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-universal.apk | awk '{print $1}')
             ```
             
-            ## 🐛 Reporting Issues
-            
-            Found a bug? [Create an issue](https://github.com/mind-flayers/edu-track-releases/issues/new)
-            
-            ## 💝 Support the Project
-            
-            If you find EduTrack useful, please ⭐ star the repository!
+            ## 🐛 Report an issue
+            Found a problem? Open an issue in the releases repo: https://github.com/mind-flayers/edu-track-releases/issues/new
             
             ---
             
