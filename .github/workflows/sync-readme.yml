@@ -13,6 +13,12 @@ on:
       - 'README.md'
       - 'LICENSE'
       - 'docs/INSTALLATION_GUIDE.md'
+  # Run sync automatically after the release workflow completes (covers tag builds)
+  workflow_run:
+    workflows:
+      - 'Build and Release APK'
+    types:
+      - completed
 
 env:
   PUBLIC_REPO: 'mind-flayers/edu-track-releases'
