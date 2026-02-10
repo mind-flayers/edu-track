@@ -71,6 +71,8 @@ jobs:
              build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-arm64-v8a.apk || true
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
              build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-armeabi-v7a.apk || true
+          mv build/app/outputs/flutter-apk/app-x86_64-release.apk \
+             build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-x86_64.apk || true
           mv build/app/outputs/flutter-apk/app-release.apk \
              build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-universal.apk || true
       
@@ -79,9 +81,11 @@ jobs:
         run: |
           ARM64_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk | awk '{print $5}')
           ARMV7_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk | awk '{print $5}')
+          X86_64_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-x86_64.apk | awk '{print $5}' 2>/dev/null || echo "-")
           UNIVERSAL_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-universal.apk | awk '{print $5}')
           echo "ARM64_SIZE=$ARM64_SIZE" >> $GITHUB_OUTPUT
           echo "ARMV7_SIZE=$ARMV7_SIZE" >> $GITHUB_OUTPUT
+          echo "X86_64_SIZE=$X86_64_SIZE" >> $GITHUB_OUTPUT
           echo "UNIVERSAL_SIZE=$UNIVERSAL_SIZE" >> $GITHUB_OUTPUT
       
       - name: Create Release
@@ -100,6 +104,7 @@ jobs:
             |----------|----------|------|----------|
             | **arm64-v8a** | Modern phones (2017+) | ${{ steps.apk_sizes.outputs.ARM64_SIZE }} | ⭐ **RECOMMENDED** for 90% of users |
             | **armeabi-v7a** | Older phones (2015-2017) | ${{ steps.apk_sizes.outputs.ARMV7_SIZE }} | For older Android devices |
+            | **x86_64** | Emulators / some Chromebooks | ${{ steps.apk_sizes.outputs.X86_64_SIZE }} | Optional — emulator/desktop use |
             | **universal** | All devices | ${{ steps.apk_sizes.outputs.UNIVERSAL_SIZE }} | Works everywhere but larger |
             
             ## 🚀 How to Install
