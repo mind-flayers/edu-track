@@ -26,7 +26,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
+
           channel: 'stable'
           cache: true
       
@@ -81,6 +81,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          repository: mind-flayers/edu-track-releases
           files: |
             build/app/outputs/flutter-apk/edutrack-*.apk
           name: EduTrack ${{ steps.get_version.outputs.VERSION }}
@@ -102,17 +103,15 @@ jobs:
             3. **Install** the APK file
             4. **Grant** permissions when prompted
             
-            📖 **Full Instructions**: See [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edu-track/blob/main/INSTALLATION_GUIDE.md)
+            📖 **Full Instructions**: See [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edu-track-releases/blob/main/INSTALLATION_GUIDE.md)
             
             ## ✨ What's New
             
-            See [RELEASE_NOTES_v1.0.0.md](https://github.com/mind-flayers/edu-track/blob/main/RELEASE_NOTES_v1.0.0.md) for full details.
+            See [RELEASE_NOTES_v1.0.0.md](https://github.com/mind-flayers/edu-track-releases/blob/main/RELEASE_NOTES_v1.0.0.md) for full details.
             
             ## 📚 Documentation
             
-            - **README**: [Main Documentation](https://github.com/mind-flayers/edu-track#readme)
-            - **Installation Guide**: [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edutrack/blob/main/INSTALLATION_GUIDE.md)
-            - **Database Setup**: [DATABASE_SETUP_INSTRUCTIONS.md](https://github.com/mind-flayers/edu-track/blob/main/docs/DATABASE_SETUP_INSTRUCTIONS.md)
+            - **README**: [Main Documentation](https://github.com/mind-flayers/edu-track-releases#readme)
             
             ## 🔐 SHA256 Checksums
             
@@ -124,7 +123,7 @@ jobs:
             
             ## 🐛 Reporting Issues
             
-            Found a bug? [Create an issue](https://github.com/mind-flayers/edu-track/issues/new)
+            Found a bug? [Create an issue](https://github.com/mind-flayers/edu-track-releases/issues/new)
             
             ## 💝 Support the Project
             
@@ -135,8 +134,9 @@ jobs:
             Made with ❤️ for Educational Institutions
           draft: false
           prerelease: false
+          make_latest: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
       
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
