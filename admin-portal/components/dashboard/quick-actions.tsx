@@ -64,6 +64,8 @@ export function QuickActions() {
                   {action.title}
                 </h3>
                 <p className="text-slate-600 text-sm">{action.description}</p>
+
+
               </motion.div>
             </Link>
           </motion.div>

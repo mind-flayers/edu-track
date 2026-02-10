@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from "framer-motion";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { Users, School, TrendingUp, Calendar } from "lucide-react";
-import Link from 'next/link';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -24,48 +24,44 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-interface DashboardStats {
-  totalAcademies: number;
-  totalStudents: number;
-  totalAdmins: number;
-  monthlyEnrollments: number;
-}
-
 export default function DashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [stats, setStats] = useState<DashboardStats>({
+  const [stats, setStats] = useState({
     totalAcademies: 0,
     totalStudents: 0,
     totalAdmins: 0,
-    monthlyEnrollments: 0,
+    monthlyEnrollments: 0
   });
-  const [loadingStats, setLoadingStats] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
-    } else if (user) {
-      fetchDashboardStats();
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
 
-  const fetchDashboardStats = async () => {
-    try {
-      const response = await fetch('/api/dashboard/stats');
-      const data = await response.json();
-
-      if (data.success) {
-        setStats(data.data);
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/dashboard/stats');
+        const data = await response.json();
+        if (data.success) {
+          setStats(data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (_err) {
-      console.error('Failed to fetch dashboard stats:', _err);
-    } finally {
-      setLoadingStats(false);
-    }
-  };
+    };
 
-  if (loading || !user) {
+    if (user) {
+      fetchStats();
+    }
+  }, [user]);
+
+  if (authLoading || !user || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
@@ -78,12 +74,12 @@ export default function DashboardPage() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-6 mt-8"
+      className="space-y-8 mt-8"
     >
       {/* Hero Section */}
       <motion.div
         variants={itemVariants}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 p-6 text-white shadow-xl"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 to-violet-600 p-8 lg:p-12 text-white shadow-2xl shadow-indigo-500/25"
       >
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
@@ -95,16 +91,16 @@ export default function DashboardPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <h1 className="text-3xl font-bold mb-2">Welcome Back, Super Admin</h1>
-            <p className="text-indigo-100">
-              Here's your EduTrack overview. Manage academies, administrators, and students from one powerful dashboard.
+            <h1 className="text-4xl lg:text-5xl font-bold mb-4">Welcome Back</h1>
+            <p className="text-indigo-100 text-lg max-w-xl">
+              Here&apos;s your EduTrack overview. Manage academies, administrators, and students from one powerful dashboard.
             </p>
           </motion.div>
         </div>
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Link href="/dashboard/admins">
           <StatCard
             title="Total Academies"
@@ -118,23 +114,31 @@ export default function DashboardPage() {
         <Link href="/dashboard/students">
           <StatCard
             title="Total Students"
-            value={stats.totalStudents.toLocaleString()}
+            value={stats.totalStudents.toString()}
             change="+124"
             trend="up"
             icon={<Users className="w-6 h-6" />}
             color="cyan"
           />
         </Link>
-        <Link href="/dashboard/students">
+        <Link href="/dashboard/admins">
           <StatCard
-            title="This Month"
-            value={stats.monthlyEnrollments.toString()}
-            change="New Enrollments"
-            trend="neutral"
-            icon={<Calendar className="w-6 h-6" />}
-            color="emerald"
+            title="Total Admins"
+            value={stats.totalAdmins.toString()}
+            change="+1"
+            trend="up"
+            icon={<TrendingUp className="w-6 h-6" />}
+            color="violet"
           />
         </Link>
+        <StatCard
+          title="This Month"
+          value={stats.monthlyEnrollments.toString()}
+          change="New Enrollments"
+          trend="neutral"
+          icon={<Calendar className="w-6 h-6" />}
+          color="emerald"
+        />
       </div>
 
       {/* Quick Actions */}

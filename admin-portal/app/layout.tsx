@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${plusJakarta.variable} font-sans antialiased bg-slate-50 text-slate-900`}>
+      <body className={`${plusJakarta.variable} font-sans antialiased bg-slate-50 text-slate-900`} suppressHydrationWarning>
         <AuthProvider>
           {children}
         </AuthProvider>

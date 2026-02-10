@@ -40,8 +40,8 @@ export default function ImportStudentsPage() {
           setSelectedAdmin(data.data[0].uid);
         }
       }
-    } catch (_err) {
-      console.error('Failed to fetch admins:', _err);
+    } catch (err) {
+      console.error('Failed to fetch admins:', err);
     }
   };
 
@@ -93,7 +93,7 @@ export default function ImportStudentsPage() {
       } else {
         setError(data.error || 'Failed to import students');
       }
-    } catch (_err: unknown) {
+    } catch (err: unknown) {
       setError('Failed to import students');
     } finally {
       setImporting(false);

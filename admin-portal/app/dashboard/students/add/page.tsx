@@ -90,8 +90,8 @@ export default function AddStudentPage() {
           setSelectedAdmin(data.data[0].uid);
         }
       }
-    } catch (_err) {
-      console.error('Failed to fetch admins:', _err);
+    } catch (err) {
+      console.error('Failed to fetch admins:', err);
     }
   };
 
@@ -254,7 +254,7 @@ export default function AddStudentPage() {
       } else {
         setError(data.error || 'Failed to create student');
       }
-    } catch (_err: unknown) {
+    } catch (err: unknown) {
       setError('Failed to create student');
     } finally {
       setSubmitting(false);
@@ -479,8 +479,8 @@ export default function AddStudentPage() {
                     <label
                       key={subject}
                       className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${formData.Subjects.includes(subject)
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-slate-200 hover:border-slate-300'
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-slate-200 hover:border-slate-300'
                         }`}
                     >
                       <input

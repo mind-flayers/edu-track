@@ -10,11 +10,12 @@ import {
   LayoutDashboard,
   Users,
   UserCircle,
+  Settings,
   ChevronLeft,
   ChevronRight,
-  LogOut,
-  GraduationCap
+  LogOut
 } from "lucide-react";
+import Image from "next/image";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -42,17 +43,22 @@ export function Sidebar() {
     >
       <div className="h-full glass-dark m-4 rounded-3xl flex flex-col">
         {/* Logo */}
-        <div className="p-6 flex items-center gap-3 border-b border-white/10">
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-500 rounded-xl flex items-center justify-center shadow-lg">
-            <GraduationCap className="w-6 h-6 text-white" />
+        <div className="p-6 flex items-center gap-3 border-b border-white/10 overflow-hidden">
+          <div className="relative w-10 h-10 flex-shrink-0">
+            <Image
+              src="/images/app_logo_high.png"
+              alt="EduTrack Logo"
+              fill
+              className="object-contain"
+            />
           </div>
           <AnimatePresence>
             {!isCollapsed && (
               <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="font-bold text-xl text-white"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="font-bold text-xl text-white whitespace-nowrap"
               >
                 EduTrack
               </motion.span>
@@ -64,10 +70,9 @@ export function Sidebar() {
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            // Fix: Exact match for dashboard, prefix match for sub-pages
-            const isActive = item.href === '/dashboard'
-              ? pathname === '/dashboard'
-              : pathname.startsWith(`${item.href}/`) || pathname === item.href;
+            const isActive = item.href === "/dashboard"
+              ? pathname === "/dashboard"
+              : pathname.startsWith(item.href);
 
             return (
               <Link key={item.href} href={item.href}>
@@ -75,7 +80,7 @@ export function Sidebar() {
                   whileHover={{ x: 4 }}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
                     ? "bg-white/10 text-white shadow-lg"
-                    : "text-slate-500 hover:text-white hover:bg-white/10"
+                    : "text-slate-200 hover:text-white hover:bg-white/5"
                     }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />

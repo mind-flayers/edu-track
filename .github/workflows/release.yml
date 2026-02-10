@@ -85,7 +85,7 @@ jobs:
           echo "X86_64_SIZE=$X86_64_SIZE" >> $GITHUB_OUTPUT
       
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           repository: mind-flayers/edu-track-releases
           files: |
