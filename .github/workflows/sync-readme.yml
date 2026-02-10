@@ -38,24 +38,31 @@ jobs:
         run: |
           # Create a version without private repo links
           cp README.md README.public.md
-          
+
           # Update repository URLs to point to public repo
           sed -i 's|mind-flayers/edu-track|mind-flayers/edu-track-releases|g' README.public.md
-          
-          # Add notice at the top
+
+          # Remove duplicate top-level title if README already starts with it
+          if head -n1 README.public.md | grep -q '^# 🎓 EduTrack - Academy Management System$'; then
+            sed -i '1d' README.public.md
+            # remove an immediate empty line after the title (if present)
+            sed -i '1{/^$/d}' README.public.md || true
+          fi
+
+          # Add notice at the top (single title preserved)
           cat > README.temp.md << 'EOF'
           # 🎓 EduTrack - Academy Management System
-          
+
           > **📦 This is the PUBLIC RELEASES repository**  
           > Contains only APK releases and documentation. Source code is in a private repository.
-          
+
           ---
-          
+
           EOF
-          
+
           cat README.public.md >> README.temp.md
           mv README.temp.md README.public.md
-          
+
           echo "✅ Public README prepared"
       
       - name: 🔄 Checkout Public Repository
