@@ -73,8 +73,6 @@ jobs:
              build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-armeabi-v7a.apk || true
           mv build/app/outputs/flutter-apk/app-x86_64-release.apk \
              build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-x86_64.apk || true
-          mv build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/edutrack-${{ steps.get_version.outputs.VERSION }}-universal.apk || true
       
       - name: Get APK Sizes
         id: apk_sizes
@@ -82,18 +80,18 @@ jobs:
           ARM64_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk | awk '{print $5}')
           ARMV7_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk | awk '{print $5}')
           X86_64_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-x86_64.apk | awk '{print $5}' 2>/dev/null || echo "-")
-          UNIVERSAL_SIZE=$(ls -lh build/app/outputs/flutter-apk/edutrack-*-universal.apk | awk '{print $5}')
           echo "ARM64_SIZE=$ARM64_SIZE" >> $GITHUB_OUTPUT
           echo "ARMV7_SIZE=$ARMV7_SIZE" >> $GITHUB_OUTPUT
           echo "X86_64_SIZE=$X86_64_SIZE" >> $GITHUB_OUTPUT
-          echo "UNIVERSAL_SIZE=$UNIVERSAL_SIZE" >> $GITHUB_OUTPUT
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           repository: mind-flayers/edu-track-releases
           files: |
-            build/app/outputs/flutter-apk/edutrack-*.apk
+            build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk
+            build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk
+            build/app/outputs/flutter-apk/edutrack-*-x86_64.apk
           name: EduTrack ${{ steps.get_version.outputs.VERSION }}
           body: |
             # 🎓 EduTrack ${{ steps.get_version.outputs.VERSION }}
@@ -110,7 +108,6 @@ jobs:
             | **arm64-v8a** | Most modern phones (recommended) | ${{ steps.apk_sizes.outputs.ARM64_SIZE }} |
             | **armeabi-v7a** | Older Android phones | ${{ steps.apk_sizes.outputs.ARMV7_SIZE }} |
             | **x86_64** | Emulators / Chromebook / desktop testing | ${{ steps.apk_sizes.outputs.X86_64_SIZE }} |
-            | **universal** | All-device compatibility (larger) | ${{ steps.apk_sizes.outputs.UNIVERSAL_SIZE }} |
             
             ## 🔧 Important upgrade notes (read before installing)
             - This release required an Android toolchain upgrade; if you build locally, run `flutter clean` then `flutter pub get`.
@@ -127,17 +124,11 @@ jobs:
             - Some older devices may still require the **armeabi-v7a** build.
             - If you hit Firebase-related runtime errors, confirm the app uses the correct Firebase project (check Settings → About in the app).
             
-            ## 📚 More details
-            - Full changelog: [RELEASE_NOTES_v1.0.0.md](https://github.com/mind-flayers/edu-track-releases/blob/main/RELEASE_NOTES_v1.0.0.md)
-            - Installation guide: [INSTALLATION_GUIDE.md](https://github.com/mind-flayers/edu-track-releases/blob/main/INSTALLATION_GUIDE.md)
-            - CI docs: `.github/SETUP_GITHUB_SECRET.md` (how the Firebase config is provided to Actions)
-            
             ## 🔐 SHA256 checksums
             ```
             arm64-v8a: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk | awk '{print $1}')
             armeabi-v7a: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk | awk '{print $1}')
             x86_64: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-x86_64.apk | awk '{print $1}' 2>/dev/null || echo "missing")
-            universal: $(sha256sum build/app/outputs/flutter-apk/edutrack-*-universal.apk | awk '{print $1}')
             ```
             
             ## 🐛 Report an issue
