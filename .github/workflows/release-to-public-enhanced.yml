@@ -1,4 +1,4 @@
-﻿name: Release to Public Repository (Enhanced)
+name: Release to Public Repository (Enhanced)
 
 # Automated workflow to build APK and publish to public repository
 # Trigger: Push version tags (v1.0.0, v1.1.0, etc.) to private repo
