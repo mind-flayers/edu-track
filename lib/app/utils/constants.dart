@@ -126,7 +126,7 @@ final ThemeData appTheme = ThemeData(
       textStyle: kLinkTextStyle,
     ),
   ),
-  cardTheme: CardTheme(
+  cardTheme: CardThemeData(
     color: kSecondaryColor,
     elevation: 2,
     shadowColor: Colors.black.withOpacity(0.1),
