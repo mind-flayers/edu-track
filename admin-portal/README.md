@@ -21,6 +21,29 @@ Regular academy admins use the main Flutter application and cannot access this p
 - **Cloudinary Integration**: Automatic image upload and management
 - **Super Admin Authentication**: Restricted access with email-based authorization
 
+## Screenshots
+
+<center>
+<table>
+  <tr>
+    <td align="center">
+      <img src="../assets/screenshots/admin-portal-login-page.png" alt="Admin Portal — Sign in" width="360" />
+      <br/>
+      <strong>Admin Portal — Sign in</strong>
+      <br/>
+      <sub>Super‑admin authentication (Next.js portal)</sub>
+    </td>
+    <td align="center">
+      <img src="../assets/screenshots/admin-portal-dashboard.png" alt="Admin Portal — Dashboard" width="360" />
+      <br/>
+      <strong>Admin Portal — Dashboard</strong>
+      <br/>
+      <sub>Overview, quick actions and academy metrics</sub>
+    </td>
+  </tr>
+</table>
+</center>
+
 ## Prerequisites
 
 - Node.js 18+ installed

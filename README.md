@@ -390,6 +390,25 @@ See [`db/database_structure.md`](db/database_structure.md) for complete schema.
   </table>
 </div>
 
+### 🧾 Admin‑portal — Super Admin UI (login & dashboard)
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshots/admin-portal-login-page.png" alt="Admin Portal Sign in" width="320"/><br/>
+        <strong>Admin Portal — Sign in</strong><br/>
+        <sub>Super‑admin authentication (Next.js)</sub>
+      </td>
+      <td align="center">
+        <img src="assets/screenshots/admin-portal-dashboard.png" alt="Admin Portal Dashboard" width="320"/><br/>
+        <strong>Admin Portal — Dashboard</strong><br/>
+        <sub>Export / import controls, quick actions & metrics</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
 ---
 
 ### 🎥 Promo Video
