@@ -19,9 +19,13 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "firebase-admin": "^13.2.0",
-    "firebase-functions": "^6.3.2",
-    "axios": "^1.6.0"
+    "axios": "^1.15.0",
+    "firebase-admin": "^13.8.0",
+    "firebase-functions": "^7.2.5"
+  },
+  "overrides": {
+    "path-to-regexp": "0.1.13",
+    "teeny-request": "10.1.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.1",
