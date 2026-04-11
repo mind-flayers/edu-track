@@ -6,16 +6,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  UserCircle,
-  Settings,
+import { 
+  LayoutDashboard, 
+  Users, 
+  UserCircle, 
+  Settings, 
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  GraduationCap
 } from "lucide-react";
-import Image from "next/image";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -38,27 +38,23 @@ export function Sidebar() {
     <motion.aside
       initial={{ x: -100 }}
       animate={{ x: 0 }}
-      className={`fixed left-0 top-0 h-full z-40 transition-all duration-300 ${isCollapsed ? "w-20" : "w-72"
-        }`}
+      className={`fixed left-0 top-0 h-full z-40 transition-all duration-300 ${
+        isCollapsed ? "w-20" : "w-72"
+      }`}
     >
       <div className="h-full glass-dark m-4 rounded-3xl flex flex-col">
         {/* Logo */}
-        <div className="p-6 flex items-center gap-3 border-b border-white/10 overflow-hidden">
-          <div className="relative w-10 h-10 flex-shrink-0">
-            <Image
-              src="/images/app_logo_high.png"
-              alt="EduTrack Logo"
-              fill
-              className="object-contain"
-            />
+        <div className="p-6 flex items-center gap-3 border-b border-white/10">
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-500 rounded-xl flex items-center justify-center shadow-lg">
+            <GraduationCap className="w-6 h-6 text-white" />
           </div>
           <AnimatePresence>
             {!isCollapsed && (
               <motion.span
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="font-bold text-xl text-white whitespace-nowrap"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="font-bold text-xl text-white"
               >
                 EduTrack
               </motion.span>
@@ -70,18 +66,17 @@ export function Sidebar() {
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
-
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            
             return (
               <Link key={item.href} href={item.href}>
                 <motion.div
                   whileHover={{ x: 4 }}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
-                    ? "bg-white/10 text-white shadow-lg"
-                    : "text-slate-200 hover:text-white hover:bg-white/5"
-                    }`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                    isActive 
+                      ? "bg-white/10 text-white shadow-lg" 
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   <AnimatePresence>
@@ -113,8 +108,9 @@ export function Sidebar() {
           <motion.button
             whileHover={{ scale: 1.02 }}
             onClick={handleSignOut}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-colors ${isCollapsed ? "justify-center" : ""
-              }`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-colors ${
+              isCollapsed ? "justify-center" : ""
+            }`}
           >
             <LogOut className="w-5 h-5" />
             <AnimatePresence>

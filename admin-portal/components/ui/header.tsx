@@ -7,7 +7,7 @@ export function Header() {
   const { user, isSuperAdmin } = useAuth();
 
   return (
-    <header className="fixed top-0 right-0 left-0 lg:left-72 z-30 h-20 px-6 py-4 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
+    <header className="fixed top-0 right-0 left-0 lg:left-72 z-30 p-6">
       <div className="glass-card p-4 flex items-center justify-between">
         <div className="flex items-center gap-4 flex-1 max-w-md">
           <Search className="w-5 h-5 text-slate-400" />

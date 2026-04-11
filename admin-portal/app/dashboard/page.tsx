@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from "framer-motion";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -25,43 +24,16 @@ const itemVariants = {
 };
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
-  const [stats, setStats] = useState({
-    totalAcademies: 0,
-    totalStudents: 0,
-    totalAdmins: 0,
-    monthlyEnrollments: 0
-  });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, authLoading, router]);
+  }, [user, loading, router]);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch('/api/dashboard/stats');
-        const data = await response.json();
-        if (data.success) {
-          setStats(data.data);
-        }
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user) {
-      fetchStats();
-    }
-  }, [user]);
-
-  if (authLoading || !user || loading) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
@@ -74,7 +46,7 @@ export default function DashboardPage() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-8 mt-8"
+      className="space-y-8"
     >
       {/* Hero Section */}
       <motion.div
@@ -91,7 +63,7 @@ export default function DashboardPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <h1 className="text-4xl lg:text-5xl font-bold mb-4">Welcome Back</h1>
+            <h1 className="text-4xl lg:text-5xl font-bold mb-4">Welcome Back, Admin</h1>
             <p className="text-indigo-100 text-lg max-w-xl">
               Here&apos;s your EduTrack overview. Manage academies, administrators, and students from one powerful dashboard.
             </p>
@@ -101,39 +73,33 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Link href="/dashboard/admins">
-          <StatCard
-            title="Total Academies"
-            value={stats.totalAcademies.toString()}
-            change="+2"
-            trend="up"
-            icon={<School className="w-6 h-6" />}
-            color="indigo"
-          />
-        </Link>
-        <Link href="/dashboard/students">
-          <StatCard
-            title="Total Students"
-            value={stats.totalStudents.toString()}
-            change="+124"
-            trend="up"
-            icon={<Users className="w-6 h-6" />}
-            color="cyan"
-          />
-        </Link>
-        <Link href="/dashboard/admins">
-          <StatCard
-            title="Total Admins"
-            value={stats.totalAdmins.toString()}
-            change="+1"
-            trend="up"
-            icon={<TrendingUp className="w-6 h-6" />}
-            color="violet"
-          />
-        </Link>
+        <StatCard
+          title="Total Academies"
+          value="12"
+          change="+2"
+          trend="up"
+          icon={<School className="w-6 h-6" />}
+          color="indigo"
+        />
+        <StatCard
+          title="Total Students"
+          value="2,847"
+          change="+124"
+          trend="up"
+          icon={<Users className="w-6 h-6" />}
+          color="cyan"
+        />
+        <StatCard
+          title="Active Admins"
+          value="48"
+          change="+5"
+          trend="up"
+          icon={<TrendingUp className="w-6 h-6" />}
+          color="violet"
+        />
         <StatCard
           title="This Month"
-          value={stats.monthlyEnrollments.toString()}
+          value="156"
           change="New Enrollments"
           trend="neutral"
           icon={<Calendar className="w-6 h-6" />}

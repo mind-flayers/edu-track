@@ -2,12 +2,11 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from "framer-motion";
 import { InputField } from "@/components/ui/input-field";
 import { GradientButton } from "@/components/ui/gradient-button";
-import { GraduationCap, Settings, Mail, Lock, Eye, EyeOff, RefreshCcw } from "lucide-react";
+import { GraduationCap, Sparkles, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -72,16 +71,11 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.6 }}
           >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="relative w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-2 overflow-hidden">
-                <Image
-                  src="/images/app_logo_high.png"
-                  alt="EduTrack Logo"
-                  fill
-                  className="object-contain p-1"
-                />
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
+                <GraduationCap className="w-10 h-10 text-white" />
               </div>
-              <span className="text-2xl font-bold text-white tracking-tight">EduTrack</span>
+              <span className="text-2xl font-bold text-white">EduTrack</span>
             </div>
             <h1 className="text-5xl font-bold text-white mb-6 leading-tight">
               Empowering Education<br />
@@ -91,19 +85,16 @@ export default function LoginPage() {
             </h1>
             <p className="text-lg text-slate-300 max-w-md leading-relaxed">
               Streamline your academy operations with our premium admin portal.
-              Manage students, administrators, and resources seamlessly.
+              Manage students, administrators, and resources with elegance.
             </p>
 
             <div className="mt-8 flex items-center gap-4 text-sm text-slate-400">
               <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-cyan-400" />
-                <span>Work Automation</span>
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>AI-Powered Insights</span>
               </div>
               <div className="w-1 h-1 bg-slate-600 rounded-full" />
-              <div className="flex items-center gap-2">
-                <RefreshCcw className="w-4 h-4 text-indigo-400" />
-                <span>Real-time Sync</span>
-              </div>
+              <span>Real-time Sync</span>
             </div>
           </motion.div>
         </div>

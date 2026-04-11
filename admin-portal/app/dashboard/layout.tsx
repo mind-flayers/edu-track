@@ -12,7 +12,7 @@ export default function DashboardLayout({
       <Sidebar />
       <div className="lg:pl-72 transition-all duration-300">
         <Header />
-        <main className="px-6 lg:px-8 pb-6 lg:pb-8 pt-28">
+        <main className="p-6 lg:p-8 pt-28">
           <PageTransition>
             {children}
           </PageTransition>
