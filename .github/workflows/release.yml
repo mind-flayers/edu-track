@@ -10,6 +10,8 @@ jobs:
   build:
     name: Build Split APKs
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout Repository
@@ -87,6 +89,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.RELEASES_REPO_TOKEN }}
           repository: mind-flayers/edu-track-releases
           files: |
             build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk
@@ -140,8 +143,6 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
       
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
