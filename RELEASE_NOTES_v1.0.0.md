@@ -390,7 +390,7 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 
 ### Get Help
 - **Email**: mishafhasan@gmail.com
-- **GitHub Issues**: [Report Bug / Request Feature](https://github.com/mind-flayers/edu-track/issues)
+- **GitHub Issues**: [Report Bug / Request Feature](https://github.com/mishafhasan/edu-track/issues)
 - **Documentation**: Check docs/ folder
 
 ### Before Reporting Issues

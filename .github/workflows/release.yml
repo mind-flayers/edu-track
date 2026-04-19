@@ -90,7 +90,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.RELEASES_REPO_TOKEN }}
-          repository: mind-flayers/edu-track-releases
+          repository: mishafhasan/edu-track-releases
           files: |
             build/app/outputs/flutter-apk/edutrack-*-arm64-v8a.apk
             build/app/outputs/flutter-apk/edutrack-*-armeabi-v7a.apk
@@ -135,7 +135,7 @@ jobs:
             ```
             
             ## 🐛 Report an issue
-            Found a problem? Open an issue in the releases repo: https://github.com/mind-flayers/edu-track-releases/issues/new
+            Found a problem? Open an issue in the releases repo: https://github.com/mishafhasan/edu-track-releases/issues/new
             
             ---
             

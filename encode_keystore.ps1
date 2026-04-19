@@ -30,7 +30,7 @@ try {
     
     # Instructions
     Write-Host "Next Steps:" -ForegroundColor Cyan
-    Write-Host "1. Go to: https://github.com/mind-flayers/edu-track/settings/secrets/actions" -ForegroundColor White
+    Write-Host "1. Go to: https://github.com/mishafhasan/edu-track/settings/secrets/actions" -ForegroundColor White
     Write-Host "2. Click New repository secret" -ForegroundColor White
     Write-Host "3. Name: KEYSTORE_BASE64" -ForegroundColor Yellow
     Write-Host "4. Value: Copy entire content from $outputFile" -ForegroundColor Yellow

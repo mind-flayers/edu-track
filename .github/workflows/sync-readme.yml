@@ -21,7 +21,7 @@ on:
       - completed
 
 env:
-  PUBLIC_REPO: 'mind-flayers/edu-track-releases'
+  PUBLIC_REPO: 'mishafhasan/edu-track-releases'
 
 jobs:
   sync-documentation:
@@ -40,7 +40,7 @@ jobs:
           cp README.md README.public.md
 
           # Update repository URLs to point to public repo
-          sed -i 's|mind-flayers/edu-track|mind-flayers/edu-track-releases|g' README.public.md
+          sed -i 's|mishafhasan/edu-track|mishafhasan/edu-track-releases|g' README.public.md
 
           # Remove duplicate top-level title if README already starts with it
           if head -n1 README.public.md | grep -q '^# 🎓 EduTrack - Academy Management System$'; then
@@ -103,7 +103,7 @@ jobs:
           
           If you find a bug or have a feature request:
           
-          1. Check if the issue already exists in [Issues](https://github.com/mind-flayers/edu-track-releases/issues)
+          1. Check if the issue already exists in [Issues](https://github.com/mishafhasan/edu-track-releases/issues)
           2. If not, create a new issue with:
              - Clear description of the problem
              - Steps to reproduce
@@ -118,8 +118,8 @@ jobs:
           
           ## Questions?
           
-          - Check the [FAQ](https://github.com/mind-flayers/edu-track-releases#faq)
-          - Open a [discussion](https://github.com/mind-flayers/edu-track-releases/discussions)
+          - Check the [FAQ](https://github.com/mishafhasan/edu-track-releases#faq)
+          - Open a [discussion](https://github.com/mishafhasan/edu-track-releases/discussions)
           - Email: mishaf1106@gmail.com
           
           ---
