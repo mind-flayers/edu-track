@@ -295,6 +295,17 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
     );
   }
 
+  Future<void> _deleteTempExportFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {
+      // Best-effort cleanup only.
+    }
+  }
+
   // Profile avatar builder
   Widget _buildProfileAvatar() {
     final String? userId = AuthController.instance.user?.uid;
@@ -418,7 +429,7 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
             .value = ex.TextCellValue(payment.description);
       }
 
-      final directory = await getApplicationDocumentsDirectory();
+      final directory = await getTemporaryDirectory();
       final fileName =
           'payment_records_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
       final filePath = '${directory.path}/$fileName';
@@ -426,9 +437,13 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
       final excelFile = File(filePath);
       await excelFile.writeAsBytes(excel.encode()!);
 
-      await Share.shareXFiles([XFile(filePath)],
-          text: 'Payment Records Export');
-      _showSnackBar('Excel file exported successfully');
+      try {
+        await Share.shareXFiles([XFile(filePath)],
+            text: 'Payment Records Export');
+        _showSnackBar('Excel file exported successfully');
+      } finally {
+        await _deleteTempExportFile(filePath);
+      }
     } catch (e) {
       _showSnackBar('Error exporting to Excel: $e', isError: true);
     }
@@ -545,7 +560,7 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
         ),
       );
 
-      final directory = await getApplicationDocumentsDirectory();
+      final directory = await getTemporaryDirectory();
       final fileName =
           'payment_records_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
       final filePath = '${directory.path}/$fileName';
@@ -553,9 +568,13 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
       final pdfFile = File(filePath);
       await pdfFile.writeAsBytes(await pdf.save());
 
-      await Share.shareXFiles([XFile(filePath)],
-          text: 'Payment Records Export');
-      _showSnackBar('PDF file exported successfully');
+      try {
+        await Share.shareXFiles([XFile(filePath)],
+            text: 'Payment Records Export');
+        _showSnackBar('PDF file exported successfully');
+      } finally {
+        await _deleteTempExportFile(filePath);
+      }
     } catch (e) {
       _showSnackBar('Error exporting to PDF: $e', isError: true);
     }

@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:edu_track/app/utils/constants.dart';
+import 'package:edu_track/app/utils/app_logger.dart';
+import 'package:edu_track/app/security/secure_storage_service.dart';
 import 'package:edu_track/app/features/authentication/screens/signin_screen.dart';
 import 'package:edu_track/main.dart'; // Import for AppRoutes
 
@@ -31,14 +33,16 @@ class AuthController extends GetxController {
   // Determine initial screen based on auth state
   _setInitialScreen(User? user) {
     // Add a small delay to ensure widgets are built before navigation
-    Future.delayed(const Duration(milliseconds: 50), () {
+    Future.delayed(const Duration(milliseconds: 50), () async {
       if (user == null) {
         // If user is null, navigate to SignInScreen
-        print("User is null, navigating to SignInScreen");
+        await SecureStorageService.deleteSecret('last_admin_uid');
+        AppLogger.debug('No active session. Navigating to sign-in screen.');
         Get.offAll(() => const SignInScreen());
       } else {
         // If user is logged in, navigate to MainShellScreen (persistent nav bar)
-        print("User is logged in (${user.email}), navigating to MainShellScreen");
+        await SecureStorageService.writeSecret('last_admin_uid', user.uid);
+        AppLogger.debug('Authenticated session detected. Navigating to main shell.');
         // Use named route so NavigationBinding is applied (registers all controllers)
         Get.offAllNamed(AppRoutes.mainShell);
       }
@@ -49,7 +53,12 @@ class AuthController extends GetxController {
   Future<bool> signInWithEmailAndPassword(String email, String password) async {
     isLoading.value = true; // Start loading
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final credentials =
+          await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final loggedInUser = credentials.user;
+      if (loggedInUser != null) {
+        await SecureStorageService.writeSecret('last_admin_uid', loggedInUser.uid);
+      }
       // Use named route so NavigationBinding is applied (registers all controllers)
       Get.offAllNamed(AppRoutes.mainShell);
       isLoading.value = false; // Stop loading
@@ -110,6 +119,7 @@ class AuthController extends GetxController {
     isLoading.value = true; // Start loading
     try {
       await _auth.signOut();
+      await SecureStorageService.deleteSecret('last_admin_uid');
       // Firebase authStateChanges stream will handle navigation via _setInitialScreen
       isLoading.value = false; // Stop loading
     } catch (e) {
