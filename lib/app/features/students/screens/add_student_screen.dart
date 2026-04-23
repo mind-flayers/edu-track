@@ -6,8 +6,10 @@ import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:edu_track/app/features/authentication/controllers/auth_controller.dart';
 // import 'package:edu_track/app/features/profile/screens/profile_settings_screen.dart';
+import 'package:edu_track/app/security/input_sanitizer.dart';
 import 'package:edu_track/app/utils/constants.dart';
 import 'package:edu_track/app/utils/firestore_setup.dart'; // For generateIndexNumber
+import 'package:edu_track/app/utils/app_logger.dart';
 import 'package:edu_track/main.dart'; // Import main for AppRoutes
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -155,7 +157,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         });
       }
     } catch (e) {
-      print('Error fetching subjects for class $className: $e');
+      AppLogger.error('Error fetching subjects for class $className', e);
       if (mounted) setState(() => _subjectsLoading = false);
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -179,7 +181,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   Future<void> _fetchAvailableClasses() async {
     final String? adminUid = AuthController.instance.user?.uid;
     if (adminUid == null) {
-      print("Error: Admin UID is null. Cannot fetch classes for dropdown.");
+      AppLogger.error(
+          'Error: Admin UID is null. Cannot fetch classes for dropdown.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -231,7 +234,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         });
       }
     } catch (e) {
-      print("Error fetching classes: $e");
+      AppLogger.error('Error fetching classes', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error fetching class list: $e')),
@@ -252,7 +255,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         });
       }
     } catch (e) {
-      print("Error picking image: $e");
+      AppLogger.error('Error picking image', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error picking image: $e')),
@@ -278,15 +281,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       // Check for success based on secure_url presence for v0.23.1
       // Note: Error details are limited in this version, rely on catch block.
       if (response.secureUrl.isNotEmpty) {
-        print('Cloudinary Upload Success: ${response.secureUrl}');
+        AppLogger.debug('Cloudinary upload succeeded for student photo.');
         return response.secureUrl;
       } else {
-        print('Cloudinary Upload Error: Failed to get secure URL.');
+        AppLogger.error('Cloudinary upload failed: secureUrl was empty.');
         throw Exception(
             'Failed to upload image. Check Cloudinary logs or preset configuration.');
       }
     } catch (e) {
-      print("Error uploading image to Cloudinary: $e");
+      AppLogger.error('Error uploading image to Cloudinary', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Image upload failed: $e')),
@@ -348,7 +351,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
       return maxIndexNumber + 1;
     } catch (e) {
-      print('Error getting next index number: $e');
+      AppLogger.error('Error getting next index number', e);
       // Fallback: count all students and add to 1000
       final snapshot = await adminRef.collection('students').get();
       return 1001 + snapshot.docs.length;
@@ -382,6 +385,34 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         const SnackBar(
             content:
                 Text('Please select at least one subject for the student.'),
+            backgroundColor: kErrorColor),
+      );
+      return;
+    }
+
+    final String safeName = InputSanitizer.clean(_nameController.text, max: 80);
+    final String safeParentName =
+        InputSanitizer.clean(_parentNameController.text, max: 80);
+    final String safePhone =
+        InputSanitizer.clean(_phoneController.text, max: 15);
+    final String safeWhatsapp =
+        InputSanitizer.clean(_whatsappController.text, max: 15);
+    final String safeAddress =
+        InputSanitizer.clean(_addressController.text, max: 180);
+
+    if (!InputSanitizer.isPhoneValid(safePhone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Invalid parent phone number format.'),
+            backgroundColor: kErrorColor),
+      );
+      return;
+    }
+
+    if (safeWhatsapp.isNotEmpty && !InputSanitizer.isPhoneValid(safeWhatsapp)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Invalid WhatsApp number format.'),
             backgroundColor: kErrorColor),
       );
       return;
@@ -431,15 +462,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
       // 3. Prepare data
       final studentData = {
-        'name': _nameController.text.trim(),
+        'name': safeName,
         'class': _selectedClass,
         'section': studentSection,
         'dob': _selectedDob != null ? Timestamp.fromDate(_selectedDob!) : null,
         'sex': _selectedSex,
-        'parentName': _parentNameController.text.trim(),
-        'parentPhone': _phoneController.text.trim(),
-        'whatsappNumber': _whatsappController.text.trim(),
-        'address': _addressController.text.trim(),
+        'parentName': safeParentName,
+        'parentPhone': safePhone,
+        'whatsappNumber': safeWhatsapp,
+        'address': safeAddress,
         'photoUrl': photoUrl,
         'indexNumber': indexNumber,
         'qrCodeData': studentId, // Use unique ID for QR
@@ -484,7 +515,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         });
       }
     } catch (e) {
-      print("Error adding student: $e");
+      AppLogger.error('Error adding student', e);
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -573,14 +604,14 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               "Failed to save QR code: ${result.errorMessage ?? 'Save error'}");
         }
       } catch (e) {
-        print("Error downloading QR code: $e");
+        AppLogger.error('Error downloading QR code', e);
         _showStatusSnackbar('Download Failed', false); // Use Snackbar
       } finally {
         if (mounted)
           setState(() => _isLoading = false); // Hide loading indicator
       }
     } else {
-      print("Storage/Photos permission denied.");
+      AppLogger.error('Storage/Photos permission denied for QR download.');
       _showStatusSnackbar('Permission Denied', false); // Use Snackbar
       // Optionally guide user to settings: openAppSettings();
     }
@@ -619,7 +650,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
             photoUrl = data['profilePhotoUrl'] as String?;
           }
         } else if (snapshot.hasError) {
-          print("Error fetching admin profile: ${snapshot.error}");
+          AppLogger.error('Error fetching admin profile', snapshot.error);
         }
         if (photoUrl != null && photoUrl.isNotEmpty) {
           profileWidget = CircleAvatar(
@@ -627,7 +658,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
             backgroundColor: kLightTextColor.withOpacity(0.5),
             backgroundImage: NetworkImage(photoUrl),
             onBackgroundImageError: (exception, stackTrace) {
-              print("Error loading profile image: $exception");
+              AppLogger.error(
+                  'Error loading profile image', exception, stackTrace);
             },
           );
         }

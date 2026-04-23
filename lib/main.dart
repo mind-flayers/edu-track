@@ -13,6 +13,7 @@ import 'package:edu_track/app/services/whatsapp_service.dart'; // Import WhatsAp
 import 'package:edu_track/app/services/whatsapp_queue_service.dart'; // Import WhatsApp queue service
 import 'package:edu_track/app/navigation/navigation_controller.dart'; // Import NavigationController
 import 'package:edu_track/app/navigation/main_shell_screen.dart'; // Import MainShellScreen
+import 'package:edu_track/app/utils/app_logger.dart';
 // Import firebase_options.dart (Generated via FlutterFire CLI)
 import 'firebase_options.dart';
 
@@ -28,7 +29,7 @@ void main() async {
   } catch (e) {
     if (e.toString().contains('duplicate-app')) {
       // Firebase already initialized, skip
-      print('Firebase already initialized');
+      AppLogger.debug('Firebase already initialized. Skipping duplicate init.');
     } else {
       // Re-throw other errors
       rethrow;
@@ -108,4 +109,3 @@ class AppPages {
     // GetPage(name: AppRoutes.addTeacher, page: () => AddTeacherScreen(), binding: AddTeacherBinding()),
   ];
 }
-

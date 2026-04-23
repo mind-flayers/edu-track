@@ -29,6 +29,7 @@ import 'package:pdf/pdf.dart' as pdf_core; // PDF page format
 import 'package:printing/printing.dart'; // PDF sharing/printing
 import 'package:flutter/services.dart'
     show rootBundle; // Needed for font loading
+import 'package:edu_track/app/utils/app_logger.dart';
 
 // TODO: Import necessary controllers/providers
 // import 'package:edu_track/app/features/students/controllers/student_details_controller.dart';
@@ -338,7 +339,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
   void _loadInitialData() {
     final String? adminUid = AuthController.instance.user?.uid;
     if (adminUid == null) {
-      print("Error: Admin UID is null. Cannot load student details.");
+      AppLogger.error('Error: Admin UID is null. Cannot load student details.');
       // Set futures to completed with an error or empty data to prevent hangs
       setState(() {
         _studentFuture = Future.error("Admin not logged in");
@@ -368,7 +369,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         });
       }
     }).catchError((error) {
-      print("Error fetching admin profile for academy name: $error");
+      AppLogger.error('Error fetching admin profile for academy name', error);
       // Handle error if needed, maybe show a default name or message
     });
 
@@ -453,7 +454,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
   Future<List<ExamResult>> _fetchExamResults(String? termId) async {
     final String? adminUid = AuthController.instance.user?.uid;
     if (adminUid == null) {
-      print("Error: Admin UID is null. Cannot fetch exam results.");
+      AppLogger.error('Error: Admin UID is null. Cannot fetch exam results.');
       return []; // Return empty list if admin is not logged in
     }
 
@@ -475,7 +476,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
   Future<List<FeeRecord>> _fetchFees(String? year) async {
     final String? adminUid = AuthController.instance.user?.uid;
     if (adminUid == null) {
-      print("Error: Admin UID is null. Cannot fetch fees.");
+      AppLogger.error('Error: Admin UID is null. Cannot fetch fees.');
       return []; // Return empty list if admin is not logged in
     }
 
@@ -492,7 +493,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         // Check if parsing was successful
         query = query.where('year', isEqualTo: parsedYear);
       } else {
-        print("Warning: Invalid year format '$year' provided for fee filter.");
+        AppLogger.error(
+            "Warning: Invalid year format '$year' provided for fee filter.");
         // Decide how to handle invalid year - fetch all or none? Fetching all for now.
       }
     } else {
@@ -508,7 +510,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
       String? year, String? month) async {
     final String? adminUid = AuthController.instance.user?.uid;
     if (adminUid == null) {
-      print("Error: Admin UID is null. Cannot fetch attendance.");
+      AppLogger.error('Error: Admin UID is null. Cannot fetch attendance.');
       return []; // Return empty list if admin is not logged in
     }
 
@@ -577,7 +579,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             photoUrl = data['profilePhotoUrl'] as String?;
           }
         } else if (snapshot.hasError) {
-          print("Error fetching admin profile: ${snapshot.error}");
+          AppLogger.error('Error fetching admin profile', snapshot.error);
         }
 
         if (photoUrl != null && photoUrl.isNotEmpty) {
@@ -586,7 +588,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             backgroundColor: kSecondaryColor.withOpacity(0.5), // Use constant
             backgroundImage: NetworkImage(photoUrl),
             onBackgroundImageError: (exception, stackTrace) {
-              print("Error loading profile image: $exception");
+              AppLogger.error(
+                  'Error loading profile image', exception, stackTrace);
             },
           );
         }
@@ -2153,7 +2156,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
 
       return classDays.length;
     } catch (e) {
-      print('Error calculating total class days: $e');
+      AppLogger.error('Error calculating total class days', e);
       return 0;
     }
   }
@@ -2240,7 +2243,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             error: true);
       }
     } catch (e) {
-      print("Error downloading QR Code: $e");
+      AppLogger.error('Error downloading QR code', e);
       _showToast("Error capturing QR Code: $e", error: true);
     } finally {
       // Hide the QR code again regardless of success/failure
@@ -2261,8 +2264,20 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
     }
 
     try {
+      final uri = Uri.tryParse(photoUrl);
+      if (uri == null || uri.scheme != 'https') {
+        _showToast("Blocked non-HTTPS image URL.", error: true);
+        return;
+      }
+
+      const allowedHosts = {'res.cloudinary.com'};
+      if (!allowedHosts.contains(uri.host.toLowerCase())) {
+        _showToast("Blocked untrusted image host.", error: true);
+        return;
+      }
+
       // Use http package to fetch the image bytes
-      final response = await http.get(Uri.parse(photoUrl));
+      final response = await http.get(uri);
       if (response.statusCode == 200) {
         // Use SaverGallery with correct parameters
         final result = await SaverGallery.saveImage(
@@ -2285,8 +2300,20 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             error: true);
       }
     } catch (e) {
-      print("Error downloading photo: $e");
+      AppLogger.error('Error downloading photo', e);
       _showToast("Error downloading photo: $e", error: true);
+    }
+  }
+
+  Future<void> _deleteTempFileIfExists(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(
+          'Failed to delete temporary file: $filePath', e, stackTrace);
     }
   }
 
@@ -2394,7 +2421,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
           .replaceAll(' ', '_');
       final fileName = 'Fees_${sanitizedStudentName}_$year.xlsx';
       final filePath = '$path/$fileName';
-      print("Saving temporary Excel file to: $filePath");
+      AppLogger.debug('Saving temporary Excel file to: $filePath');
 
       // Save the file to the temporary directory
       final fileBytes = excel.save();
@@ -2403,31 +2430,32 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         await file.writeAsBytes(fileBytes,
             flush: true); // Ensure bytes are written
 
-        // Use share_plus to share the file
-        final xFile = XFile(filePath,
-            name: fileName,
-            mimeType:
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        final result = await Share.shareXFiles([xFile],
-            text: 'Monthly Fees for ${student.name} - $year');
+        try {
+          // Use share_plus to share the file
+          final xFile = XFile(filePath,
+              name: fileName,
+              mimeType:
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+          final result = await Share.shareXFiles([xFile],
+              text: 'Monthly Fees for ${student.name} - $year');
 
-        // Check share result status (optional)
-        if (result.status == ShareResultStatus.success) {
-          _showToast("Fee details for $year ready to be saved/shared.");
-        } else if (result.status == ShareResultStatus.dismissed) {
-          _showToast("Share cancelled for fee details.", error: true);
-        } else {
-          _showToast("Sharing failed for fee details: ${result.status}",
-              error: true);
+          // Check share result status (optional)
+          if (result.status == ShareResultStatus.success) {
+            _showToast("Fee details for $year ready to be saved/shared.");
+          } else if (result.status == ShareResultStatus.dismissed) {
+            _showToast("Share cancelled for fee details.", error: true);
+          } else {
+            _showToast("Sharing failed for fee details: ${result.status}",
+                error: true);
+          }
+        } finally {
+          await _deleteTempFileIfExists(filePath);
         }
-
-        // Optionally delete the temp file after sharing attempt
-        // await file.delete();
       } else {
         _showToast("Failed to generate Excel file.", error: true);
       }
     } catch (e) {
-      print("Error exporting/sharing fees to Excel: $e");
+      AppLogger.error('Error exporting/sharing fees to Excel', e);
       _showToast("Error exporting fees: $e", error: true);
     }
   }
@@ -2703,7 +2731,7 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
                     });
                     Navigator.of(context).pop(); // Close dialog
                   } catch (e) {
-                    print("Error updating exam results: $e");
+                    AppLogger.error('Error updating exam results', e);
                     _showToast("Error updating results: $e", error: true);
                   }
                 } else {
@@ -2817,17 +2845,22 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
       if (fileBytes != null) {
         final file = File(filePath);
         await file.writeAsBytes(fileBytes, flush: true);
-        final xFile = XFile(filePath,
-            name: 'StudentDetails_$sanitizedStudentName.xlsx',
-            mimeType:
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        final result = await Share.shareXFiles([xFile],
-            text: 'Details for ${student.name}');
-        if (result.status == ShareResultStatus.success) {
-          _showToast("Student details ready to be saved/shared.");
-        } else {
-          _showToast("Sharing student details cancelled or failed.",
-              error: true);
+
+        try {
+          final xFile = XFile(filePath,
+              name: 'StudentDetails_$sanitizedStudentName.xlsx',
+              mimeType:
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+          final result = await Share.shareXFiles([xFile],
+              text: 'Details for ${student.name}');
+          if (result.status == ShareResultStatus.success) {
+            _showToast("Student details ready to be saved/shared.");
+          } else {
+            _showToast("Sharing student details cancelled or failed.",
+                error: true);
+          }
+        } finally {
+          await _deleteTempFileIfExists(filePath);
         }
       } else {
         _showToast("Failed to generate Excel file for student details.",
@@ -3047,16 +3080,24 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
       if (fileBytes != null) {
         final file = File(filePath);
         await file.writeAsBytes(fileBytes, flush: true);
-        final xFile = XFile(filePath,
-            name: 'ExamResults_${sanitizedStudentName}_$sanitizedTermName.xlsx',
-            mimeType:
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        final shareResult = await Share.shareXFiles([xFile],
-            text: 'Exam Results for ${student.name} - ${term.name}');
-        if (shareResult.status == ShareResultStatus.success) {
-          _showToast("Exam results for ${term.name} ready to be saved/shared.");
-        } else {
-          _showToast("Sharing exam results cancelled or failed.", error: true);
+
+        try {
+          final xFile = XFile(filePath,
+              name:
+                  'ExamResults_${sanitizedStudentName}_$sanitizedTermName.xlsx',
+              mimeType:
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+          final shareResult = await Share.shareXFiles([xFile],
+              text: 'Exam Results for ${student.name} - ${term.name}');
+          if (shareResult.status == ShareResultStatus.success) {
+            _showToast(
+                "Exam results for ${term.name} ready to be saved/shared.");
+          } else {
+            _showToast("Sharing exam results cancelled or failed.",
+                error: true);
+          }
+        } finally {
+          await _deleteTempFileIfExists(filePath);
         }
       } else {
         _showToast("Failed to generate Excel file for exam results.",
@@ -3257,28 +3298,33 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         final file = File(filePath);
         await file.writeAsBytes(fileBytes, flush: true);
 
-        // Use share_plus to share the file
-        final xFile = XFile(filePath,
-            name: fileName,
-            mimeType:
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        final result = await Share.shareXFiles([xFile],
-            text: 'Attendance for ${student.name} - $monthName $year');
+        try {
+          // Use share_plus to share the file
+          final xFile = XFile(filePath,
+              name: fileName,
+              mimeType:
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+          final result = await Share.shareXFiles([xFile],
+              text: 'Attendance for ${student.name} - $monthName $year');
 
-        if (result.status == ShareResultStatus.success) {
-          _showToast(
-              "Attendance details for $monthName $year ready to be saved/shared.");
-        } else if (result.status == ShareResultStatus.dismissed) {
-          _showToast("Share cancelled for attendance details.", error: true);
-        } else {
-          _showToast("Sharing failed for attendance details: ${result.status}",
-              error: true);
+          if (result.status == ShareResultStatus.success) {
+            _showToast(
+                "Attendance details for $monthName $year ready to be saved/shared.");
+          } else if (result.status == ShareResultStatus.dismissed) {
+            _showToast("Share cancelled for attendance details.", error: true);
+          } else {
+            _showToast(
+                "Sharing failed for attendance details: ${result.status}",
+                error: true);
+          }
+        } finally {
+          await _deleteTempFileIfExists(filePath);
         }
       } else {
         _showToast("Failed to generate Excel file.", error: true);
       }
     } catch (e) {
-      print("Error exporting/sharing attendance to Excel: $e");
+      AppLogger.error('Error exporting/sharing attendance to Excel', e);
       _showToast("Error exporting attendance: $e", error: true);
     }
   }
