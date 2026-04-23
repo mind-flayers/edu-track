@@ -181,7 +181,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   Future<void> _fetchAvailableClasses() async {
     final String? adminUid = AuthController.instance.user?.uid;
     if (adminUid == null) {
-      AppLogger.error('Error: Admin UID is null. Cannot fetch classes for dropdown.');
+      AppLogger.error(
+          'Error: Admin UID is null. Cannot fetch classes for dropdown.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -392,10 +393,12 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     final String safeName = InputSanitizer.clean(_nameController.text, max: 80);
     final String safeParentName =
         InputSanitizer.clean(_parentNameController.text, max: 80);
-    final String safePhone = InputSanitizer.clean(_phoneController.text, max: 15);
+    final String safePhone =
+        InputSanitizer.clean(_phoneController.text, max: 15);
     final String safeWhatsapp =
         InputSanitizer.clean(_whatsappController.text, max: 15);
-    final String safeAddress = InputSanitizer.clean(_addressController.text, max: 180);
+    final String safeAddress =
+        InputSanitizer.clean(_addressController.text, max: 180);
 
     if (!InputSanitizer.isPhoneValid(safePhone)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -655,7 +658,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
             backgroundColor: kLightTextColor.withOpacity(0.5),
             backgroundImage: NetworkImage(photoUrl),
             onBackgroundImageError: (exception, stackTrace) {
-              AppLogger.error('Error loading profile image', exception, stackTrace);
+              AppLogger.error(
+                  'Error loading profile image', exception, stackTrace);
             },
           );
         }

@@ -109,4 +109,3 @@ class AppPages {
     // GetPage(name: AppRoutes.addTeacher, page: () => AddTeacherScreen(), binding: AddTeacherBinding()),
   ];
 }
-

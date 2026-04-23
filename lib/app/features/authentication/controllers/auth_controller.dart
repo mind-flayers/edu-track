@@ -8,7 +8,8 @@ import 'package:edu_track/app/features/authentication/screens/signin_screen.dart
 import 'package:edu_track/main.dart'; // Import for AppRoutes
 
 class AuthController extends GetxController {
-  static AuthController get instance => Get.find(); // Makes it easy to find the instance
+  static AuthController get instance =>
+      Get.find(); // Makes it easy to find the instance
 
   // Firebase Auth instance
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -42,7 +43,8 @@ class AuthController extends GetxController {
       } else {
         // If user is logged in, navigate to MainShellScreen (persistent nav bar)
         await SecureStorageService.writeSecret('last_admin_uid', user.uid);
-        AppLogger.debug('Authenticated session detected. Navigating to main shell.');
+        AppLogger.debug(
+            'Authenticated session detected. Navigating to main shell.');
         // Use named route so NavigationBinding is applied (registers all controllers)
         Get.offAllNamed(AppRoutes.mainShell);
       }
@@ -53,11 +55,12 @@ class AuthController extends GetxController {
   Future<bool> signInWithEmailAndPassword(String email, String password) async {
     isLoading.value = true; // Start loading
     try {
-      final credentials =
-          await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final credentials = await _auth.signInWithEmailAndPassword(
+          email: email, password: password);
       final loggedInUser = credentials.user;
       if (loggedInUser != null) {
-        await SecureStorageService.writeSecret('last_admin_uid', loggedInUser.uid);
+        await SecureStorageService.writeSecret(
+            'last_admin_uid', loggedInUser.uid);
       }
       // Use named route so NavigationBinding is applied (registers all controllers)
       Get.offAllNamed(AppRoutes.mainShell);
@@ -65,15 +68,16 @@ class AuthController extends GetxController {
       return true; // Indicate success
     } on FirebaseAuthException catch (e) {
       isLoading.value = false; // Stop loading on error
-      _showAuthErrorSnackbar("Sign In Failed", e.message ?? "An unknown error occurred.");
+      _showAuthErrorSnackbar(
+          "Sign In Failed", e.message ?? "An unknown error occurred.");
       return false; // Indicate failure
     } catch (e) {
       isLoading.value = false; // Stop loading on general error
-      _showAuthErrorSnackbar("Sign In Failed", "An unexpected error occurred: ${e.toString()}");
+      _showAuthErrorSnackbar(
+          "Sign In Failed", "An unexpected error occurred: ${e.toString()}");
       return false; // Indicate failure
     }
   }
-
 
   // Send Password Reset Email
   // Reverted: signUpWithEmailAndPassword method removed as it's not used in the developer-led workflow.
@@ -101,15 +105,18 @@ class AuthController extends GetxController {
       isLoading.value = false; // Stop loading on error
       // Explicitly check for the 'user-not-found' error code
       if (e.code == 'user-not-found') {
-         _showAuthErrorSnackbar("Account not found", "Please enter a valid email.");
+        _showAuthErrorSnackbar(
+            "Account not found", "Please enter a valid email.");
       } else {
         // Handle other Firebase-specific errors
-        _showAuthErrorSnackbar("Password Reset Failed", e.message ?? "An unknown error occurred.");
+        _showAuthErrorSnackbar(
+            "Password Reset Failed", e.message ?? "An unknown error occurred.");
       }
       return false; // Indicate failure
     } catch (e) {
       isLoading.value = false; // Stop loading on general error
-      _showAuthErrorSnackbar("Password Reset Failed", "An unexpected error occurred: ${e.toString()}");
+      _showAuthErrorSnackbar("Password Reset Failed",
+          "An unexpected error occurred: ${e.toString()}");
       return false; // Indicate failure
     }
   }
@@ -124,7 +131,8 @@ class AuthController extends GetxController {
       isLoading.value = false; // Stop loading
     } catch (e) {
       isLoading.value = false; // Stop loading on error
-      _showAuthErrorSnackbar("Sign Out Failed", "An unexpected error occurred: ${e.toString()}");
+      _showAuthErrorSnackbar(
+          "Sign Out Failed", "An unexpected error occurred: ${e.toString()}");
     }
   }
 

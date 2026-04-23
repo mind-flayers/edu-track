@@ -493,7 +493,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         // Check if parsing was successful
         query = query.where('year', isEqualTo: parsedYear);
       } else {
-        AppLogger.error("Warning: Invalid year format '$year' provided for fee filter.");
+        AppLogger.error(
+            "Warning: Invalid year format '$year' provided for fee filter.");
         // Decide how to handle invalid year - fetch all or none? Fetching all for now.
       }
     } else {
@@ -587,7 +588,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
             backgroundColor: kSecondaryColor.withOpacity(0.5), // Use constant
             backgroundImage: NetworkImage(photoUrl),
             onBackgroundImageError: (exception, stackTrace) {
-              AppLogger.error('Error loading profile image', exception, stackTrace);
+              AppLogger.error(
+                  'Error loading profile image', exception, stackTrace);
             },
           );
         }
@@ -2310,7 +2312,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
         await file.delete();
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Failed to delete temporary file: $filePath', e, stackTrace);
+      AppLogger.error(
+          'Failed to delete temporary file: $filePath', e, stackTrace);
     }
   }
 
@@ -3080,15 +3083,18 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
 
         try {
           final xFile = XFile(filePath,
-              name: 'ExamResults_${sanitizedStudentName}_$sanitizedTermName.xlsx',
+              name:
+                  'ExamResults_${sanitizedStudentName}_$sanitizedTermName.xlsx',
               mimeType:
                   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
           final shareResult = await Share.shareXFiles([xFile],
               text: 'Exam Results for ${student.name} - ${term.name}');
           if (shareResult.status == ShareResultStatus.success) {
-            _showToast("Exam results for ${term.name} ready to be saved/shared.");
+            _showToast(
+                "Exam results for ${term.name} ready to be saved/shared.");
           } else {
-            _showToast("Sharing exam results cancelled or failed.", error: true);
+            _showToast("Sharing exam results cancelled or failed.",
+                error: true);
           }
         } finally {
           await _deleteTempFileIfExists(filePath);
@@ -3307,7 +3313,8 @@ class _StudentDetailsScreenState extends State<StudentDetailsScreen> {
           } else if (result.status == ShareResultStatus.dismissed) {
             _showToast("Share cancelled for attendance details.", error: true);
           } else {
-            _showToast("Sharing failed for attendance details: ${result.status}",
+            _showToast(
+                "Sharing failed for attendance details: ${result.status}",
                 error: true);
           }
         } finally {
